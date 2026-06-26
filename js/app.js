@@ -38,7 +38,7 @@ const App = (() => {
     filteredData = FineData.getFiltered(Filters.getState());
     aggregates = FineData.getAggregates(filteredData);
     KPICards.render(aggregates);
-    Charts.renderAll(aggregates, filteredData);
+    Charts.renderAll(aggregates, filteredData, Filters.getState());
     Tables.render(filteredData);
 
     // ── Wire filter changes ──
@@ -47,7 +47,7 @@ const App = (() => {
       const newAggregates = FineData.getAggregates(filtered);
 
       KPICards.update(newAggregates);
-      Charts.updateAll(newAggregates, filtered);
+      Charts.updateAll(newAggregates, filtered, filterState);
       Tables.update(filtered);
     });
 

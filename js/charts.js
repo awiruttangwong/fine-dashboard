@@ -66,8 +66,18 @@ const Charts = (() => {
       .replace(/'/g, '&#39;');
   }
 
+  function formatMonthLabel(monthValue) {
+    const match = String(monthValue || '').match(/^(\d{4})-(\d{2})$/);
+    if (!match) return '';
+
+    const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const yearBE = Number(match[1]) + 543;
+    const monthLabel = THAI_MONTHS_FULL[Number(match[2]) - 1] || '';
+    return monthLabel ? `${monthLabel} ${yearBE}` : '';
+  }
+
   // ── 1. Daily Fine Trend (Bar + Premium Smooth Line) ──
-  function renderDailyTrend(aggregates) {
+  function renderDailyTrend(aggregates, selectedMonth) {
     destroyChart('dailyTrend');
     const canvas = document.getElementById('chart-daily-trend');
     if (!canvas) return;
@@ -84,19 +94,14 @@ const Charts = (() => {
       return `${dayVal} ${monthLabel}`;
     });
 
-    // ── Subtitle (update dynamic date range text) ──
+    // ── Subtitle (update dynamic selected-month text) ──
     const subtitleEl = canvas.closest('.chart-card').querySelector('.chart-card__subtitle');
     if (subtitleEl) {
-      if (dates.length > 0) {
-        const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-        const firstParts = dates[0].split('-');
-        const lastParts = dates[dates.length - 1].split('-');
-        const yearBE = parseInt(firstParts[0]) + 543;
-        const monthIdx = parseInt(firstParts[1]) - 1;
-        const monthLabel = THAI_MONTHS_FULL[monthIdx] || '';
-        const startDay = parseInt(firstParts[2]);
-        const endDay = parseInt(lastParts[2]);
-        subtitleEl.textContent = `ยอดค่าปรับและจำนวนรายการ ตั้งแต่ ${startDay}-${endDay} ${monthLabel} ${yearBE}`;
+      const selectedMonthLabel = formatMonthLabel(selectedMonth || (dates[0] ? dates[0].slice(0, 7) : ''));
+      if (dates.length > 0 && selectedMonthLabel) {
+        subtitleEl.textContent = `ยอดค่าปรับและจำนวนรายการ ประจำเดือน${selectedMonthLabel}`;
+      } else if (selectedMonthLabel) {
+        subtitleEl.textContent = `ไม่มีข้อมูลสำหรับเดือน${selectedMonthLabel}`;
       } else {
         subtitleEl.textContent = `ไม่มีข้อมูลสำหรับเดือนนี้`;
       }
@@ -503,16 +508,16 @@ const Charts = (() => {
   }
 
   // ── Public API ──
-  function renderAll(aggregates, filteredData) {
-    renderDailyTrend(aggregates);
+  function renderAll(aggregates, filteredData, filters = {}) {
+    renderDailyTrend(aggregates, filters.selectedMonth);
     renderCustomerChart(aggregates);
     renderTopDrivers(aggregates);
     renderPaymentStatus(aggregates);
     renderFullRoutes(filteredData || FineData.getAll());
   }
 
-  function updateAll(aggregates, filteredData) {
-    renderAll(aggregates, filteredData);
+  function updateAll(aggregates, filteredData, filters = {}) {
+    renderAll(aggregates, filteredData, filters);
   }
 
   return { renderAll, updateAll };
