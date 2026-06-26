@@ -67,9 +67,7 @@ const Filters = (() => {
     // selectedMonth is always active — don't count it as a manual filter
     if (state.customers.length > 0) count++;
     if (state.driver) count++;
-    if (state.routeGroups.length > 0) count++;
     if (state.vehicleType) count++;
-    if (state.routeStatuses.length > 0) count++;
     if (state.paymentStatuses.length > 0) count++;
     if (state.qualityFlags.length > 0) count++;
     return count;
@@ -121,14 +119,6 @@ const Filters = (() => {
     };
     const paymentStatusItems = Object.entries(aggregates.paymentStatusCounts)
       .map(([name, count]) => ({ value: name, label: paymentStatusLabels[name] || name, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const routeGroupItems = Object.entries(aggregates.routeGroupCounts)
-      .map(([name, count]) => ({ value: name, label: name, count }))
-      .sort((a, b) => b.count - a.count);
-
-    const routeStatusItems = Object.entries(aggregates.routeStatusCounts)
-      .map(([name, count]) => ({ value: name, label: name, count }))
       .sort((a, b) => b.count - a.count);
 
     const qualityFlagItems = [
@@ -196,8 +186,6 @@ const Filters = (() => {
 
       ${createChipGroup('ลูกค้า', ICONS.building, customerItems, state.customers, 'customers')}
 
-      ${createChipGroup('กลุ่มเส้นทาง', ICONS.route, routeGroupItems, state.routeGroups, 'routeGroups')}
-
       <div class="filter-group">
         <div class="filter-group__label">
           <span class="filter-group__label-icon">${ICONS.truck}</span>
@@ -220,7 +208,6 @@ const Filters = (() => {
         </select>
       </div>
 
-      ${createChipGroup('สถานะเส้นทาง', ICONS.mapPin, routeStatusItems, state.routeStatuses, 'routeStatuses')}
       ${createChipGroup('สถานะการชำระ', ICONS.creditCard, paymentStatusItems, state.paymentStatuses, 'paymentStatuses')}
       ${qualityFlagItems.length > 0 ? createChipGroup('ความถูกต้องของข้อมูล', ICONS.search, qualityFlagItems, state.qualityFlags, 'qualityFlags') : ''}
     `;
