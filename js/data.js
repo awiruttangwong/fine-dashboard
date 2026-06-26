@@ -4,6 +4,19 @@
    ============================================================ */
 
 const FineData = (() => {
+  const ALLOWED_VEHICLES = new Set([
+    '10W',
+    '14W',
+    '18W',
+    '22W',
+    '4W',
+    '4WJ',
+    '6W5.5',
+    '6W6.5',
+    '6W7.2',
+    '6W8.8'
+  ]);
+
   const DEFAULT_CONFIG = {
     gasEndpoint: '',
     useJsonp: true,
@@ -281,9 +294,8 @@ const FineData = (() => {
 
   function parseRoute(routeRaw) {
     const tokens = cleanText(routeRaw).split('-').filter(Boolean);
-    const vehicleSet = new Set(['2WNT', '4W', '4WJ', '6W5.5', '6W6.5', '6W7.2', '6W8.8', '10W', '14W', '18W', '22W', 'BTS']);
     const statusSet = new Set(['RO', 'RS1', 'RS2', 'SOCN', 'SOCE']);
-    const vehicleType = tokens.find(token => vehicleSet.has(token)) || null;
+    const vehicleType = tokens.find(token => ALLOWED_VEHICLES.has(token)) || null;
     const routeTime = tokens.find(token => /^\d{1,2}:\d{2}$/.test(token)) || null;
     const suffix = tokens[tokens.length - 1] || null;
 

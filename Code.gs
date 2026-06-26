@@ -2,6 +2,18 @@ const SPREADSHEET_ID = '1XTMe3z8FZ9i4XSyX_N632ZxM8otd3eeQvhTsI6kZWJc';
 const SHEET_NAME = 'data';
 const SOURCE_FILE = 'Google Sheet: Fine Dashboard';
 const SOURCE_SHEET = 'data';
+const ALLOWED_VEHICLES = {
+  '10W': true,
+  '14W': true,
+  '18W': true,
+  '22W': true,
+  '4W': true,
+  '4WJ': true,
+  '6W5.5': true,
+  '6W6.5': true,
+  '6W7.2': true,
+  '6W8.8': true
+};
 
 function doGet(e) {
   const params = (e && e.parameter) || {};
@@ -213,20 +225,6 @@ function parseRoute_(routeRaw) {
     return token !== '';
   });
   const routeGroup = tokens[0] || null;
-  const vehicleSet = {
-    '2WNT': true,
-    '4W': true,
-    '4WJ': true,
-    '6W5.5': true,
-    '6W6.5': true,
-    '6W7.2': true,
-    '6W8.8': true,
-    '10W': true,
-    '14W': true,
-    '18W': true,
-    '22W': true,
-    'BTS': true
-  };
   const statusSet = {
     RO: true,
     RS1: true,
@@ -238,7 +236,7 @@ function parseRoute_(routeRaw) {
   let routeTime = null;
 
   tokens.forEach(function(token) {
-    if (!vehicleType && vehicleSet[token]) vehicleType = token;
+    if (!vehicleType && ALLOWED_VEHICLES[token]) vehicleType = token;
     if (!routeTime && /^\d{1,2}:\d{2}$/.test(token)) routeTime = token;
   });
 
