@@ -4,7 +4,7 @@ window.FINE_DASHBOARD_CONFIG = {
 
   // Deploy the Apps Script project as a Web App and paste the /exec URL here.
   // Example: https://script.google.com/macros/s/DEPLOYMENT_ID/exec
-  gasEndpoint: 'https://script.google.com/macros/s/AKfycbxly9SKDLNs7XY7J9ufAKxhByvocpXVq-Ka_8B1mNFQ6PVPypIVux9gR7ThcHeByNKL/exec',
+  gasEndpoint: 'https://script.google.com/macros/s/AKfycbyGOWyesEhmqrpkqJv3DGbEfH6M4QQvFS0x-DLWCvsHT_1oRKjhIXhNPYMr2HKi203C/exec',
 
   useJsonp: true,
   requestTimeoutMs: 20000
