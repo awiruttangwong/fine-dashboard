@@ -1,0 +1,10 @@
+.agents/
+.codex/
+.netlify/
+skills/
+node_modules/
+
+.DS_Store
+Thumbs.db
+*.log
+Data *.xlsx

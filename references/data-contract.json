@@ -1,0 +1,204 @@
+{
+  "source": {
+    "workbook": "Data ค่าปรับ.xlsx",
+    "sheet": "data",
+    "header_row": 1,
+    "actual_data_range": "A1:I123",
+    "ignored_range": "J:Z",
+    "data_row_count": 122
+  },
+  "raw_columns": [
+    {
+      "excel_column": "A",
+      "raw_header": "วันที่",
+      "canonical_fields": ["fine_date_raw", "fine_date"],
+      "target_type": "date",
+      "required": true
+    },
+    {
+      "excel_column": "B",
+      "raw_header": "ลูกค้า",
+      "canonical_fields": ["customer"],
+      "target_type": "category_text",
+      "required": true
+    },
+    {
+      "excel_column": "C",
+      "raw_header": "บาร์โค้ด",
+      "canonical_fields": ["barcode"],
+      "target_type": "identifier_text",
+      "required": true
+    },
+    {
+      "excel_column": "D",
+      "raw_header": "เส้นทาง",
+      "canonical_fields": ["route_raw", "route_group", "vehicle_type", "route_time", "route_status", "route_tokens"],
+      "target_type": "route_text",
+      "required": true
+    },
+    {
+      "excel_column": "E",
+      "raw_header": "ชื่อ พขร",
+      "canonical_fields": ["driver_name"],
+      "target_type": "person_text",
+      "required": false
+    },
+    {
+      "excel_column": "F",
+      "raw_header": "ชื่อผู้รับโอน",
+      "canonical_fields": ["transfer_receiver_name"],
+      "target_type": "person_text",
+      "required": false
+    },
+    {
+      "excel_column": "G",
+      "raw_header": "ยอดปรับ",
+      "canonical_fields": ["fine_amount"],
+      "target_type": "number",
+      "required": true
+    },
+    {
+      "excel_column": "H",
+      "raw_header": "ปรับได้",
+      "canonical_fields": ["paid_amount"],
+      "target_type": "number",
+      "required": false
+    },
+    {
+      "excel_column": "I",
+      "raw_header": "คงเหลือ",
+      "canonical_fields": ["remaining_amount"],
+      "target_type": "number",
+      "required": false
+    }
+  ],
+  "canonical_fields": [
+    "source_file",
+    "source_sheet",
+    "source_row",
+    "raw_record_hash",
+    "fine_date_raw",
+    "fine_date",
+    "fine_date_parse_status",
+    "fine_year",
+    "fine_month",
+    "fine_day",
+    "customer",
+    "barcode",
+    "route_raw",
+    "route_group",
+    "vehicle_type",
+    "route_time",
+    "route_status",
+    "route_tokens",
+    "driver_name",
+    "transfer_receiver_name",
+    "fine_amount",
+    "paid_amount",
+    "remaining_amount",
+    "computed_remaining_amount",
+    "payment_status",
+    "is_full_duplicate",
+    "is_barcode_duplicate",
+    "is_driver_blank",
+    "is_receiver_blank",
+    "has_amount_mismatch"
+  ],
+  "date_normalization": {
+    "expected_business_period_inference": "2026-06-01 through 2026-06-21",
+    "rules": [
+      {
+        "when": "text matching d/m/yyyy or dd/mm/yyyy",
+        "action": "parse day-first",
+        "status": "ok_text_dmy"
+      },
+      {
+        "when": "Excel datetime in this workbook where year=2026, day=6, month=1..12",
+        "action": "swap month/day to produce June 1..12, 2026",
+        "status": "ok_excel_serial_swapped"
+      },
+      {
+        "when": "future Excel datetime does not match workbook-specific swap pattern",
+        "action": "keep actual date only after review",
+        "status": "ok_excel_serial_as_is"
+      },
+      {
+        "when": "unparseable date",
+        "action": "set fine_date null",
+        "status": "invalid"
+      }
+    ]
+  },
+  "quality_rules": {
+    "full_duplicate": "same raw A-I values after trimming",
+    "barcode_duplicate": "same nonblank barcode appears on more than one source row",
+    "driver_blank": "driver_name is null or empty after trimming",
+    "receiver_blank": "transfer_receiver_name is null or empty after trimming",
+    "amount_mismatch": "remaining_amount is present and remaining_amount != fine_amount - coalesce(paid_amount, 0)"
+  },
+  "payment_status_rules": {
+    "paid": "paid_amount >= fine_amount and computed remaining <= 0 and no mismatch flag",
+    "partial": "paid_amount > 0 and paid_amount < fine_amount",
+    "open": "paid_amount is null or 0 and no amount mismatch flag",
+    "overpaid": "paid_amount > fine_amount",
+    "data_error": "amount mismatch or unexpected negative amount"
+  },
+  "dashboard_contract": {
+    "kpi_cards": [
+      "fine_count",
+      "total_fine_amount",
+      "paid_amount",
+      "computed_remaining_amount",
+      "collection_rate",
+      "data_quality_issue_count"
+    ],
+    "filters": [
+      "fine_date",
+      "customer",
+      "driver_name",
+      "route_group",
+      "vehicle_type",
+      "route_status",
+      "payment_status",
+      "quality_flag"
+    ],
+    "charts": [
+      "daily_fine_trend",
+      "fine_amount_by_customer",
+      "top_drivers",
+      "top_routes",
+      "route_group_distribution",
+      "payment_status_distribution"
+    ],
+    "tables": [
+      "raw_fine_list",
+      "duplicate_barcode_watchlist",
+      "amount_mismatch_watchlist",
+      "blank_driver_receiver_watchlist"
+    ]
+  },
+  "current_profile": {
+    "fine_rows": 122,
+    "total_fine_amount": 21700,
+    "recorded_paid_amount": 300,
+    "source_remaining_sum_where_filled": -200,
+    "customer_count": 2,
+    "unique_barcodes": 113,
+    "unique_routes": 75,
+    "unique_drivers_excluding_blank": 69,
+    "blank_driver_rows": 5,
+    "blank_receiver_rows": 122,
+    "full_duplicate_rows": 1,
+    "duplicate_barcode_values": [
+      "SAM1QHPQ45",
+      "KKC1QM2E72",
+      "UTH1QMN727",
+      "AYU1QZ7A54",
+      "SAM1R0X872",
+      "NAK1R4BM72",
+      "BKK1R52K45",
+      "BFV1R4A109",
+      "BKK1R63R18"
+    ]
+  }
+}

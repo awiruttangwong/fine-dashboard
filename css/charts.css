@@ -1,0 +1,412 @@
+/* ============================================================
+   Fine Dashboard — Chart Styles
+   Chart containers, driver ranking, route status bars,
+   full route detail list, responsive sizing
+   ============================================================ */
+
+/* ── Chart Card ── */
+.chart-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border-light);
+  overflow: hidden;
+  transition: all var(--transition-base);
+  animation: fadeIn 0.6s ease forwards;
+  opacity: 0;
+}
+
+.chart-card:nth-child(1) { animation-delay: 0.1s; }
+.chart-card:nth-child(2) { animation-delay: 0.15s; }
+.chart-card:nth-child(3) { animation-delay: 0.2s; }
+.chart-card:nth-child(4) { animation-delay: 0.25s; }
+.chart-card:nth-child(5) { animation-delay: 0.3s; }
+.chart-card:nth-child(6) { animation-delay: 0.35s; }
+
+.chart-card:hover {
+  box-shadow: var(--shadow-card-hover);
+}
+
+.chart-card__header {
+  padding: var(--space-5) var(--space-5) 0;
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: var(--space-3);
+}
+
+.chart-card__title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.chart-card__subtitle {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-top: 2px;
+}
+
+.chart-card__action {
+  flex-shrink: 0;
+}
+
+.chart-card__body {
+  padding: var(--space-4) var(--space-5) var(--space-5);
+  position: relative;
+}
+
+/* Full-width trend card gets tighter side padding so chart stretches edge-to-edge */
+.chart-card--full .chart-card__body {
+  padding: var(--space-3) var(--space-4) var(--space-4);
+}
+
+/* ── Chart Canvas Container ── */
+.chart-container {
+  position: relative;
+  width: 100%;
+}
+
+.chart-container--line { height: 320px; }
+.chart-container--bar  { height: 280px; }
+
+.chart-container--doughnut {
+  height: 260px;
+  max-width: 320px;
+  margin: 0 auto;
+}
+
+/* ── Chart Legend Custom ── */
+.chart-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-5) var(--space-4);
+  justify-content: center;
+}
+
+.chart-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.chart-legend__color {
+  width: 10px;
+  height: 10px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.chart-legend__value {
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  margin-left: var(--space-1);
+}
+
+
+
+
+/* ── Full-width chart ── */
+.chart-card--full {
+  grid-column: 1 / -1;
+}
+
+/* ══════════════════════════════════════════════════════════════
+   DRIVER RANKING LIST (replaces plain bar chart)
+   ══════════════════════════════════════════════════════════════ */
+
+.driver-rank-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.driver-rank-item:last-child {
+  border-bottom: none;
+}
+
+.driver-rank-item__rank {
+  width: 28px;
+  height: 28px;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+}
+
+.driver-rank-item__info {
+  flex: 1;
+  min-width: 0;
+}
+
+.driver-rank-item__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: 4px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.driver-rank-item__bar-track {
+  height: 4px;
+  background: var(--color-bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.driver-rank-item__bar-fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.driver-rank-item__count {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+  flex-shrink: 0;
+  min-width: 50px;
+}
+
+.driver-rank-item__count-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   ROUTE STATUS BARS (replaces plain bar chart)
+   ══════════════════════════════════════════════════════════════ */
+
+.status-bar-item {
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.status-bar-item:last-child {
+  border-bottom: none;
+}
+
+.status-bar-item__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: var(--space-2);
+}
+
+.status-bar-item__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.status-bar-item__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.status-bar-item__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  letter-spacing: 0.02em;
+}
+
+.status-bar-item__values {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-2);
+}
+
+.status-bar-item__count {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar-item__pct {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+.status-bar-item__track {
+  height: 6px;
+  background: var(--color-bg);
+  border-radius: var(--radius-full);
+  overflow: hidden;
+}
+
+.status-bar-item__fill {
+  height: 100%;
+  border-radius: var(--radius-full);
+  transition: width 0.8s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+/* ══════════════════════════════════════════════════════════════
+   FULL ROUTE DETAIL LIST (shows complete route strings)
+   ══════════════════════════════════════════════════════════════ */
+
+.route-detail-list {
+  max-height: 480px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-divider) transparent;
+}
+
+/* Custom scrollbar for Webkit inside this card */
+.route-detail-list::-webkit-scrollbar {
+  width: 6px;
+}
+.route-detail-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+.route-detail-list::-webkit-scrollbar-thumb {
+  background: var(--color-divider);
+  border-radius: var(--radius-full);
+}
+.route-detail-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
+.route-detail-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  margin-right: var(--space-3); /* Significant gap to separate card hover from scrollbar track */
+  margin-bottom: var(--space-1);
+  border-bottom: 1px solid var(--color-border-light);
+  transition: all var(--transition-fast);
+  border-radius: var(--radius-md);
+}
+
+.route-detail-row:last-child {
+  border-bottom: 1px solid var(--color-border-light);
+}
+
+.route-detail-row:hover {
+  background: var(--color-accent-surface);
+  border-bottom-color: transparent; /* Smooth hover transition */
+}
+
+.route-detail-row__badge {
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  flex-shrink: 0;
+  min-width: 52px;
+  text-align: center;
+  letter-spacing: 0.02em;
+}
+
+.route-detail-row__route {
+  flex: 1;
+  min-width: 0;
+}
+
+.route-detail-row__path {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  letter-spacing: 0;
+  display: block;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  background: none;
+}
+
+.route-detail-row__meta {
+  display: flex;
+  gap: var(--space-1);
+  margin-top: 3px;
+  flex-wrap: wrap;
+}
+
+.route-meta-tag {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px 6px;
+  border-radius: var(--radius-sm);
+  font-size: 0.625rem;
+  font-weight: var(--font-weight-medium);
+  background: var(--color-bg);
+  color: var(--color-text-muted);
+  letter-spacing: 0.01em;
+}
+
+.route-meta-tag--status {
+  background: var(--color-accent-light);
+  color: var(--color-accent);
+}
+
+.route-detail-row__stats {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  flex-shrink: 0;
+  min-width: 70px;
+}
+
+.route-detail-row__count {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  font-variant-numeric: tabular-nums;
+}
+
+.route-detail-row__count small {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.route-detail-row__fine {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ── Responsive ── */
+@media (max-width: 640px) {
+  .chart-container--line,
+  .chart-container--bar {
+    height: 220px;
+  }
+
+  .chart-container--doughnut {
+    height: 200px;
+  }
+
+  .chart-card__body {
+    padding: var(--space-3);
+  }
+
+  .route-detail-row__path {
+    font-size: 0.625rem;
+  }
+
+  .driver-rank-item__name {
+    max-width: 120px;
+  }
+}

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="th">
+
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description"
+    content="Dashboard — ระบบแดชบอร์ดข้อมูลค่าปรับ สำหรับติดตามและวิเคราะห์ข้อมูลค่าปรับอย่างครบถ้วน">
+  <meta name="theme-color" content="#FFFFFF">
+  <title>ระบบติดตามข้อมูลค่าปรับ — Dashboard</title>
+
+  <!-- Google Fonts: Prompt -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+
+  <!-- CSS Design System -->
+  <link rel="stylesheet" href="css/variables.css">
+  <link rel="stylesheet" href="css/base.css">
+  <link rel="stylesheet" href="css/layout.css">
+  <link rel="stylesheet" href="css/components.css">
+  <link rel="stylesheet" href="css/charts.css">
+  <link rel="stylesheet" href="css/tables.css">
+</head>
+
+<body>
+  <div class="app">
+
+    <!-- ── Mobile Menu Toggle ── -->
+    <button class="mobile-menu-toggle" id="mobile-menu-toggle" aria-label="เปิดเมนู">
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+        stroke-linecap="round">
+        <line x1="3" y1="6" x2="21" y2="6" />
+        <line x1="3" y1="12" x2="21" y2="12" />
+        <line x1="3" y1="18" x2="21" y2="18" />
+      </svg>
+    </button>
+
+    <!-- ── Sidebar Overlay (mobile) ── -->
+    <div class="sidebar-overlay" id="sidebar-overlay"></div>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- SIDEBAR                                                    -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <aside class="sidebar" id="sidebar">
+
+      <!-- Logo -->
+      <div class="sidebar__header">
+        <div class="sidebar__logo">
+          <div class="sidebar__logo-icon">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" stroke-width="2"
+              stroke-linecap="round" stroke-linejoin="round">
+              <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+              <polyline points="14 2 14 8 20 8" />
+              <line x1="16" y1="13" x2="8" y2="13" />
+              <line x1="16" y1="17" x2="8" y2="17" />
+              <polyline points="10 9 9 9 8 9" />
+            </svg>
+          </div>
+          <div class="sidebar__logo-text">
+            <div class="sidebar__logo-title">Dashboard</div>
+            <div class="sidebar__logo-subtitle">สรุปผลและติดตามข้อมูลค่าปรับ</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filters -->
+      <div class="sidebar__filters" id="sidebar-filters">
+        <!-- Rendered by Filters.render() -->
+      </div>
+
+      <!-- Footer -->
+      <div class="sidebar__footer">
+        <div class="sidebar__footer-text">
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+            style="display: inline; vertical-align: -2px; margin-right: 4px;">
+            <circle cx="12" cy="12" r="10" />
+            <polyline points="12 6 12 12 16 14" />
+          </svg>
+          ข้อมูล ณ <span id="sidebar-date"></span>
+        </div>
+      </div>
+    </aside>
+
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <!-- MAIN CONTENT                                               -->
+    <!-- ══════════════════════════════════════════════════════════ -->
+    <main class="main">
+
+      <!-- ── Header ── -->
+      <header class="main__header">
+        <div class="main__header-row">
+          <div>
+            <h1 class="main__title">รายงานสรุปและติดตามข้อมูลค่าปรับ</h1>
+          </div>
+        </div>
+      </header>
+
+      <!-- ── Content ── -->
+      <div class="main__content">
+        <div class="main__content-inner">
+
+          <!-- ── KPI Summary Cards ── -->
+          <section class="section" id="section-kpi">
+            <div class="section__title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <rect x="3" y="3" width="18" height="18" rx="2" ry="2" />
+                <line x1="3" y1="9" x2="21" y2="9" />
+                <line x1="9" y1="21" x2="9" y2="9" />
+              </svg>
+              สรุปภาพรวม
+            </div>
+            <div class="kpi-grid" id="kpi-grid">
+              <!-- Rendered by KPICards.render() -->
+            </div>
+          </section>
+
+          <!-- ── Charts Section ── -->
+          <section class="section" id="section-charts">
+            <div class="section__title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <line x1="18" y1="20" x2="18" y2="10" />
+                <line x1="12" y1="20" x2="12" y2="4" />
+                <line x1="6" y1="20" x2="6" y2="14" />
+              </svg>
+              กราฟแสดงผล
+            </div>
+
+            <!-- Row 1: Daily Trend (full-width) -->
+            <div class="charts-grid charts-grid--wide" style="margin-bottom: var(--space-5);">
+              <div class="chart-card chart-card--full">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">แนวโน้มค่าปรับรายวัน</div>
+                    <div class="chart-card__subtitle">กำลังโหลดข้อมูล...</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div class="chart-container chart-container--line">
+                    <canvas id="chart-daily-trend"></canvas>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 2: Customer + Payment Status (2-column layout) -->
+            <div class="charts-grid" style="margin-bottom: var(--space-5);">
+              <!-- Customer Doughnut -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">ค่าปรับตามลูกค้า</div>
+                    <div class="chart-card__subtitle">สัดส่วนยอดปรับแยกตามลูกค้า</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div class="chart-container chart-container--doughnut">
+                    <canvas id="chart-customer"></canvas>
+                  </div>
+                </div>
+                <div class="chart-legend" id="legend-customer"></div>
+              </div>
+
+              <!-- Payment Status Doughnut -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">สถานะการชำระเงิน</div>
+                    <div class="chart-card__subtitle">สัดส่วนสถานะการชำระทั้งหมด</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div class="chart-container chart-container--doughnut">
+                    <canvas id="chart-payment-status"></canvas>
+                  </div>
+                </div>
+                <div class="chart-legend" id="legend-payment-status"></div>
+              </div>
+            </div>
+
+            <!-- Row 3: Route Group + Route Status -->
+            <div class="charts-grid" style="margin-bottom: var(--space-5);">
+              <!-- Route Group Doughnut -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">สัดส่วนกลุ่มเส้นทาง</div>
+                    <div class="chart-card__subtitle">จำนวนรายการค่าปรับแยกตามกลุ่มเส้นทาง</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div class="chart-container chart-container--doughnut">
+                    <canvas id="chart-route-groups"></canvas>
+                  </div>
+                </div>
+                <div class="chart-legend" id="legend-route-groups"></div>
+              </div>
+
+              <!-- Route Status Bars -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">สถานะเส้นทาง</div>
+                    <div class="chart-card__subtitle">จำนวนรายการแยกตาม suffix ของเส้นทาง</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div id="chart-route-status-list">
+                    <!-- Rendered by Charts.renderRouteStatus() -->
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Row 4: Top Drivers + Full Route Details (Redesigned — side by side) -->
+            <div class="charts-grid" style="margin-bottom: var(--space-5);">
+              <!-- Top Drivers Ranking List -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">10 อันดับพนักงานที่ถูกปรับมากที่สุด</div>
+                    <div class="chart-card__subtitle">แสดงข้อมูล พขร. ที่มีสถิติถูกปรับสูงสุด</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div id="chart-top-drivers-list">
+                    <!-- Rendered by Charts.renderTopDrivers() -->
+                  </div>
+                </div>
+              </div>
+
+              <!-- Full Route Detail List -->
+              <div class="chart-card">
+                <div class="chart-card__header">
+                  <div>
+                    <div class="chart-card__title">รายละเอียดเส้นทางทั้งหมด</div>
+                    <div class="chart-card__subtitle">แสดงข้อมูลเส้นทาง ประเภทรถ และจำนวนครั้งที่ถูกปรับ</div>
+                  </div>
+                </div>
+                <div class="chart-card__body">
+                  <div class="route-detail-list" id="route-detail-list">
+                    <!-- Rendered by Charts.renderFullRoutes() -->
+                  </div>
+                </div>
+              </div>
+            </div>
+          </section>
+
+          <!-- ── Data Tables Section ── -->
+          <section class="section" id="section-tables">
+            <div class="section__title">
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"
+                stroke-linecap="round" stroke-linejoin="round">
+                <path d="M12 3v18" />
+                <rect x="4" y="3" width="16" height="18" rx="2" />
+                <path d="M4 9h16" />
+                <path d="M4 15h16" />
+              </svg>
+              ตารางข้อมูล
+            </div>
+            <div id="tables-section">
+              <!-- Rendered by Tables.render() -->
+            </div>
+          </section>
+
+        </div>
+      </div>
+    </main>
+
+  </div>
+
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- SCRIPTS                                                     -->
+  <!-- ══════════════════════════════════════════════════════════ -->
+  <!-- Chart.js 4 (CDN) -->
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+
+  <!-- App Modules (order matters: data → kpi → filters → charts → tables → app) -->
+  <script src="js/api-config.js"></script>
+  <script src="js/data.js"></script>
+  <script src="js/kpi.js"></script>
+  <script src="js/filters.js"></script>
+  <script src="js/charts.js"></script>
+  <script src="js/tables.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
+</html>

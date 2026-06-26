@@ -1,0 +1,11 @@
+.agents/
+.codex/
+.git/
+.gitignore
+.netlify/
+skills/
+references/
+Code.gs
+Data *.xlsx
+*.log
+

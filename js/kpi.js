@@ -1,0 +1,150 @@
+/* ============================================================
+   Fine Dashboard — KPI Cards
+   Computation, rendering, count-up animation
+   All icons use inline SVG — no emoji
+   ============================================================ */
+
+const KPICards = (() => {
+  let container = null;
+
+  // ── SVG Icons ──
+  const ICONS = {
+    clipboard: `<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 -960 960 960" width="22" fill="#5985E1"><path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></svg>`,
+    money: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+    checkCircle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
+    clock: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
+    trendUp: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
+    alertTriangle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+  };
+
+  function formatNumber(num) {
+    return new Intl.NumberFormat('th-TH').format(num);
+  }
+
+  function formatCurrency(num) {
+    return new Intl.NumberFormat('th-TH').format(num) + ' ฿';
+  }
+
+  function formatPercent(num) {
+    return num.toFixed(1) + '%';
+  }
+
+  function animateValue(element, start, end, duration, formatter) {
+    const startTime = performance.now();
+    const diff = end - start;
+
+    function step(currentTime) {
+      const elapsed = currentTime - startTime;
+      const progress = Math.min(elapsed / duration, 1);
+      const eased = 1 - Math.pow(1 - progress, 3);
+      const current = start + diff * eased;
+      element.textContent = formatter(Math.round(current * 10) / 10);
+      if (progress < 1) {
+        requestAnimationFrame(step);
+      }
+    }
+    requestAnimationFrame(step);
+  }
+
+  const cardConfigs = [
+    {
+      id: 'fine-count',
+      label: 'จำนวนรายการปรับ',
+      icon: ICONS.clipboard,
+      iconClass: 'kpi-card__icon--blue',
+      getValue: (agg) => agg.count,
+      format: formatNumber,
+      getDetail: (agg) => `${Object.keys(agg.customerBreakdown).length} ลูกค้า`
+    },
+    {
+      id: 'total-fine',
+      label: 'ยอดปรับรวม',
+      icon: ICONS.money,
+      iconClass: 'kpi-card__icon--purple',
+      getValue: (agg) => agg.totalFine,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const days = Object.keys(agg.dailyTrend).length;
+        return `จาก ${formatNumber(agg.count)} รายการปรับ (สะสม ${days} วัน)`;
+      }
+    },
+    {
+      id: 'paid-amount',
+      label: 'ยอดปรับแล้ว',
+      icon: ICONS.checkCircle,
+      iconClass: 'kpi-card__icon--green',
+      getValue: (agg) => agg.totalPaid,
+      format: formatCurrency,
+      getDetail: (agg) => `${agg.paymentStatusCounts['paid'] || 0} รายการที่ชำระแล้ว`
+    },
+    {
+      id: 'remaining-amount',
+      label: 'ยอดคงเหลือ',
+      icon: ICONS.clock,
+      iconClass: 'kpi-card__icon--orange',
+      getValue: (agg) => agg.totalRemaining,
+      format: formatCurrency,
+      getDetail: (agg) => `${agg.paymentStatusCounts['open'] || 0} รายการค้างชำระ`
+    },
+    {
+      id: 'collection-rate',
+      label: 'อัตราการเรียกเก็บเงิน',
+      icon: ICONS.trendUp,
+      iconClass: 'kpi-card__icon--teal',
+      getValue: (agg) => agg.collectionRate,
+      format: formatPercent,
+      getDetail: (agg) => `${formatCurrency(agg.totalPaid)} จาก ${formatCurrency(agg.totalFine)}`
+    }
+  ];
+
+  function render(aggregates) {
+    if (!container) container = document.getElementById('kpi-grid');
+    if (!container) return;
+
+    container.innerHTML = cardConfigs.map(config => {
+      const value = config.getValue(aggregates);
+      return `
+        <div class="kpi-card" id="kpi-${config.id}">
+          <div class="kpi-card__header-row">
+            <span class="kpi-card__label">${config.label}</span>
+            <div class="kpi-card__icon ${config.iconClass}">${config.icon}</div>
+          </div>
+          <div class="kpi-card__content">
+            <div class="kpi-card__value" data-value="${value}">${config.format(0)}</div>
+            <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
+          </div>
+        </div>
+      `;
+    }).join('');
+
+    requestAnimationFrame(() => {
+      container.querySelectorAll('.kpi-card__value').forEach((el, idx) => {
+        const target = parseFloat(el.dataset.value);
+        const config = cardConfigs[idx];
+        animateValue(el, 0, target, 800, config.format);
+      });
+    });
+  }
+
+  function update(aggregates) {
+    if (!container) container = document.getElementById('kpi-grid');
+    if (!container) return;
+
+    cardConfigs.forEach((config) => {
+      const card = document.getElementById(`kpi-${config.id}`);
+      if (!card) return;
+
+      const valueEl = card.querySelector('.kpi-card__value');
+      const detailEl = card.querySelector('.kpi-card__detail');
+      const newValue = config.getValue(aggregates);
+      const oldValue = parseFloat(valueEl.dataset.value) || 0;
+
+      valueEl.dataset.value = newValue;
+      detailEl.textContent = config.getDetail(aggregates);
+
+      animateValue(valueEl, oldValue, newValue, 500, config.format);
+    });
+  }
+
+  return { render, update };
+})();

@@ -1,0 +1,345 @@
+/* ============================================================
+   Fine Dashboard — Table Styles
+   Data tables, sticky headers, search, pagination
+   ============================================================ */
+
+/* ── Table Card ── */
+.table-card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-card);
+  border: 1px solid var(--color-border-light);
+  overflow: hidden;
+  animation: fadeIn 0.5s ease forwards;
+  opacity: 0;
+  animation-delay: 0.2s;
+}
+
+.table-card__header {
+  padding: var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.table-card__title-area {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.table-card__title {
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-primary);
+}
+
+.table-card__row-count {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  background: var(--color-surface-hover);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+}
+
+.table-card__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+/* ── Table Search ── */
+.table-search {
+  position: relative;
+  width: 240px;
+}
+
+.table-search__icon {
+  position: absolute;
+  left: var(--space-3);
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  pointer-events: none;
+}
+
+.table-search__input {
+  width: 100%;
+  padding: var(--space-2) var(--space-3) var(--space-2) calc(var(--space-3) + 20px);
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  transition: all var(--transition-fast);
+}
+
+.table-search__input::placeholder {
+  color: var(--color-text-placeholder);
+}
+
+.table-search__input:focus {
+  border-color: var(--color-accent);
+  box-shadow: 0 0 0 3px var(--color-accent-light);
+  background: var(--color-surface);
+}
+
+/* ── Table Container ── */
+.table-container {
+  overflow-x: auto;
+  overflow-y: visible;
+}
+
+/* ── Data Table ── */
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.data-table thead {
+  position: sticky;
+  top: 0;
+  z-index: 10;
+}
+
+.data-table th {
+  padding: var(--space-3) var(--space-4);
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+  color: var(--color-text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  background: var(--color-bg);
+  border-bottom: 1px solid var(--color-border);
+  white-space: nowrap;
+  cursor: pointer;
+  user-select: none;
+  transition: color var(--transition-fast);
+}
+
+.data-table th:hover {
+  color: var(--color-text-primary);
+}
+
+.data-table th .sort-icon {
+  display: inline-block;
+  margin-left: 4px;
+  font-size: 0.625rem;
+  opacity: 0.4;
+  transition: opacity var(--transition-fast);
+}
+
+.data-table th.sorted .sort-icon {
+  opacity: 1;
+  color: var(--color-accent);
+}
+
+.data-table td {
+  padding: var(--space-3) var(--space-4);
+  border-bottom: 1px solid var(--color-border-light);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  vertical-align: middle;
+  transition: background var(--transition-fast);
+}
+
+.data-table tbody tr {
+  transition: background var(--transition-fast);
+}
+
+.data-table tbody tr:hover {
+  background: var(--color-accent-surface);
+}
+
+.data-table tbody tr:last-child td {
+  border-bottom: none;
+}
+
+/* ── Zebra Striping (subtle) ── */
+.data-table tbody tr:nth-child(even) {
+  background: var(--color-surface-alt);
+}
+
+.data-table tbody tr:nth-child(even):hover {
+  background: var(--color-accent-surface);
+}
+
+/* ── Cell Variants ── */
+.cell-mono {
+  font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+  font-size: var(--font-size-xs);
+  letter-spacing: 0;
+}
+
+.cell-number {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-medium);
+}
+
+.cell-amount {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+  font-weight: var(--font-weight-semibold);
+}
+
+.cell-amount--positive { color: var(--color-success); }
+.cell-amount--negative { color: var(--color-danger); }
+
+.cell-muted {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+/* ── Status Cell ── */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+}
+
+.status-badge--open     { background: var(--color-accent-light); color: var(--color-accent); }
+.status-badge--paid     { background: var(--color-success-light); color: var(--color-success); }
+.status-badge--partial  { background: var(--color-warning-light); color: var(--color-warning); }
+.status-badge--overpaid { background: rgba(175, 82, 222, 0.10); color: #AF52DE; }
+.status-badge--error    { background: var(--color-danger-light); color: var(--color-danger); }
+
+.status-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-full);
+  flex-shrink: 0;
+}
+
+.status-badge--open .status-dot     { background: var(--color-accent); }
+.status-badge--paid .status-dot     { background: var(--color-success); }
+.status-badge--partial .status-dot  { background: var(--color-warning); }
+.status-badge--overpaid .status-dot { background: #AF52DE; }
+.status-badge--error .status-dot    { background: var(--color-danger); }
+
+/* ── Quality Flag ── */
+.flag-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border-radius: var(--radius-full);
+  font-size: 0.625rem;
+  margin-right: 2px;
+}
+
+.flag-icon--warning  { background: var(--color-warning-light); color: var(--color-warning); }
+.flag-icon--error    { background: var(--color-danger-light); color: var(--color-danger); }
+.flag-icon--info     { background: var(--color-info-light); color: #5AC8FA; }
+
+/* ── Highlight row ── */
+.row-highlight { background: var(--color-warning-surface) !important; }
+.row-error     { background: var(--color-danger-surface) !important; }
+
+/* ── Pagination ── */
+.table-pagination {
+  padding: var(--space-4) var(--space-5);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-top: 1px solid var(--color-border-light);
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}
+
+.table-pagination__info {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.table-pagination__controls {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.table-pagination__btn {
+  width: 32px;
+  height: 32px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--radius-md);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  transition: all var(--transition-fast);
+  background: none;
+  border: none;
+}
+
+.table-pagination__btn:hover:not(:disabled) {
+  background: var(--color-surface-hover);
+  color: var(--color-text-primary);
+}
+
+.table-pagination__btn.active {
+  background: var(--color-accent);
+  color: var(--color-text-inverse);
+}
+
+.table-pagination__btn:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* ── Per Page Select ── */
+.per-page-select {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
+.per-page-select select {
+  padding: 4px 24px 4px 8px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  background: var(--color-surface);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  cursor: pointer;
+  appearance: none;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2.5 3.75L5 6.25L7.5 3.75' stroke='%2386868B' stroke-width='1.5' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 6px center;
+}
+
+/* ── Responsive Table ── */
+@media (max-width: 640px) {
+  .table-search {
+    width: 100%;
+  }
+
+  .table-card__header {
+    padding: var(--space-4);
+  }
+
+  .table-pagination {
+    padding: var(--space-3) var(--space-4);
+    justify-content: center;
+  }
+
+  .table-pagination__info {
+    width: 100%;
+    text-align: center;
+  }
+}
