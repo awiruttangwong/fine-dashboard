@@ -78,6 +78,29 @@ const Filters = (() => {
     return idx >= 0 ? arr.filter(x => x !== item) : [...arr, item];
   }
 
+  function uniqueValues(values, limit = 120) {
+    const seen = new Set();
+    const result = [];
+
+    values.forEach(value => {
+      const text = String(value ?? '').trim();
+      if (!text || seen.has(text)) return;
+      seen.add(text);
+      result.push(text);
+    });
+
+    return result.slice(0, limit);
+  }
+
+  function getSearchSuggestions(rows) {
+    return uniqueValues([
+      ...rows.map(row => row.barcode),
+      ...rows.map(row => row.route_raw),
+      ...rows.map(row => row.driver_name),
+      ...rows.map(row => row.customer)
+    ]);
+  }
+
   function createChipGroup(label, iconSvg, items, selectedItems, filterType) {
     return `
       <div class="filter-group">
@@ -108,6 +131,7 @@ const Filters = (() => {
     const aggregates = FineData.getAggregates(allData);
     const drivers = FineData.getUniqueValues('driver_name');
     const vehicleTypes = FineData.getUniqueValues('vehicle_type');
+    const searchSuggestions = getSearchSuggestions(allData);
 
     const customerItems = Object.entries(aggregates.customerBreakdown)
       .map(([name, data]) => ({ value: name, label: name, count: data.count }))
@@ -150,8 +174,12 @@ const Filters = (() => {
         </div>
         <div style="position: relative;">
           <input type="text" class="text-input" id="filter-search-text" 
+                 list="filter-search-suggestions" autocomplete="off"
                  placeholder="บาร์โค้ด, เส้นทาง, พนักงาน..." value="${escapeHtml(state.searchText)}"
                  style="padding-right: var(--space-8);">
+          <datalist id="filter-search-suggestions">
+            ${searchSuggestions.map(value => `<option value="${escapeHtml(value)}"></option>`).join('')}
+          </datalist>
           ${state.searchText ? `
             <button id="clear-search-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: none; cursor: pointer; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center;">
               ${ICONS.x}
@@ -191,10 +219,20 @@ const Filters = (() => {
           <span class="filter-group__label-icon">${ICONS.truck}</span>
           พนักงานขับรถ
         </div>
-        <select class="select-input" id="filter-driver">
-          <option value="">ทั้งหมด (${drivers.length} คน)</option>
-          ${drivers.map(d => `<option value="${escapeHtml(d)}" ${state.driver === d ? 'selected' : ''}>${escapeHtml(d)}</option>`).join('')}
-        </select>
+        <div style="position: relative;">
+          <input type="text" class="text-input" id="filter-driver"
+                 list="filter-driver-suggestions" autocomplete="off"
+                 placeholder="ค้นหาหรือเลือกพนักงาน (${drivers.length} คน)" value="${escapeHtml(state.driver)}"
+                 style="padding-right: var(--space-8);">
+          <datalist id="filter-driver-suggestions">
+            ${drivers.map(d => `<option value="${escapeHtml(d)}"></option>`).join('')}
+          </datalist>
+          ${state.driver ? `
+            <button id="clear-driver-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: none; cursor: pointer; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center;">
+              ${ICONS.x}
+            </button>
+          ` : ''}
+        </div>
       </div>
 
       <div class="filter-group">
@@ -245,8 +283,29 @@ const Filters = (() => {
       });
     });
 
-    const driverSelect = container.querySelector('#filter-driver');
-    if (driverSelect) driverSelect.addEventListener('change', (e) => setState({ driver: e.target.value }));
+    const driverInput = container.querySelector('#filter-driver');
+    if (driverInput) {
+      driverInput.addEventListener('input', debounce((e) => {
+        setState({ driver: e.target.value });
+        if (!e.target.value || e.target.value.length === 1) {
+          render();
+          const freshInput = container.querySelector('#filter-driver');
+          if (freshInput) {
+            freshInput.focus();
+            freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
+          }
+        }
+      }, 200));
+      driverInput.addEventListener('change', (e) => setState({ driver: e.target.value }));
+    }
+
+    const clearDriverBtn = container.querySelector('#clear-driver-btn');
+    if (clearDriverBtn) {
+      clearDriverBtn.addEventListener('click', () => {
+        setState({ driver: '' });
+        render();
+      });
+    }
 
     const vehicleSelect = container.querySelector('#filter-vehicle-type');
     if (vehicleSelect) vehicleSelect.addEventListener('change', (e) => setState({ vehicleType: e.target.value }));

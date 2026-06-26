@@ -330,7 +330,11 @@ const FineData = (() => {
       }
 
       if (filters.customers && filters.customers.length > 0 && !filters.customers.includes(row.customer)) return false;
-      if (filters.driver && filters.driver !== '' && row.driver_name !== filters.driver) return false;
+      if (filters.driver && filters.driver.trim() !== '') {
+        const driverQuery = filters.driver.trim().toLowerCase();
+        const driverName = cleanText(row.driver_name).toLowerCase();
+        if (!driverName.includes(driverQuery)) return false;
+      }
       if (filters.routeGroups && filters.routeGroups.length > 0 && !filters.routeGroups.includes(row.route_group)) return false;
       if (filters.vehicleType && filters.vehicleType !== '' && row.vehicle_type !== filters.vehicleType) return false;
       if (filters.routeStatuses && filters.routeStatuses.length > 0 && !filters.routeStatuses.includes(row.route_status)) return false;
