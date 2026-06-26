@@ -373,16 +373,15 @@ const FineData = (() => {
   }
 
   function getAvailableMonths() {
-    const months = new Set();
-    allData.forEach(row => {
-      if (row.fine_date) months.add(row.fine_date.slice(0, 7));
+    const year = new Date().getFullYear();
+    return Array.from({ length: 12 }, (_, index) => {
+      return `${year}-${String(index + 1).padStart(2, '0')}`;
     });
-    return [...months].sort();
   }
 
   function getDefaultMonth() {
-    const months = getAvailableMonths();
-    return months.length ? months[months.length - 1] : '';
+    const now = new Date();
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
   }
 
   function getAggregates(data) {
