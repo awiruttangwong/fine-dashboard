@@ -507,8 +507,6 @@ const Charts = (() => {
     renderDailyTrend(aggregates);
     renderCustomerChart(aggregates);
     renderTopDrivers(aggregates);
-    renderRouteGroups(aggregates);
-    renderRouteStatus(aggregates);
     renderPaymentStatus(aggregates);
     renderFullRoutes(filteredData || FineData.getAll());
   }
