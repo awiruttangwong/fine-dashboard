@@ -376,16 +376,51 @@ const FineData = (() => {
     return [...values].sort((a, b) => String(a).localeCompare(String(b), 'th'));
   }
 
+  // Current moment in Thailand (UTC+7), regardless of the host machine's
+  // local timezone. Dashboard "current month" and the comparison feature
+  // both derive from this so they stay correct on any server/client.
+  function nowInThailand() {
+    const now = new Date();
+    // Convert to UTC+7: shift the timestamp so the UTC getters return the
+    // wall-clock time in Bangkok.
+    const offsetMs = (7 * 60 + now.getTimezoneOffset()) * 60 * 1000;
+    return new Date(now.getTime() + offsetMs);
+  }
+
   function getAvailableMonths() {
-    const year = new Date().getFullYear();
+    const year = nowInThailand().getFullYear();
     return Array.from({ length: 12 }, (_, index) => {
       return `${year}-${String(index + 1).padStart(2, '0')}`;
     });
   }
 
   function getDefaultMonth() {
-    const now = new Date();
+    const now = nowInThailand();
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function shiftMonth(monthValue, offset) {
+    const match = String(monthValue || '').match(/^(\d{4})-(\d{2})$/);
+    if (!match) return getDefaultMonth();
+
+    const date = new Date(Number(match[1]), Number(match[2]) - 1 + offset, 1);
+    return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+  }
+
+  function getPreviousMonth(monthValue) {
+    return shiftMonth(monthValue || getDefaultMonth(), -1);
+  }
+
+  function getDefaultComparisonMonth(primaryMonth) {
+    const months = getAvailableMonths();
+    const primary = months.includes(primaryMonth) ? primaryMonth : getDefaultMonth();
+    const primaryIndex = months.indexOf(primary);
+
+    // Always compare against the previous month (e.g. June↔May, then
+    // July↔June as the calendar rolls forward). Falls back to the next
+    // month only when the primary is January (no previous month in year).
+    if (primaryIndex > 0) return months[primaryIndex - 1];
+    return months[primaryIndex + 1] || months[0];
   }
 
   function getAggregates(data) {
@@ -437,6 +472,98 @@ const FineData = (() => {
 
     result.collectionRate = result.totalFine > 0 ? (result.totalPaid / result.totalFine) * 100 : 0;
     return result;
+  }
+
+  function compareMetric(currentValue, comparisonValue) {
+    const current = Number(currentValue) || 0;
+    const comparison = Number(comparisonValue) || 0;
+    const delta = current - comparison;
+
+    return {
+      current,
+      comparison,
+      delta,
+      percent: comparison === 0 ? null : (delta / Math.abs(comparison)) * 100
+    };
+  }
+
+  function getComparisonModel(filters) {
+    const availableMonths = getAvailableMonths();
+    const primaryMonth = availableMonths.includes(filters.selectedMonth)
+      ? filters.selectedMonth
+      : getDefaultMonth();
+    const comparisonMonth = availableMonths.includes(filters.comparisonMonth) && filters.comparisonMonth !== primaryMonth
+      ? filters.comparisonMonth
+      : getDefaultComparisonMonth(primaryMonth);
+
+    const primaryRows = getFiltered({ ...filters, selectedMonth: primaryMonth });
+    const comparisonRows = getFiltered({ ...filters, selectedMonth: comparisonMonth });
+    const primary = getAggregates(primaryRows);
+    const comparison = getAggregates(comparisonRows);
+    const metrics = {
+      totalFine: compareMetric(primary.totalFine, comparison.totalFine),
+      count: compareMetric(primary.count, comparison.count),
+      totalPaid: compareMetric(primary.totalPaid, comparison.totalPaid),
+      totalRemaining: compareMetric(primary.totalRemaining, comparison.totalRemaining),
+      collectionRate: compareMetric(primary.collectionRate, comparison.collectionRate)
+    };
+
+    const primaryDays = Number(primaryMonth.slice(5, 7));
+    const comparisonDays = Number(comparisonMonth.slice(5, 7));
+    const primaryYear = Number(primaryMonth.slice(0, 4));
+    const comparisonYear = Number(comparisonMonth.slice(0, 4));
+    const dayCount = Math.max(
+      new Date(primaryYear, primaryDays, 0).getDate(),
+      new Date(comparisonYear, comparisonDays, 0).getDate()
+    );
+    const days = Array.from({ length: dayCount }, (_, index) => index + 1);
+
+    function dailyValues(rows, monthValue) {
+      const byDay = {};
+      const year = Number(monthValue.slice(0, 4));
+      const month = Number(monthValue.slice(5, 7));
+      const daysInMonth = new Date(year, month, 0).getDate();
+      rows.forEach(row => {
+        const day = Number(row.fine_day || String(row.fine_date || '').slice(8, 10));
+        if (!day) return;
+        if (!byDay[day]) byDay[day] = { amount: 0, count: 0 };
+        byDay[day].amount += row.fine_amount || 0;
+        byDay[day].count++;
+      });
+      return days.map(day => day <= daysInMonth
+        ? (byDay[day] || { amount: 0, count: 0 })
+        : { amount: null, count: null });
+    }
+
+    const customers = new Set([
+      ...Object.keys(primary.customerBreakdown),
+      ...Object.keys(comparison.customerBreakdown)
+    ]);
+    const customerComparison = [...customers].map(customer => {
+      const currentData = primary.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
+      const comparisonData = comparison.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
+      return {
+        customer,
+        current: currentData,
+        comparison: comparisonData,
+        amount: compareMetric(currentData.fineTotal, comparisonData.fineTotal),
+        count: compareMetric(currentData.count, comparisonData.count)
+      };
+    }).sort((a, b) => b.current.fineTotal - a.current.fineTotal || b.comparison.fineTotal - a.comparison.fineTotal);
+
+    return {
+      primaryMonth,
+      comparisonMonth,
+      primaryRows,
+      comparisonRows,
+      primary,
+      comparison,
+      metrics,
+      days,
+      primaryDaily: dailyValues(primaryRows, primaryMonth),
+      comparisonDaily: dailyValues(comparisonRows, comparisonMonth),
+      customerComparison
+    };
   }
 
   function getDuplicateBarcodeRows(data) {
@@ -505,7 +632,11 @@ const FineData = (() => {
     getUniqueValues,
     getAvailableMonths,
     getDefaultMonth,
+    getPreviousMonth,
+    getDefaultComparisonMonth,
+    nowInThailand,
     getAggregates,
+    getComparisonModel,
     getDuplicateBarcodeRows,
     getMismatchRows,
     getMissingDataRows,

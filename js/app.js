@@ -12,7 +12,9 @@ const App = (() => {
 
     // ── Sidebar date ──
     const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
-    const now = new Date();
+    // Use Bangkok time (UTC+7) so the sidebar date matches the month used by
+    // the comparison feature, regardless of the host's local timezone.
+    const now = FineData.nowInThailand();
     const day = now.getDate();
     const month = thaiMonths[now.getMonth()];
     const year = now.getFullYear() + 543; // Convert to Buddhist Era
@@ -35,14 +37,23 @@ const App = (() => {
 
     // ── Render all components ──
     Filters.render();
-    filteredData = FineData.getFiltered(Filters.getState());
+    const initialFilterState = Filters.getState();
+    filteredData = FineData.getFiltered(initialFilterState);
     aggregates = FineData.getAggregates(filteredData);
     KPICards.render(aggregates);
-    Charts.renderAll(aggregates, filteredData, Filters.getState());
+    Charts.renderAll(aggregates, filteredData, initialFilterState);
     Tables.render(filteredData);
+    setViewMode(initialFilterState);
 
     // ── Wire filter changes ──
     Filters.onChange((filterState) => {
+      if (filterState.isComparisonMode) {
+        setViewMode(filterState);
+        ComparisonView.render(filterState);
+        return;
+      }
+
+      setViewMode(filterState);
       const filtered = FineData.getFiltered(filterState);
       const newAggregates = FineData.getAggregates(filtered);
 
@@ -73,6 +84,36 @@ const App = (() => {
     console.log('[Fine Dashboard] Initialized successfully');
     console.log(`[Fine Dashboard] ${allData.length} records loaded`);
     console.log(`[Fine Dashboard] Total fine: ${FineData.getAggregates(allData).totalFine.toLocaleString()} ฿`);
+  }
+
+  function setViewMode(filterState) {
+    const isComparisonMode = !!filterState.isComparisonMode;
+    const overviewSections = [
+      document.getElementById('section-kpi'),
+      document.getElementById('section-charts'),
+      document.getElementById('section-tables')
+    ];
+    const title = document.getElementById('main-title');
+    const subtitle = document.getElementById('main-subtitle');
+
+    overviewSections.forEach(section => {
+      if (section) section.hidden = isComparisonMode;
+    });
+
+    if (title) {
+      title.textContent = isComparisonMode
+        ? 'เปรียบเทียบข้อมูลรายเดือน'
+        : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
+    }
+
+    if (subtitle) {
+      subtitle.hidden = !isComparisonMode;
+      subtitle.textContent = isComparisonMode
+        ? 'เปรียบเทียบผลการดำเนินงานระหว่างสองเดือนภายใต้ตัวกรองเดียวกัน'
+        : '';
+    }
+
+    if (!isComparisonMode) ComparisonView.hide();
   }
 
   function renderLoadingState() {

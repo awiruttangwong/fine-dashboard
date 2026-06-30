@@ -165,6 +165,22 @@
   text-overflow: ellipsis;
 }
 
+.data-table th.column-paid,
+.data-table th.column-status,
+.data-table th.column-financial {
+  white-space: normal;
+  line-height: 1.35;
+  letter-spacing: 0.01em;
+  overflow: visible;
+  text-overflow: clip;
+}
+
+.data-table td.column-financial,
+.data-table td.column-status {
+  overflow: visible;
+  text-overflow: clip;
+}
+
 .data-table tbody tr {
   transition: background var(--transition-fast);
 }
@@ -220,12 +236,16 @@
 .status-badge {
   display: inline-flex;
   align-items: center;
-  gap: 4px;
-  padding: 2px 8px;
+  justify-content: center;
+  gap: 6px;
+  max-width: 100%;
+  min-height: 28px;
+  padding: 4px 10px;
   border-radius: var(--radius-full);
-  font-size: var(--font-size-xs);
+  font-size: 0.72rem;
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
+  line-height: 1.2;
 }
 
 .status-badge--open     { background: var(--color-accent-light); color: var(--color-accent); }
@@ -267,6 +287,11 @@
 .cell-status .status-badge {
   justify-content: center;
   vertical-align: middle;
+}
+
+.cell-status .status-badge .status-label {
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 /* ── Highlight row ── */

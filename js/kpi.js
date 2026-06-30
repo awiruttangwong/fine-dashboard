@@ -60,7 +60,7 @@ const KPICards = (() => {
       id: 'total-fine',
       label: 'ยอดปรับรวม',
       icon: ICONS.money,
-      iconClass: 'kpi-card__icon--purple',
+      iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.totalFine,
       format: formatCurrency,
       getDetail: (agg) => {
@@ -75,7 +75,7 @@ const KPICards = (() => {
       iconClass: 'kpi-card__icon--green',
       getValue: (agg) => agg.totalPaid,
       format: formatCurrency,
-      getDetail: (agg) => `${agg.paymentStatusCounts['paid'] || 0} รายการที่ชำระแล้ว`
+      getDetail: (agg) => `${agg.paymentStatusCounts['paid'] || 0} รายการที่ชำระค่าปรับแล้ว`
     },
     {
       id: 'remaining-amount',

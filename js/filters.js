@@ -21,6 +21,8 @@ const Filters = (() => {
 
   let state = {
     selectedMonth: '',
+    comparisonMonth: '',
+    isComparisonMode: false,
     customers: [],
     driver: '',
     routeGroups: [],
@@ -51,8 +53,12 @@ const Filters = (() => {
   }
 
   function resetAll() {
+    const isComparisonMode = state.isComparisonMode;
+    const selectedMonth = FineData.getDefaultMonth();
     state = {
-      selectedMonth: FineData.getDefaultMonth(),
+      selectedMonth,
+      comparisonMonth: FineData.getDefaultComparisonMonth(selectedMonth),
+      isComparisonMode,
       customers: [], driver: '',
       routeGroups: [], vehicleType: '',
       routeStatuses: [], paymentStatuses: [],
@@ -90,6 +96,13 @@ const Filters = (() => {
     });
 
     return result.slice(0, limit);
+  }
+
+  function formatMonthLabel(monthValue) {
+    const thaiMonths = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+    const match = String(monthValue || '').match(/^(\d{4})-(\d{2})$/);
+    if (!match) return String(monthValue || '');
+    return `${thaiMonths[Number(match[2]) - 1]} ${Number(match[1]) + 543}`;
   }
 
   function getSearchSuggestions(rows) {
@@ -148,6 +161,11 @@ const Filters = (() => {
 
     const allData = FineData.getAll();
     if (!state.selectedMonth) state.selectedMonth = FineData.getDefaultMonth();
+    const availableMonths = FineData.getAvailableMonths();
+    if (!availableMonths.includes(state.selectedMonth)) state.selectedMonth = FineData.getDefaultMonth();
+    if (!availableMonths.includes(state.comparisonMonth) || state.comparisonMonth === state.selectedMonth) {
+      state.comparisonMonth = FineData.getDefaultComparisonMonth(state.selectedMonth);
+    }
     const aggregates = FineData.getAggregates(allData);
     const drivers = FineData.getUniqueValues('driver_name');
     const vehicleTypes = FineData.getUniqueValues('vehicle_type');
@@ -158,16 +176,16 @@ const Filters = (() => {
       .sort((a, b) => b.count - a.count);
 
     const paymentStatusLabels = {
-      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'data_error': 'ยอดไม่ตรง'
+      'open': 'ค้างชำระ', 'paid': 'ชำระค่าปรับแล้ว', 'data_error': 'ยอดไม่ตรง'
     };
     const paymentStatusItems = Object.entries(aggregates.paymentStatusCounts)
       .map(([name, count]) => ({ value: name, label: paymentStatusLabels[name] || name, count }))
       .sort((a, b) => b.count - a.count);
 
     const qualityFlagItems = [
-      { value: 'full_duplicate',    label: 'ข้อมูลซ้ำ',     count: allData.filter(r => r.is_full_duplicate).length },
-      { value: 'barcode_duplicate', label: 'บาร์โค้ดซ้ำ',   count: allData.filter(r => r.is_barcode_duplicate).length },
-      { value: 'blank_driver',      label: 'ไม่ระบุชื่อ พขร.', count: allData.filter(r => r.is_driver_blank).length }
+      { value: 'full_duplicate', label: 'ข้อมูลซ้ำ', count: allData.filter(r => r.is_full_duplicate).length },
+      { value: 'barcode_duplicate', label: 'บาร์โค้ดซ้ำ', count: allData.filter(r => r.is_barcode_duplicate).length },
+      { value: 'blank_driver', label: 'ไม่ระบุชื่อ พขร.', count: allData.filter(r => r.is_driver_blank).length }
     ].filter(item => item.count > 0);
 
     const activeCount = getActiveFilterCount();
@@ -206,10 +224,8 @@ const Filters = (() => {
       </div>
 
       ${(() => {
-        const THAI_MONTHS = ['ม.ค.','ก.พ.','มี.ค.','เม.ย.','พ.ค.','มิ.ย.','ก.ค.','ส.ค.','ก.ย.','ต.ค.','พ.ย.','ธ.ค.'];
+        const THAI_MONTHS = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
         const months = FineData.getAvailableMonths();
-        const selectedYear = state.selectedMonth ? parseInt(state.selectedMonth.slice(0, 4)) : new Date().getFullYear();
-        const buddhistYear = selectedYear + 543;
         const chips = months.map(value => {
           const i = parseInt(value.slice(5, 7)) - 1;
           const isActive = state.selectedMonth === value;
@@ -217,14 +233,39 @@ const Filters = (() => {
         }).join('');
         return `
           <div class="filter-group">
-            <div class="filter-group__label" style="justify-content:space-between;">
-              <span style="display:flex;align-items:center;gap:var(--space-2);">
+            <div class="filter-month-label">
+              <span class="filter-month-label__left">
                 <span class="filter-group__label-icon">${ICONS.calendar}</span>
                 เดือน
               </span>
-              <span style="font-size:var(--font-size-xs);font-weight:var(--font-weight-semibold);color:var(--color-text-primary);">ปี ${escapeHtml(buddhistYear)}</span>
+              <span class="filter-month-label__right">
+                <button class="comparison-switch ${state.isComparisonMode ? 'active' : ''}" id="comparison-mode-toggle"
+                        type="button" aria-pressed="${state.isComparisonMode}">
+                  <span class="comparison-switch__label">เปรียบเทียบ</span>
+                  <span class="comparison-switch__track" aria-hidden="true">
+                    <span class="comparison-switch__thumb"></span>
+                  </span>
+                </button>
+              </span>
             </div>
-            <div class="month-chip-grid">${chips}</div>
+            ${state.isComparisonMode ? `
+              <div class="comparison-month-fields">
+                <label class="comparison-month-field" for="filter-primary-month">
+                  <span>เดือนหลัก</span>
+                  <select class="select-input" id="filter-primary-month">
+                    ${months.map(value => `<option value="${escapeHtml(value)}" ${state.selectedMonth === value ? 'selected' : ''}>${escapeHtml(formatMonthLabel(value))}</option>`).join('')}
+                  </select>
+                </label>
+                <label class="comparison-month-field" for="filter-comparison-month">
+                  <span>เดือนเปรียบเทียบ</span>
+                  <select class="select-input" id="filter-comparison-month">
+                    ${months.map(value => `<option value="${escapeHtml(value)}" ${state.comparisonMonth === value ? 'selected' : ''} ${state.selectedMonth === value ? 'disabled' : ''}>${escapeHtml(formatMonthLabel(value))}</option>`).join('')}
+                  </select>
+                </label>
+              </div>
+            ` : `
+              <div class="month-chip-grid">${chips}</div>
+            `}
           </div>
         `;
       })()}
@@ -248,9 +289,9 @@ const Filters = (() => {
             <div class="custom-select__options">
               <div class="custom-select__option ${!state.driver ? 'selected' : ''}" data-value="">ทั้งหมด (${drivers.length} คน)</div>
               ${drivers.map(d => {
-                const isSelected = state.driver === d;
-                return `<div class="custom-select__option ${isSelected ? 'selected' : ''}" data-value="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
-              }).join('')}
+        const isSelected = state.driver === d;
+        return `<div class="custom-select__option ${isSelected ? 'selected' : ''}" data-value="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
+      }).join('')}
             </div>
           </div>
         </div>
@@ -359,6 +400,43 @@ const Filters = (() => {
       });
     });
 
+    const comparisonToggle = container.querySelector('#comparison-mode-toggle');
+    if (comparisonToggle) {
+      comparisonToggle.addEventListener('click', () => {
+        const isComparisonMode = !state.isComparisonMode;
+        setState({
+          isComparisonMode,
+          comparisonMonth: state.comparisonMonth === state.selectedMonth
+            ? FineData.getDefaultComparisonMonth(state.selectedMonth)
+            : state.comparisonMonth
+        });
+        render();
+      });
+    }
+
+    const primaryMonthSelect = container.querySelector('#filter-primary-month');
+    if (primaryMonthSelect) {
+      primaryMonthSelect.addEventListener('change', (event) => {
+        const selectedMonth = event.target.value;
+        setState({
+          selectedMonth,
+          comparisonMonth: state.comparisonMonth === selectedMonth
+            ? FineData.getDefaultComparisonMonth(selectedMonth)
+            : state.comparisonMonth
+        });
+        render();
+      });
+    }
+
+    const comparisonMonthSelect = container.querySelector('#filter-comparison-month');
+    if (comparisonMonthSelect) {
+      comparisonMonthSelect.addEventListener('change', (event) => {
+        if (event.target.value === state.selectedMonth) return;
+        setState({ comparisonMonth: event.target.value });
+        render();
+      });
+    }
+
     // Custom Driver Dropdown logic
     const driverSelectContainer = container.querySelector('#driver-custom-select');
     if (driverSelectContainer) {
@@ -369,7 +447,7 @@ const Filters = (() => {
 
       trigger.addEventListener('click', (e) => {
         e.stopPropagation();
-        
+
         // Close other custom selects
         document.querySelectorAll('.custom-select.open').forEach(el => {
           if (el !== driverSelectContainer) el.classList.remove('open');

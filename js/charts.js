@@ -9,18 +9,18 @@ const Charts = (() => {
 
   // Apple-inspired color palette
   const COLORS = {
-    blue:    '#0071E3',
-    green:   '#34C759',
-    orange:  '#FF9500',
-    red:     '#FF3B30',
-    purple:  '#AF52DE',
-    teal:    '#5AC8FA',
-    pink:    '#FF2D55',
-    indigo:  '#5856D6',
-    mint:    '#00C7BE',
-    cyan:    '#32ADE6',
-    yellow:  '#FFCC00',
-    gray:    '#8E8E93'
+    blue: '#0071E3',
+    green: '#34C759',
+    orange: '#FF9500',
+    red: '#FF3B30',
+    purple: '#AF52DE',
+    teal: '#5AC8FA',
+    pink: '#FF2D55',
+    indigo: '#5856D6',
+    mint: '#00C7BE',
+    cyan: '#32ADE6',
+    yellow: '#FFCC00',
+    gray: '#8E8E93'
   };
 
   const PALETTE = [COLORS.blue, COLORS.green, COLORS.orange, COLORS.purple, COLORS.teal, COLORS.pink, COLORS.indigo, COLORS.mint, COLORS.cyan, COLORS.red];
@@ -47,24 +47,26 @@ const Charts = (() => {
     }
   };
 
-  // Professional doughnut hover: smooth radial nudge with easing.
-  // The default hover produces a jittery "expand/collapse" because slices
-  // scale outward with a linear feel and no transition timing. Tuning the
-  // animation properties + a subtle border gap makes the hover feel deliberate.
+  // Professional doughnut hover: focus/dim instead of geometry offset.
+  //
+  // WHY: Chart.js `hoverOffset` moves a slice outward on hover. During the
+  // active animation Chart.js re-draws the arc at an intermediate radius,
+  // which produces a visible "warp/collapse" — a known rendering quirk
+  // (chartjs/Chart.js#10220). Tuning easing cannot fix it because the bug
+  // is in how the arc geometry itself is drawn mid-transition.
+  //
+  // FIX: Don't move geometry at all. Instead, highlight only the hovered
+  // slice at full opacity while dimming its neighbors. This is the technique
+  // used by premium dashboards (Apple/Linear) — nothing distorts because
+  // nothing shifts position. A tiny 3px offset gives subtle feedback without
+  // triggering the warp.
   const DOUGHNUT_HOVER = {
     animations: {
-      // Numbers (values) animate in smoothly on render
       numbers: {
         duration: 1000,
         easing: 'easeOutQuart'
-      },
-      // Active (hovered) element animation — this fixes the "warping"
-      active: {
-        duration: 400,
-        easing: 'easeOutCubic'
       }
     },
-    // Highlight only the single slice under the cursor (no neighbor bleed)
     interaction: {
       intersect: true,
       mode: 'nearest'
@@ -75,14 +77,45 @@ const Charts = (() => {
     },
     datasets: {
       doughnut: {
-        // 10px gives a confident, contained nudge that reads as intentional
-        hoverOffset: 10,
-        // Subtle separation between slices at rest (cleaner Apple-style look)
-        spacing: 2,
-        // Border drawn in a light color so slices look "cut" apart on hover
-        borderHoverColor: 'rgba(255, 255, 255, 0.85)',
-        borderHoverWidth: 2
+        // Very small offset — just enough to signal "this is active" without
+        // triggering the geometry-warp rendering quirk from large offsets.
+        hoverOffset: 3
       }
+    }
+  };
+
+  // Custom plugin: dims non-hovered slices for a clean focus effect.
+  // Registered per-chart via the chart's `plugins` array.
+  const doughnutFocusPlugin = {
+    id: 'doughnutFocus',
+    // Re-draw is driven by the active element — hook beforeDatasetsDraw so
+    // our dimming sits underneath the active slice's tooltip highlight.
+    beforeDatasetsDraw(chart) {
+      const active = chart.tooltip?._active?.length ? chart.tooltip._active : [];
+      if (!active.length) return; // nothing hovered → render normally
+
+      const activeIdx = new Set(active.map(a => a.index));
+      const meta = chart.getDatasetMeta(0);
+      if (!meta?.data) return;
+
+      const ctx = chart.ctx;
+      ctx.save();
+
+      // Draw a translucent overlay over every non-active slice to dim it.
+      meta.data.forEach((arc, i) => {
+        if (activeIdx.has(i)) return;
+        const props = arc.getProps(['x', 'y', 'startAngle', 'endAngle', 'outerRadius', 'innerRadius'], true);
+        ctx.beginPath();
+        // Arc parameters matching Chart.js doughnut drawing (counter-clockwise=false)
+        ctx.arc(props.x, props.y, props.outerRadius + 1, props.startAngle, props.endAngle);
+        ctx.arc(props.x, props.y, props.innerRadius - 1, props.endAngle, props.startAngle, true);
+        ctx.closePath();
+        // Card-surface-tinted overlay → reads as "dimmed" without flicker
+        ctx.fillStyle = 'rgba(245, 245, 247, 0.55)';
+        ctx.fill();
+      });
+
+      ctx.restore();
     }
   };
 
@@ -132,10 +165,10 @@ const Charts = (() => {
     const canvas = document.getElementById('chart-daily-trend');
     if (!canvas) return;
 
-    const dates   = Object.keys(aggregates.dailyTrend).sort();
+    const dates = Object.keys(aggregates.dailyTrend).sort();
     const amounts = dates.map(d => aggregates.dailyTrend[d].fineTotal);
-    const counts  = dates.map(d => aggregates.dailyTrend[d].count);
-    const labels  = dates.map(d => {
+    const counts = dates.map(d => aggregates.dailyTrend[d].count);
+    const labels = dates.map(d => {
       const parts = d.split('-');
       const dayVal = parseInt(parts[2]);
       const monthLabel = THAI_MONTHS_SHORT[parseInt(parts[1]) - 1] || '';
@@ -177,8 +210,8 @@ const Charts = (() => {
 
     // Gradient for bars (top → bottom: vivid → almost-clear)
     const barGrad = ctx.createLinearGradient(0, 0, 0, 300);
-    barGrad.addColorStop(0,   'rgba(0, 113, 227, 0.85)');
-    barGrad.addColorStop(1,   'rgba(0, 113, 227, 0.10)');
+    barGrad.addColorStop(0, 'rgba(0, 113, 227, 0.85)');
+    barGrad.addColorStop(1, 'rgba(0, 113, 227, 0.10)');
 
     chartInstances['dailyTrend'] = new Chart(ctx, {
       type: 'bar',
@@ -212,7 +245,7 @@ const Charts = (() => {
               maxRotation: 0,
               minRotation: 0,
               padding: 10,
-              callback: function(value) {
+              callback: function (value) {
                 return this.getLabelForValue(value);
               }
             },
@@ -270,6 +303,7 @@ const Charts = (() => {
           borderWidth: 0
         }]
       },
+      plugins: [doughnutFocusPlugin],
       options: {
         ...baseOptions,
         ...DOUGHNUT_HOVER,
@@ -315,9 +349,9 @@ const Charts = (() => {
       const rank = i + 1;
       const color = i < 3 ? COLORS.blue : (i < 6 ? COLORS.teal : '#C7C7CC');
       const rankBg = i === 0 ? 'background:' + COLORS.blue + ';color:#fff' :
-                     i === 1 ? 'background:' + COLORS.indigo + ';color:#fff' :
-                     i === 2 ? 'background:' + COLORS.teal + ';color:#fff' :
-                     'background:#F0F0F2;color:#6E6E73';
+        i === 1 ? 'background:' + COLORS.indigo + ';color:#fff' :
+          i === 2 ? 'background:' + COLORS.teal + ';color:#fff' :
+            'background:#F0F0F2;color:#6E6E73';
       return `
         <div class="driver-rank-item">
           <div class="driver-rank-item__rank" style="${rankBg}">${rank}</div>
@@ -353,6 +387,7 @@ const Charts = (() => {
           borderWidth: 0
         }]
       },
+      plugins: [doughnutFocusPlugin],
       options: {
         ...baseOptions,
         ...DOUGHNUT_HOVER,
@@ -423,7 +458,7 @@ const Charts = (() => {
     if (!canvas) return;
 
     const statusLabels = {
-      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'data_error': 'ยอดไม่ตรง'
+      'open': 'ค้างชำระ', 'paid': 'ชำระค่าปรับแล้ว', 'data_error': 'ยอดไม่ตรง'
     };
     const statusColors = {
       'open': COLORS.blue, 'paid': COLORS.green, 'data_error': COLORS.red
@@ -444,6 +479,7 @@ const Charts = (() => {
           borderWidth: 0
         }]
       },
+      plugins: [doughnutFocusPlugin],
       options: {
         ...baseOptions,
         ...DOUGHNUT_HOVER,
