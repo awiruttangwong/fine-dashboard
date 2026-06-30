@@ -91,6 +91,7 @@
 .table-container {
   overflow-x: auto;
   overflow-y: visible;
+  scrollbar-gutter: stable;
 }
 
 /* ── Data Table ── */
@@ -98,6 +99,8 @@
   width: 100%;
   border-collapse: collapse;
   font-size: var(--font-size-sm);
+  table-layout: fixed;
+  min-width: 1120px;
 }
 
 .data-table thead {
@@ -120,14 +123,26 @@
   cursor: pointer;
   user-select: none;
   transition: color var(--transition-fast);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
+
+/* ── Alignment helpers (work for both th and td) ── */
+/* Specificity raised so headers honor per-column alignment. */
+.data-table th.cell-left,
+.data-table td.cell-left   { text-align: left; }
+.data-table th.cell-center,
+.data-table td.cell-center { text-align: center; }
+.data-table th.cell-right,
+.data-table td.cell-right  { text-align: right; }
 
 .data-table th:hover {
   color: var(--color-text-primary);
 }
 
 .data-table th .sort-icon {
-  display: inline-block;
+  display: inline-flex;
+  vertical-align: middle;
   margin-left: 4px;
   font-size: 0.625rem;
   opacity: 0.4;
@@ -146,6 +161,8 @@
   white-space: nowrap;
   vertical-align: middle;
   transition: background var(--transition-fast);
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .data-table tbody tr {
@@ -182,8 +199,11 @@
   font-weight: var(--font-weight-medium);
 }
 
+.cell-status {
+  white-space: normal;
+}
+
 .cell-amount {
-  text-align: right;
   font-variant-numeric: tabular-nums;
   font-weight: var(--font-weight-semibold);
 }
@@ -242,6 +262,12 @@
 .flag-icon--warning  { background: var(--color-warning-light); color: var(--color-warning); }
 .flag-icon--error    { background: var(--color-danger-light); color: var(--color-danger); }
 .flag-icon--info     { background: var(--color-info-light); color: #5AC8FA; }
+
+.cell-status .badge,
+.cell-status .status-badge {
+  justify-content: center;
+  vertical-align: middle;
+}
 
 /* ── Highlight row ── */
 .row-highlight { background: var(--color-warning-surface) !important; }

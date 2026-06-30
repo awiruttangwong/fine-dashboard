@@ -101,6 +101,26 @@ const Filters = (() => {
     ]);
   }
 
+  function getMatchingSuggestions(suggestions, query, limit = 8) {
+    const normalizedQuery = String(query ?? '').trim().toLowerCase();
+    if (!normalizedQuery) return [];
+
+    const startsWithMatches = [];
+    const includesMatches = [];
+
+    suggestions.forEach(value => {
+      const normalizedValue = String(value ?? '').trim().toLowerCase();
+      if (!normalizedValue || normalizedValue === normalizedQuery) return;
+      if (normalizedValue.startsWith(normalizedQuery)) {
+        startsWithMatches.push(value);
+      } else if (normalizedValue.includes(normalizedQuery)) {
+        includesMatches.push(value);
+      }
+    });
+
+    return [...startsWithMatches, ...includesMatches].slice(0, limit);
+  }
+
   function createChipGroup(label, iconSvg, items, selectedItems, filterType) {
     return `
       <div class="filter-group">
@@ -138,17 +158,16 @@ const Filters = (() => {
       .sort((a, b) => b.count - a.count);
 
     const paymentStatusLabels = {
-      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'partial': 'ชำระบางส่วน',
-      'overpaid': 'ชำระเกิน', 'data_error': 'ข้อมูลผิดพลาด'
+      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'data_error': 'ยอดไม่ตรง'
     };
     const paymentStatusItems = Object.entries(aggregates.paymentStatusCounts)
       .map(([name, count]) => ({ value: name, label: paymentStatusLabels[name] || name, count }))
       .sort((a, b) => b.count - a.count);
 
     const qualityFlagItems = [
-      { value: 'duplicate', label: 'ข้อมูลซ้ำ', count: allData.filter(r => r.is_full_duplicate || r.is_barcode_duplicate).length },
-      { value: 'mismatch', label: 'ยอดไม่ตรง', count: allData.filter(r => r.has_amount_mismatch).length },
-      { value: 'blank_driver', label: 'ไม่ระบุพนักงาน', count: allData.filter(r => r.is_driver_blank).length }
+      { value: 'full_duplicate',    label: 'ข้อมูลซ้ำ',     count: allData.filter(r => r.is_full_duplicate).length },
+      { value: 'barcode_duplicate', label: 'บาร์โค้ดซ้ำ',   count: allData.filter(r => r.is_barcode_duplicate).length },
+      { value: 'blank_driver',      label: 'ไม่ระบุชื่อ พขร.', count: allData.filter(r => r.is_driver_blank).length }
     ].filter(item => item.count > 0);
 
     const activeCount = getActiveFilterCount();
@@ -172,16 +191,14 @@ const Filters = (() => {
           <span class="filter-group__label-icon">${ICONS.search}</span>
           ค้นหาข้อมูล
         </div>
-        <div style="position: relative;">
+        <div class="search-suggest" id="filter-search-box">
           <input type="text" class="text-input" id="filter-search-text" 
-                 list="filter-search-suggestions" autocomplete="off"
+                 autocomplete="off"
                  placeholder="บาร์โค้ด, เส้นทาง, พนักงาน..." value="${escapeHtml(state.searchText)}"
                  style="padding-right: var(--space-8);">
-          <datalist id="filter-search-suggestions">
-            ${searchSuggestions.map(value => `<option value="${escapeHtml(value)}"></option>`).join('')}
-          </datalist>
+          <div class="search-suggest__panel" id="filter-search-suggestions" hidden></div>
           ${state.searchText ? `
-            <button id="clear-search-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: none; cursor: pointer; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center;">
+            <button id="clear-search-btn" class="search-suggest__clear" type="button" aria-label="ล้างคำค้นหา">
               ${ICONS.x}
             </button>
           ` : ''}
@@ -219,19 +236,23 @@ const Filters = (() => {
           <span class="filter-group__label-icon">${ICONS.truck}</span>
           พนักงานขับรถ
         </div>
-        <div style="position: relative;">
-          <input type="text" class="text-input" id="filter-driver"
-                 list="filter-driver-suggestions" autocomplete="off"
-                 placeholder="ค้นหาหรือเลือกพนักงาน (${drivers.length} คน)" value="${escapeHtml(state.driver)}"
-                 style="padding-right: var(--space-8);">
-          <datalist id="filter-driver-suggestions">
-            ${drivers.map(d => `<option value="${escapeHtml(d)}"></option>`).join('')}
-          </datalist>
-          ${state.driver ? `
-            <button id="clear-driver-btn" style="position: absolute; right: 8px; top: 50%; transform: translateY(-50%); border: none; background: none; cursor: pointer; color: var(--color-text-muted); display: flex; align-items: center; justify-content: center;">
-              ${ICONS.x}
-            </button>
-          ` : ''}
+        <div class="custom-select" id="driver-custom-select">
+          <div class="custom-select__trigger">
+            <span>${state.driver ? escapeHtml(state.driver) : `ทั้งหมด (${drivers.length} คน)`}</span>
+            <svg width="10" height="10" viewBox="0 0 12 12" style="fill: none; stroke: #86868B; stroke-width: 1.5; stroke-linecap: round;"><path d="M3 4.5L6 7.5L9 4.5" /></svg>
+          </div>
+          <div class="custom-select__dropdown">
+            <div class="custom-select__search-wrapper">
+              <input type="text" class="custom-select__search" placeholder="ค้นหาชื่อ พขร..." autocomplete="off">
+            </div>
+            <div class="custom-select__options">
+              <div class="custom-select__option ${!state.driver ? 'selected' : ''}" data-value="">ทั้งหมด (${drivers.length} คน)</div>
+              ${drivers.map(d => {
+                const isSelected = state.driver === d;
+                return `<div class="custom-select__option ${isSelected ? 'selected' : ''}" data-value="${escapeHtml(d)}">${escapeHtml(d)}</div>`;
+              }).join('')}
+            </div>
+          </div>
         </div>
       </div>
 
@@ -252,11 +273,55 @@ const Filters = (() => {
 
     // ── Bind events ──
     const searchInput = container.querySelector('#filter-search-text');
+    const searchPanel = container.querySelector('#filter-search-suggestions');
+    const searchBox = container.querySelector('#filter-search-box');
+    if (searchBox) {
+      searchBox.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+    }
     if (searchInput) {
+      const updateSearchSuggestions = (query) => {
+        if (!searchPanel) return;
+
+        const matches = getMatchingSuggestions(searchSuggestions, query);
+        if (!matches.length) {
+          searchPanel.hidden = true;
+          searchBox?.classList.remove('search-suggest--open');
+          searchPanel.innerHTML = '';
+          return;
+        }
+
+        searchPanel.innerHTML = matches.map(value => `
+          <button type="button" class="search-suggest__item" data-search-value="${escapeHtml(value)}">
+            ${escapeHtml(value)}
+          </button>
+        `).join('');
+        searchPanel.hidden = false;
+        searchBox?.classList.add('search-suggest--open');
+
+        searchPanel.querySelectorAll('[data-search-value]').forEach(button => {
+          button.addEventListener('click', () => {
+            setState({ searchText: button.dataset.searchValue || '' });
+            render();
+            const freshInput = container.querySelector('#filter-search-text');
+            if (freshInput) {
+              freshInput.focus();
+              freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
+            }
+          });
+        });
+      };
+
+      updateSearchSuggestions(searchInput.value);
+
       searchInput.addEventListener('input', debounce((e) => {
-        setState({ searchText: e.target.value });
-        // Re-render clear button when it transitions from empty to non-empty
-        if (!e.target.value || e.target.value.length === 1) {
+        const nextValue = e.target.value;
+        setState({ searchText: nextValue });
+        updateSearchSuggestions(nextValue);
+
+        // Re-render clear button when it transitions between empty and non-empty
+        if (!nextValue || nextValue.length === 1) {
           render();
           const freshInput = container.querySelector('#filter-search-text');
           if (freshInput) {
@@ -264,7 +329,18 @@ const Filters = (() => {
             freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
           }
         }
-      }, 250));
+      }, 200));
+
+      searchInput.addEventListener('focus', (e) => {
+        updateSearchSuggestions(e.target.value);
+      });
+
+      searchInput.addEventListener('keydown', (e) => {
+        if (e.key === 'Escape') {
+          searchPanel.hidden = true;
+          searchBox?.classList.remove('search-suggest--open');
+        }
+      });
     }
 
     const clearSearchBtn = container.querySelector('#clear-search-btn');
@@ -283,27 +359,56 @@ const Filters = (() => {
       });
     });
 
-    const driverInput = container.querySelector('#filter-driver');
-    if (driverInput) {
-      driverInput.addEventListener('input', debounce((e) => {
-        setState({ driver: e.target.value });
-        if (!e.target.value || e.target.value.length === 1) {
-          render();
-          const freshInput = container.querySelector('#filter-driver');
-          if (freshInput) {
-            freshInput.focus();
-            freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
-          }
-        }
-      }, 200));
-      driverInput.addEventListener('change', (e) => setState({ driver: e.target.value }));
-    }
+    // Custom Driver Dropdown logic
+    const driverSelectContainer = container.querySelector('#driver-custom-select');
+    if (driverSelectContainer) {
+      const trigger = driverSelectContainer.querySelector('.custom-select__trigger');
+      const dropdown = driverSelectContainer.querySelector('.custom-select__dropdown');
+      const searchInput = driverSelectContainer.querySelector('.custom-select__search');
+      const optionsContainer = driverSelectContainer.querySelector('.custom-select__options');
 
-    const clearDriverBtn = container.querySelector('#clear-driver-btn');
-    if (clearDriverBtn) {
-      clearDriverBtn.addEventListener('click', () => {
-        setState({ driver: '' });
-        render();
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+        
+        // Close other custom selects
+        document.querySelectorAll('.custom-select.open').forEach(el => {
+          if (el !== driverSelectContainer) el.classList.remove('open');
+        });
+
+        driverSelectContainer.classList.toggle('open');
+        if (driverSelectContainer.classList.contains('open')) {
+          searchInput.value = '';
+          optionsContainer.querySelectorAll('.custom-select__option').forEach(opt => opt.style.display = '');
+          searchInput.focus();
+        }
+      });
+
+      dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      searchInput.addEventListener('input', (e) => {
+        const query = e.target.value.toLowerCase().trim();
+        const options = optionsContainer.querySelectorAll('.custom-select__option');
+        options.forEach(opt => {
+          const val = opt.textContent.toLowerCase();
+          if (opt.dataset.value === '') {
+            opt.style.display = '';
+          } else if (val.includes(query)) {
+            opt.style.display = '';
+          } else {
+            opt.style.display = 'none';
+          }
+        });
+      });
+
+      optionsContainer.querySelectorAll('.custom-select__option').forEach(opt => {
+        opt.addEventListener('click', () => {
+          const val = opt.dataset.value;
+          setState({ driver: val });
+          driverSelectContainer.classList.remove('open');
+          render();
+        });
       });
     }
 
@@ -332,6 +437,18 @@ const Filters = (() => {
   }
 
   function onChange(callback) { onChangeCallback = callback; }
+
+  // Close custom dropdowns on click outside
+  document.addEventListener('click', () => {
+    document.querySelectorAll('.custom-select.open').forEach(el => {
+      el.classList.remove('open');
+    });
+    document.querySelectorAll('.search-suggest--open').forEach(el => {
+      el.classList.remove('search-suggest--open');
+      const panel = el.querySelector('.search-suggest__panel');
+      if (panel) panel.hidden = true;
+    });
+  });
 
   return { render, getState, setState, resetAll, onChange, getActiveFilterCount };
 })();

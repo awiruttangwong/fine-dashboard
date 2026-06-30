@@ -313,9 +313,7 @@ const FineData = (() => {
     const paid = row.paid_amount || 0;
 
     if (row.has_amount_mismatch || row.fine_amount < 0 || row.paid_amount < 0) return 'data_error';
-    if (row.paid_amount !== null && paid > fine) return 'overpaid';
-    if (row.paid_amount !== null && paid >= fine && row.computed_remaining_amount <= 0) return 'paid';
-    if (row.paid_amount !== null && paid > 0 && paid < fine) return 'partial';
+    if (row.paid_amount !== null && paid >= fine) return 'paid';
     return 'open';
   }
 
@@ -342,9 +340,11 @@ const FineData = (() => {
 
       if (filters.qualityFlags && filters.qualityFlags.length > 0) {
         const hasFlag = filters.qualityFlags.some(flag => {
-          if (flag === 'duplicate') return row.is_full_duplicate || row.is_barcode_duplicate;
-          if (flag === 'mismatch') return row.has_amount_mismatch;
-          if (flag === 'blank_driver') return row.is_driver_blank;
+          if (flag === 'full_duplicate')    return row.is_full_duplicate;
+          if (flag === 'barcode_duplicate') return row.is_barcode_duplicate;
+          if (flag === 'duplicate')         return row.is_full_duplicate || row.is_barcode_duplicate; // backwards compat
+          if (flag === 'mismatch')          return row.has_amount_mismatch;
+          if (flag === 'blank_driver')      return row.is_driver_blank;
           return false;
         });
         if (!hasFlag) return false;

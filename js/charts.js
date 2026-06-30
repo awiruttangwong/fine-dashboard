@@ -24,6 +24,7 @@ const Charts = (() => {
   };
 
   const PALETTE = [COLORS.blue, COLORS.green, COLORS.orange, COLORS.purple, COLORS.teal, COLORS.pink, COLORS.indigo, COLORS.mint, COLORS.cyan, COLORS.red];
+  const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 
   // Shared Chart.js defaults
   const baseOptions = {
@@ -42,6 +43,45 @@ const Charts = (() => {
         displayColors: true,
         boxPadding: 4,
         caretPadding: 8
+      }
+    }
+  };
+
+  // Professional doughnut hover: smooth radial nudge with easing.
+  // The default hover produces a jittery "expand/collapse" because slices
+  // scale outward with a linear feel and no transition timing. Tuning the
+  // animation properties + a subtle border gap makes the hover feel deliberate.
+  const DOUGHNUT_HOVER = {
+    animations: {
+      // Numbers (values) animate in smoothly on render
+      numbers: {
+        duration: 1000,
+        easing: 'easeOutQuart'
+      },
+      // Active (hovered) element animation — this fixes the "warping"
+      active: {
+        duration: 400,
+        easing: 'easeOutCubic'
+      }
+    },
+    // Highlight only the single slice under the cursor (no neighbor bleed)
+    interaction: {
+      intersect: true,
+      mode: 'nearest'
+    },
+    hover: {
+      mode: 'nearest',
+      intersect: true
+    },
+    datasets: {
+      doughnut: {
+        // 10px gives a confident, contained nudge that reads as intentional
+        hoverOffset: 10,
+        // Subtle separation between slices at rest (cleaner Apple-style look)
+        spacing: 2,
+        // Border drawn in a light color so slices look "cut" apart on hover
+        borderHoverColor: 'rgba(255, 255, 255, 0.85)',
+        borderHoverWidth: 2
       }
     }
   };
@@ -76,6 +116,16 @@ const Charts = (() => {
     return monthLabel ? `${monthLabel} ${yearBE}` : '';
   }
 
+  function formatThaiDateLabel(dateValue) {
+    const match = String(dateValue || '').match(/^(\d{4})-(\d{2})-(\d{2})$/);
+    if (!match) return String(dateValue || '');
+
+    const day = Number(match[3]);
+    const monthLabel = THAI_MONTHS_SHORT[Number(match[2]) - 1] || '';
+    const yearBE = Number(match[1]) + 543;
+    return `${day} ${monthLabel} ${yearBE}`;
+  }
+
   // ── 1. Daily Fine Trend (Bar + Premium Smooth Line) ──
   function renderDailyTrend(aggregates, selectedMonth) {
     destroyChart('dailyTrend');
@@ -85,13 +135,11 @@ const Charts = (() => {
     const dates   = Object.keys(aggregates.dailyTrend).sort();
     const amounts = dates.map(d => aggregates.dailyTrend[d].fineTotal);
     const counts  = dates.map(d => aggregates.dailyTrend[d].count);
-    const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
     const labels  = dates.map(d => {
       const parts = d.split('-');
       const dayVal = parseInt(parts[2]);
-      const monthIdx = parseInt(parts[1]) - 1;
-      const monthLabel = THAI_MONTHS_SHORT[monthIdx] || '';
-      return `${dayVal} ${monthLabel}`;
+      const monthLabel = THAI_MONTHS_SHORT[parseInt(parts[1]) - 1] || '';
+      return [String(dayVal), monthLabel];
     });
 
     // ── Subtitle (update dynamic selected-month text) ──
@@ -99,7 +147,7 @@ const Charts = (() => {
     if (subtitleEl) {
       const selectedMonthLabel = formatMonthLabel(selectedMonth || (dates[0] ? dates[0].slice(0, 7) : ''));
       if (dates.length > 0 && selectedMonthLabel) {
-        subtitleEl.textContent = `ยอดค่าปรับและจำนวนรายการ ประจำเดือน${selectedMonthLabel}`;
+        subtitleEl.textContent = `ยอดค่าปรับสะสมรายวัน ประจำเดือน${selectedMonthLabel}`;
       } else if (selectedMonthLabel) {
         subtitleEl.textContent = `ไม่มีข้อมูลสำหรับเดือน${selectedMonthLabel}`;
       } else {
@@ -122,12 +170,6 @@ const Charts = (() => {
               border-top:2px solid rgba(0,113,227,0.9);"></span>
         ยอดค่าปรับ (฿)
       </span>
-      <span style="display:flex;align-items:center;gap:0px;">
-        <span style="display:inline-block;width:24px;height:2.5px;border-radius:2px;background:#E8820C;margin-right:4px;"></span>
-        <span style="display:inline-block;width:9px;height:9px;border-radius:50%;
-              background:#fff;border:2.5px solid #E8820C;margin-right:8px;margin-left:-3px;"></span>
-        จำนวนรายการ
-      </span>
     `;
     canvas.parentNode.insertBefore(legendEl, canvas);
 
@@ -135,14 +177,8 @@ const Charts = (() => {
 
     // Gradient for bars (top → bottom: vivid → almost-clear)
     const barGrad = ctx.createLinearGradient(0, 0, 0, 300);
-    barGrad.addColorStop(0,   'rgba(0, 113, 227, 0.72)');
-    barGrad.addColorStop(0.6, 'rgba(0, 113, 227, 0.30)');
-    barGrad.addColorStop(1,   'rgba(0, 113, 227, 0.05)');
-
-    // Subtle warm fill under the orange line
-    const lineGrad = ctx.createLinearGradient(0, 0, 0, 300);
-    lineGrad.addColorStop(0,   'rgba(232, 130, 12, 0.14)');
-    lineGrad.addColorStop(1,   'rgba(232, 130, 12, 0.0)');
+    barGrad.addColorStop(0,   'rgba(0, 113, 227, 0.85)');
+    barGrad.addColorStop(1,   'rgba(0, 113, 227, 0.10)');
 
     chartInstances['dailyTrend'] = new Chart(ctx, {
       type: 'bar',
@@ -150,51 +186,35 @@ const Charts = (() => {
         labels,
         datasets: [
           {
-            type: 'bar',
             label: 'ยอดปรับ (฿)',
             data: amounts,
             backgroundColor: barGrad,
-            borderColor: 'rgba(0, 113, 227, 0.85)',
-            borderWidth: { top: 2, right: 0, bottom: 0, left: 0 },
-            borderRadius: 6,
+            borderWidth: 0,
+            borderRadius: 5,
             borderSkipped: false,
-            yAxisID: 'y',
-            order: 2
-          },
-          {
-            type: 'line',
-            label: 'จำนวนรายการ',
-            data: counts,
-            borderColor: '#E8820C',
-            backgroundColor: lineGrad,
-            borderWidth: 3,
-            fill: true,
-            tension: 0.42,
-            pointRadius: 5,
-            pointHoverRadius: 9,
-            pointBackgroundColor: '#FFFFFF',
-            pointBorderColor: '#E8820C',
-            pointBorderWidth: 2.5,
-            pointHoverBackgroundColor: '#E8820C',
-            pointHoverBorderColor: '#FFFFFF',
-            pointHoverBorderWidth: 3,
-            yAxisID: 'y1',
-            order: 1
+            barPercentage: 0.6,
+            categoryPercentage: 0.8,
+            yAxisID: 'y'
           }
         ]
       },
       options: {
         ...baseOptions,
-        layout: { padding: { left: 0, right: 0, top: 4, bottom: 0 } },
+        layout: { padding: { left: 0, right: 0, top: 4, bottom: 14 } },
         interaction: { intersect: false, mode: 'index' },
         scales: {
           x: {
             grid: { display: false },
             ticks: {
               font: { family: "'Prompt'", size: 11 },
-              color: '#AEAEB2',
+              color: '#6E6E73',
+              autoSkip: false,
               maxRotation: 0,
-              maxTicksLimit: 11
+              minRotation: 0,
+              padding: 10,
+              callback: function(value) {
+                return this.getLabelForValue(value);
+              }
             },
             border: { display: false }
           },
@@ -204,19 +224,7 @@ const Charts = (() => {
             ticks: {
               font: { family: "'Prompt'", size: 11 },
               color: '#86868B',
-              callback: (v) => v >= 1000 ? (v / 1000).toFixed(0) + 'K ฿' : v + ' ฿'
-            },
-            border: { display: false }
-          },
-          y1: {
-            position: 'right',
-            grid: { display: false },
-            min: 0,
-            ticks: {
-              font: { family: "'Prompt'", size: 11 },
-              color: '#E8820C',
-              stepSize: 1,
-              callback: (v) => Number.isInteger(v) ? v : ''
+              callback: (v) => v >= 1000 ? (v / 1000).toFixed(1).replace('.0', '') + 'K ฿' : v + ' ฿'
             },
             border: { display: false }
           }
@@ -226,10 +234,12 @@ const Charts = (() => {
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
-              label: (ctx) => {
-                if (ctx.datasetIndex === 0) return `  ยอดปรับ: ${formatCurrency(ctx.raw)}`;
-                return `  จำนวน: ${ctx.raw} รายการ`;
-              }
+              title: (items) => {
+                const index = items?.[0]?.dataIndex ?? 0;
+                return formatThaiDateLabel(dates[index]);
+              },
+              label: (ctx) => `  ยอดปรับ: ${formatCurrency(ctx.raw)}`,
+              afterLabel: (ctx) => `  จำนวนรายการ: ${counts[ctx.dataIndex] || 0} รายการ`
             }
           }
         }
@@ -257,12 +267,12 @@ const Charts = (() => {
         datasets: [{
           data,
           backgroundColor: colors.slice(0, labels.length),
-          borderWidth: 0,
-          hoverOffset: 8
+          borderWidth: 0
         }]
       },
       options: {
         ...baseOptions,
+        ...DOUGHNUT_HOVER,
         cutout: '68%',
         plugins: {
           ...baseOptions.plugins,
@@ -340,12 +350,12 @@ const Charts = (() => {
         datasets: [{
           data,
           backgroundColor: PALETTE.slice(0, labels.length),
-          borderWidth: 0,
-          hoverOffset: 6
+          borderWidth: 0
         }]
       },
       options: {
         ...baseOptions,
+        ...DOUGHNUT_HOVER,
         cutout: '62%',
         plugins: {
           ...baseOptions.plugins,
@@ -413,12 +423,10 @@ const Charts = (() => {
     if (!canvas) return;
 
     const statusLabels = {
-      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'partial': 'ชำระบางส่วน',
-      'overpaid': 'ชำระเกิน', 'data_error': 'ข้อมูลผิดพลาด'
+      'open': 'ค้างชำระ', 'paid': 'ชำระแล้ว', 'data_error': 'ยอดไม่ตรง'
     };
     const statusColors = {
-      'open': COLORS.blue, 'paid': COLORS.green, 'partial': COLORS.orange,
-      'overpaid': COLORS.purple, 'data_error': COLORS.red
+      'open': COLORS.blue, 'paid': COLORS.green, 'data_error': COLORS.red
     };
 
     const entries = Object.entries(aggregates.paymentStatusCounts).sort((a, b) => b[1] - a[1]);
@@ -433,12 +441,12 @@ const Charts = (() => {
         datasets: [{
           data,
           backgroundColor: colors,
-          borderWidth: 0,
-          hoverOffset: 6
+          borderWidth: 0
         }]
       },
       options: {
         ...baseOptions,
+        ...DOUGHNUT_HOVER,
         cutout: '68%',
         plugins: {
           ...baseOptions.plugins,

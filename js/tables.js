@@ -55,9 +55,7 @@ const Tables = (() => {
     const map = {
       'open':       { label: 'ค้างชำระ',       class: 'status-badge--open' },
       'paid':       { label: 'ชำระแล้ว',       class: 'status-badge--paid' },
-      'partial':    { label: 'ชำระบางส่วน',    class: 'status-badge--partial' },
-      'overpaid':   { label: 'ชำระเกิน',       class: 'status-badge--overpaid' },
-      'data_error': { label: 'ข้อมูลผิดพลาด', class: 'status-badge--error' }
+      'data_error': { label: 'ยอดไม่ตรง',      class: 'status-badge--error' }
     };
     const info = map[status] || { label: status, class: 'status-badge--open' };
     return `<span class="status-badge ${info.class}"><span class="status-dot"></span>${info.label}</span>`;
@@ -70,10 +68,8 @@ const Tables = (() => {
 
   const STATUS_WEIGHT = {
     'paid': 1,
-    'partial': 2,
-    'data_error': 3,
-    'open': 4,
-    'overpaid': 5
+    'data_error': 2,
+    'open': 3
   };
 
   function sortData(data, field, dir) {
@@ -141,6 +137,25 @@ const Tables = (() => {
     `;
   }
 
+  function renderColGroup(columns) {
+    const hasWidths = columns.some(col => col.width);
+    if (!hasWidths) return '';
+    return `
+      <colgroup>
+        ${columns.map(col => `<col${col.width ? ` style="width:${col.width}"` : ''}>`).join('')}
+      </colgroup>
+    `;
+  }
+
+  function getColumnClass(col, target = 'td') {
+    const classes = [
+      col.className,
+      target === 'th' ? col.thClass : col.tdClass,
+      col.align ? `cell-${col.align}` : ''
+    ];
+    return classes.filter(Boolean).join(' ');
+  }
+
   // ── Tab: All Fines ──
   function renderAllFines(data) {
     const state = tableState['all-fines'];
@@ -150,15 +165,15 @@ const Tables = (() => {
     const paginated = sorted.slice((state.page - 1) * state.perPage, state.page * state.perPage);
 
     const columns = [
-      { field: 'fine_date', label: 'วันที่', render: (r) => formatDate(r.fine_date) },
-      { field: 'customer', label: 'ลูกค้า', render: (r) => escapeHtml(r.customer) },
-      { field: 'barcode', label: 'บาร์โค้ด', render: (r) => `<span class="cell-mono">${escapeHtml(r.barcode)}</span>` },
-      { field: 'route_raw', label: 'เส้นทาง', render: (r) => `<code class="cell-mono" style="font-size: var(--font-size-xs); background: none; padding: 0;">${escapeHtml(r.route_raw)}</code>` },
-      { field: 'driver_name', label: 'พนักงาน', render: (r) => r.driver_name ? escapeHtml(r.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
-      { field: 'fine_amount', label: 'ยอดปรับ', render: (r) => `<span class="cell-amount">${formatCurrency(r.fine_amount)}</span>`, thClass: 'cell-number' },
-      { field: 'paid_amount', label: 'ชำระแล้ว', render: (r) => `<span class="cell-amount ${r.paid_amount ? 'cell-amount--positive' : ''}">${formatCurrency(r.paid_amount || 0)}</span>`, thClass: 'cell-number' },
-      { field: 'computed_remaining', label: 'คงเหลือ', render: (r) => `<span class="cell-amount">${formatCurrency(r.computed_remaining)}</span>`, thClass: 'cell-number' },
-      { field: 'payment_status', label: 'สถานะ', render: (r) => getStatusBadge(r.payment_status) }
+      { field: 'fine_date', label: 'วันที่', width: '8%', align: 'left', render: (r) => formatDate(r.fine_date) },
+      { field: 'customer', label: 'ลูกค้า', width: '8%', align: 'left', render: (r) => escapeHtml(r.customer) },
+      { field: 'barcode', label: 'บาร์โค้ด', width: '13%', align: 'left', render: (r) => `<span class="cell-mono">${escapeHtml(r.barcode)}</span>` },
+      { field: 'route_raw', label: 'เส้นทาง', width: '20%', align: 'left', render: (r) => `<code class="cell-mono" style="font-size: var(--font-size-xs); background: none; padding: 0;">${escapeHtml(r.route_raw)}</code>` },
+      { field: 'driver_name', label: 'พนักงาน', width: '13%', align: 'left', render: (r) => r.driver_name ? escapeHtml(r.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
+      { field: 'fine_amount', label: 'ยอดปรับ', width: '10%', align: 'right', render: (r) => `<span class="cell-amount">${formatCurrency(r.fine_amount)}</span>` },
+      { field: 'paid_amount', label: 'ชำระแล้ว', width: '10%', align: 'right', render: (r) => `<span class="cell-amount ${r.paid_amount ? 'cell-amount--positive' : ''}">${formatCurrency(r.paid_amount || 0)}</span>` },
+      { field: 'computed_remaining', label: 'คงเหลือ', width: '10%', align: 'right', render: (r) => `<span class="cell-amount">${formatCurrency(r.computed_remaining)}</span>` },
+      { field: 'payment_status', label: 'สถานะ', width: '8%', align: 'center', className: 'cell-status', render: (r) => getStatusBadge(r.payment_status) }
     ];
 
     return `
@@ -177,9 +192,10 @@ const Tables = (() => {
       </div>
       <div class="table-container">
         <table class="data-table" id="table-all-fines">
+          ${renderColGroup(columns)}
           <thead>
             <tr>
-              ${columns.map(col => `<th class="${col.thClass || ''}" data-tab="all-fines" data-sort="${col.field}">${col.label} ${getSortIcon(col.field, state)}</th>`).join('')}
+              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}" data-tab="all-fines" data-sort="${col.field}">${col.label} ${getSortIcon(col.field, state)}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -187,7 +203,7 @@ const Tables = (() => {
               ? `<tr><td colspan="${columns.length}" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูล</div></td></tr>`
               : paginated.map(row => {
                   const rowClass = row.has_amount_mismatch ? 'row-error' : (row.is_full_duplicate ? 'row-highlight' : '');
-                  return `<tr class="${rowClass}">${columns.map(col => `<td>${col.render(row)}</td>`).join('')}</tr>`;
+                  return `<tr class="${rowClass}">${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}</tr>`;
                 }).join('')
             }
           </tbody>
@@ -203,6 +219,12 @@ const Tables = (() => {
     const dupData = FineData.getDuplicateBarcodeRows(data);
     let filtered = filterBySearch(dupData, state.search);
     const total = filtered.length;
+    const columns = [
+      { label: 'บาร์โค้ด', width: '26%', align: 'left', render: (item) => `<span class="cell-mono">${escapeHtml(item.barcode)}</span>` },
+      { label: 'จำนวนซ้ำ', width: '16%', align: 'right', render: (item) => `<span class="badge badge--orange">${item.count}</span>` },
+      { label: 'ยอดปรับรวม', width: '20%', align: 'right', render: (item) => `<span class="cell-amount">${formatCurrency(item.totalFine)}</span>` },
+      { label: 'แถวต้นทาง', width: '38%', align: 'left', render: (item) => `<span class="cell-muted">${escapeHtml(item.rows.map(r => r.source_row).join(', '))}</span>` }
+    ];
 
     return `
       <div class="table-card__header">
@@ -220,12 +242,10 @@ const Tables = (() => {
       </div>
       <div class="table-container">
         <table class="data-table">
+          ${renderColGroup(columns)}
           <thead>
             <tr>
-              <th>บาร์โค้ด</th>
-              <th class="cell-number">จำนวนซ้ำ</th>
-              <th class="cell-number">ยอดปรับรวม</th>
-              <th>แถวต้นทาง</th>
+              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}">${col.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -233,10 +253,7 @@ const Tables = (() => {
               ? `<tr><td colspan="4" class="empty-state"><div class="empty-state__text">ไม่พบบาร์โค้ดซ้ำ</div></td></tr>`
               : filtered.map(item => `
                   <tr class="row-highlight">
-                    <td><span class="cell-mono">${escapeHtml(item.barcode)}</span></td>
-                    <td class="cell-number"><span class="badge badge--orange">${item.count}</span></td>
-                    <td class="cell-amount">${formatCurrency(item.totalFine)}</td>
-                    <td class="cell-muted">${escapeHtml(item.rows.map(r => r.source_row).join(', '))}</td>
+                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(item)}</td>`).join('')}
                   </tr>
                 `).join('')
             }
@@ -250,6 +267,16 @@ const Tables = (() => {
   function renderMismatches(data) {
     const state = tableState['mismatches'];
     const mismatchData = FineData.getMismatchRows(data);
+    const columns = [
+      { label: 'แถว', width: '8%', align: 'right', render: (row) => row.source_row },
+      { label: 'วันที่', width: '12%', align: 'left', render: (row) => formatDate(row.fine_date) },
+      { label: 'บาร์โค้ด', width: '16%', align: 'left', render: (row) => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
+      { label: 'ยอดปรับ', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
+      { label: 'ชำระแล้ว', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.paid_amount || 0)}</span>` },
+      { label: 'คงเหลือ (ต้นทาง)', width: '15%', align: 'right', render: (row) => `<span class="cell-amount cell-amount--negative">${formatCurrency(row.remaining_amount)}</span>` },
+      { label: 'คงเหลือ (คำนวณ)', width: '15%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.computed_remaining)}</span>` },
+      { label: 'สถานะ', width: '10%', align: 'center', className: 'cell-status', render: () => `<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ไม่ตรง</span>` }
+    ];
 
     return `
       <div class="table-card__header">
@@ -261,16 +288,10 @@ const Tables = (() => {
       </div>
       <div class="table-container">
         <table class="data-table">
+          ${renderColGroup(columns)}
           <thead>
             <tr>
-              <th>แถว</th>
-              <th>วันที่</th>
-              <th>บาร์โค้ด</th>
-              <th class="cell-number">ยอดปรับ</th>
-              <th class="cell-number">ชำระแล้ว</th>
-              <th class="cell-number">คงเหลือ (ต้นทาง)</th>
-              <th class="cell-number">คงเหลือ (คำนวณ)</th>
-              <th>สถานะ</th>
+              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}">${col.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
@@ -278,14 +299,7 @@ const Tables = (() => {
               ? `<tr><td colspan="8" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลที่ไม่ตรงกัน</div></td></tr>`
               : mismatchData.map(row => `
                   <tr class="row-error">
-                    <td>${row.source_row}</td>
-                    <td>${formatDate(row.fine_date)}</td>
-                    <td><span class="cell-mono">${escapeHtml(row.barcode)}</span></td>
-                    <td class="cell-amount">${formatCurrency(row.fine_amount)}</td>
-                    <td class="cell-amount">${formatCurrency(row.paid_amount || 0)}</td>
-                    <td class="cell-amount cell-amount--negative">${formatCurrency(row.remaining_amount)}</td>
-                    <td class="cell-amount">${formatCurrency(row.computed_remaining)}</td>
-                    <td><span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ไม่ตรง</span></td>
+                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}
                   </tr>
                 `).join('')
             }
@@ -298,9 +312,24 @@ const Tables = (() => {
   // ── Tab: Missing Data ──
   function renderMissingData(data) {
     const state = tableState['missing-data'];
-    const missingData = data.filter(r => r.is_driver_blank || r.is_full_duplicate);
+    const missingData = data.filter(r => r.is_driver_blank || r.is_full_duplicate || r.is_barcode_duplicate);
     let filtered = filterBySearch(missingData, state.search);
     const total = filtered.length;
+    const columns = [
+      { label: 'แถว', width: '8%', align: 'right', render: (row) => row.source_row },
+      { label: 'วันที่', width: '12%', align: 'left', render: (row) => formatDate(row.fine_date) },
+      { label: 'ลูกค้า', width: '10%', align: 'left', render: (row) => escapeHtml(row.customer) },
+      { label: 'บาร์โค้ด', width: '16%', align: 'left', render: (row) => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
+      { label: 'พนักงาน', width: '24%', align: 'left', render: (row) => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
+      { label: 'ยอดปรับ', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
+      { label: 'ปัญหา', width: '18%', align: 'center', className: 'cell-status', render: (row) => {
+        const flags = [];
+        if (row.is_driver_blank) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> ไม่ระบุชื่อ พขร.</span>`);
+        if (row.is_full_duplicate) flags.push(`<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ข้อมูลซ้ำ</span>`);
+        if (row.is_barcode_duplicate && !row.is_full_duplicate) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> บาร์โค้ดซ้ำ</span>`);
+        return flags.join(' ');
+      }}
+    ];
 
     return `
       <div class="table-card__header">
@@ -312,36 +341,20 @@ const Tables = (() => {
       </div>
       <div class="table-container">
         <table class="data-table">
+          ${renderColGroup(columns)}
           <thead>
             <tr>
-              <th>แถว</th>
-              <th>วันที่</th>
-              <th>ลูกค้า</th>
-              <th>บาร์โค้ด</th>
-              <th>พนักงาน</th>
-              <th class="cell-number">ยอดปรับ</th>
-              <th>ปัญหา</th>
+              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}">${col.label}</th>`).join('')}
             </tr>
           </thead>
           <tbody>
             ${filtered.length === 0
               ? `<tr><td colspan="7" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลที่ไม่ครบถ้วน</div></td></tr>`
-              : filtered.map(row => {
-                  const flags = [];
-                  if (row.is_driver_blank) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> ไม่ระบุพนักงาน</span>`);
-                  if (row.is_full_duplicate) flags.push(`<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ข้อมูลซ้ำ</span>`);
-                  return `
-                    <tr class="row-highlight">
-                      <td>${row.source_row}</td>
-                      <td>${formatDate(row.fine_date)}</td>
-                      <td>${escapeHtml(row.customer)}</td>
-                      <td><span class="cell-mono">${escapeHtml(row.barcode)}</span></td>
-                      <td>${row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>`}</td>
-                      <td class="cell-amount">${formatCurrency(row.fine_amount)}</td>
-                      <td>${flags.join(' ')}</td>
-                    </tr>
-                  `;
-                }).join('')
+              : filtered.map(row => `
+                  <tr class="row-highlight">
+                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}
+                  </tr>
+                `).join('')
             }
           </tbody>
         </table>
@@ -359,7 +372,7 @@ const Tables = (() => {
       { id: 'all-fines',    label: 'รายการทั้งหมด',   count: data.length },
       { id: 'dup-barcodes', label: 'บาร์โค้ดซ้ำ',     count: FineData.getDuplicateBarcodeRows(data).length },
       { id: 'mismatches',   label: 'ยอดไม่ตรง',       count: FineData.getMismatchRows(data).length },
-      { id: 'missing-data', label: 'ข้อมูลไม่ครบ',    count: data.filter(r => r.is_driver_blank || r.is_full_duplicate).length }
+      { id: 'missing-data', label: 'ข้อมูลไม่ครบ',    count: data.filter(r => r.is_driver_blank || r.is_full_duplicate || r.is_barcode_duplicate).length }
     ];
 
     let tableContent = '';
