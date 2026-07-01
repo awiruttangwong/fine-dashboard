@@ -170,7 +170,6 @@
 .data-table th.column-financial {
   white-space: normal;
   line-height: 1.35;
-  letter-spacing: 0.01em;
   overflow: visible;
   text-overflow: clip;
 }

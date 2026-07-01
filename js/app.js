@@ -109,7 +109,7 @@ const App = (() => {
     if (subtitle) {
       subtitle.hidden = !isComparisonMode;
       subtitle.textContent = isComparisonMode
-        ? 'เปรียบเทียบผลการดำเนินงานระหว่างสองเดือนภายใต้ตัวกรองเดียวกัน'
+        ? ''
         : '';
     }
 

@@ -128,7 +128,7 @@ const ComparisonView = (() => {
 
   function renderCustomerRows(model) {
     if (!model.customerComparison.length) {
-      return `<tr><td colspan="5" class="comparison-empty-cell">ไม่พบข้อมูลลูกค้าในเดือนที่เลือก</td></tr>`;
+      return `<tr><td colspan="4" class="comparison-empty-cell">ไม่พบข้อมูลลูกค้าในเดือนที่เลือก</td></tr>`;
     }
 
     return model.customerComparison.map(item => {
@@ -141,7 +141,6 @@ const ComparisonView = (() => {
           <td>${formatValue(metric.current, type)}</td>
           <td>${formatValue(metric.comparison, type)}</td>
           <td class="comparison-delta comparison-delta--${trend.className}">${formatDelta(metric, type)}</td>
-          <td class="comparison-delta comparison-delta--${trend.className}">${formatDeltaPercent(metric)}</td>
         </tr>
       `;
     }).join('');
@@ -186,10 +185,6 @@ const ComparisonView = (() => {
             <div class="comparison-toolbar__eyebrow" id="comparison-context-title">เปรียบเทียบรายเดือน</div>
             <div class="comparison-toolbar__period">${escapeHtml(primaryLabel)} <span>เทียบกับ</span> ${escapeHtml(comparisonLabel)}</div>
           </div>
-          <div class="comparison-segmented" role="group" aria-label="รูปแบบค่าที่ใช้ในกราฟและตาราง">
-            <button type="button" data-comparison-metric="amount" class="${metricMode === 'amount' ? 'active' : ''}" aria-pressed="${metricMode === 'amount'}">มูลค่า (฿)</button>
-            <button type="button" data-comparison-metric="count" class="${metricMode === 'count' ? 'active' : ''}" aria-pressed="${metricMode === 'count'}">จำนวนรายการ</button>
-          </div>
         </div>
 
         <div class="comparison-kpi-grid">
@@ -202,6 +197,10 @@ const ComparisonView = (() => {
               <div>
                 <div class="chart-card__title">แนวโน้มค่าปรับรายวัน</div>
                 <div class="chart-card__subtitle">เปรียบเทียบวันที่ 1-${model.days.length} ของทั้งสองเดือน</div>
+              </div>
+              <div class="comparison-segmented comparison-segmented--compact" role="group" aria-label="รูปแบบค่าที่ใช้ในกราฟและตาราง">
+                <button type="button" data-comparison-metric="amount" class="${metricMode === 'amount' ? 'active' : ''}" aria-pressed="${metricMode === 'amount'}">มูลค่า</button>
+                <button type="button" data-comparison-metric="count" class="${metricMode === 'count' ? 'active' : ''}" aria-pressed="${metricMode === 'count'}">จำนวนรายการ</button>
               </div>
             </div>
             <div class="comparison-chart-legend" aria-hidden="true">
@@ -243,7 +242,6 @@ const ComparisonView = (() => {
                   <th>${escapeHtml(primaryLabel)}</th>
                   <th>${escapeHtml(comparisonLabel)}</th>
                   <th>ผลต่าง</th>
-                  <th>เปลี่ยนแปลง</th>
                 </tr></thead>
                 <tbody>${renderCustomerRows(model)}</tbody>
               </table>
@@ -292,7 +290,21 @@ const ComparisonView = (() => {
 
     const isAmount = metricMode === 'amount';
     const valueKey = isAmount ? 'amount' : 'count';
-    dailyChart = new Chart(canvas.getContext('2d'), {
+
+    // Premium bar gradients (top → bottom: vivid → almost-clear) so bars
+    // feel dimensional and Apple-like instead of flat solid color blocks.
+    // Built fresh per render because the canvas size can change.
+    const ctx = canvas.getContext('2d');
+    const chartArea = { height: 320 };
+    const primaryGrad = ctx.createLinearGradient(0, 0, 0, chartArea.height);
+    primaryGrad.addColorStop(0, 'rgba(0, 113, 227, 0.92)');
+    primaryGrad.addColorStop(1, 'rgba(0, 113, 227, 0.18)');
+
+    const comparisonGrad = ctx.createLinearGradient(0, 0, 0, chartArea.height);
+    comparisonGrad.addColorStop(0, 'rgba(174, 174, 178, 0.78)');
+    comparisonGrad.addColorStop(1, 'rgba(174, 174, 178, 0.12)');
+
+    dailyChart = new Chart(ctx, {
       type: 'bar',
       data: {
         labels: model.days.map(day => String(day)),
@@ -302,28 +314,39 @@ const ComparisonView = (() => {
             data: model.primaryDaily.map(item => item[valueKey]),
             comparisonCounts: model.primaryDaily.map(item => item.count),
             comparisonAmounts: model.primaryDaily.map(item => item.amount),
-            backgroundColor: 'rgba(0, 113, 227, 0.78)',
-            borderRadius: 4,
+            backgroundColor: primaryGrad,
+            hoverBackgroundColor: 'rgba(0, 113, 227, 1)',
+            borderColor: 'rgba(0, 113, 227, 0.95)',
+            borderWidth: 0,
+            borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
             borderSkipped: false,
-            maxBarThickness: 18
+            maxBarThickness: 22,
+            categoryPercentage: 0.7,
+            barPercentage: 0.85
           },
           {
             label: formatMonth(model.comparisonMonth),
             data: model.comparisonDaily.map(item => item[valueKey]),
             comparisonCounts: model.comparisonDaily.map(item => item.count),
             comparisonAmounts: model.comparisonDaily.map(item => item.amount),
-            backgroundColor: 'rgba(174, 174, 178, 0.62)',
-            borderRadius: 4,
+            backgroundColor: comparisonGrad,
+            hoverBackgroundColor: 'rgba(120, 120, 128, 0.95)',
+            borderColor: 'rgba(174, 174, 178, 0.9)',
+            borderWidth: 0,
+            borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
             borderSkipped: false,
-            maxBarThickness: 18
+            maxBarThickness: 22,
+            categoryPercentage: 0.7,
+            barPercentage: 0.85
           }
         ]
       },
       options: {
         responsive: true,
         maintainAspectRatio: false,
-        animation: { duration: 450 },
+        animation: { duration: 600, easing: 'easeOutQuart' },
         interaction: { mode: 'index', intersect: false },
+        layout: { padding: { top: 6, right: 4 } },
         scales: {
           x: {
             grid: { display: false },
@@ -332,11 +355,12 @@ const ComparisonView = (() => {
           },
           y: {
             beginAtZero: true,
-            grid: { color: 'rgba(0,0,0,0.05)' },
+            grid: { color: 'rgba(0,0,0,0.045)', drawTicks: false },
             border: { display: false },
             ticks: {
               color: '#86868B',
               font: { family: "'Prompt'", size: 10 },
+              padding: 8,
               callback: value => isAmount
                 ? `${value >= 1000 ? `${formatNumber(value / 1000, 1)}K` : formatNumber(value)} ฿`
                 : formatNumber(value)
@@ -348,6 +372,9 @@ const ComparisonView = (() => {
           tooltip: {
             backgroundColor: 'rgba(29,29,31,0.94)',
             padding: 12,
+            cornerRadius: 10,
+            boxPadding: 4,
+            caretPadding: 6,
             titleFont: { family: "'Prompt'", size: 12, weight: '600' },
             bodyFont: { family: "'Prompt'", size: 11 },
             callbacks: {

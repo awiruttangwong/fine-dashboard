@@ -170,9 +170,9 @@ const Tables = (() => {
       { field: 'barcode', label: 'บาร์โค้ด', width: '12%', align: 'left', render: (r) => `<span class="cell-mono">${escapeHtml(r.barcode)}</span>` },
       { field: 'route_raw', label: 'เส้นทาง', width: '18%', align: 'left', render: (r) => `<code class="cell-mono" style="font-size: var(--font-size-xs); background: none; padding: 0;">${escapeHtml(r.route_raw)}</code>` },
       { field: 'driver_name', label: 'พนักงาน', width: '12%', align: 'left', render: (r) => r.driver_name ? escapeHtml(r.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
-      { field: 'fine_amount', label: 'ยอดปรับ', width: '10%', align: 'center', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.fine_amount)}</span>` },
-      { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '12%', align: 'center', className: 'column-financial column-paid', render: (r) => `<span class="cell-amount ${r.paid_amount ? 'cell-amount--positive' : ''}">${formatCurrency(r.paid_amount || 0)}</span>` },
-      { field: 'computed_remaining', label: 'คงเหลือ', width: '9%', align: 'center', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.computed_remaining)}</span>` },
+      { field: 'fine_amount', label: 'ยอดปรับ', width: '10%', align: 'right', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.fine_amount)}</span>` },
+      { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '12%', align: 'right', className: 'column-financial column-paid', render: (r) => `<span class="cell-amount ${r.paid_amount ? 'cell-amount--positive' : ''}">${formatCurrency(r.paid_amount || 0)}</span>` },
+      { field: 'computed_remaining', label: 'คงเหลือ', width: '9%', align: 'right', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.computed_remaining)}</span>` },
       { field: 'payment_status', label: 'สถานะ', width: '12%', align: 'center', className: 'cell-status column-status', render: (r) => getStatusBadge(r.payment_status) }
     ];
 

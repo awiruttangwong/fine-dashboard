@@ -539,17 +539,30 @@ const FineData = (() => {
       ...Object.keys(primary.customerBreakdown),
       ...Object.keys(comparison.customerBreakdown)
     ]);
-    const customerComparison = [...customers].map(customer => {
-      const currentData = primary.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
-      const comparisonData = comparison.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
-      return {
-        customer,
-        current: currentData,
-        comparison: comparisonData,
-        amount: compareMetric(currentData.fineTotal, comparisonData.fineTotal),
-        count: compareMetric(currentData.count, comparisonData.count)
-      };
-    }).sort((a, b) => b.current.fineTotal - a.current.fineTotal || b.comparison.fineTotal - a.comparison.fineTotal);
+    const customerComparison = [...customers]
+      .filter(customer => {
+        // Drop rows with no customer name (incomplete source data) and
+        // customers that have no real value in either month (all-zero /
+        // empty), so the comparison view only shows meaningful entries.
+        if (!customer || customer.trim() === '') return false;
+        const currentData = primary.customerBreakdown[customer] || { count: 0, fineTotal: 0 };
+        const comparisonData = comparison.customerBreakdown[customer] || { count: 0, fineTotal: 0 };
+        const hasCurrent = currentData.count > 0 || currentData.fineTotal > 0;
+        const hasComparison = comparisonData.count > 0 || comparisonData.fineTotal > 0;
+        return hasCurrent || hasComparison;
+      })
+      .map(customer => {
+        const currentData = primary.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
+        const comparisonData = comparison.customerBreakdown[customer] || { count: 0, fineTotal: 0, paidTotal: 0 };
+        return {
+          customer,
+          current: currentData,
+          comparison: comparisonData,
+          amount: compareMetric(currentData.fineTotal, comparisonData.fineTotal),
+          count: compareMetric(currentData.count, comparisonData.count)
+        };
+      })
+      .sort((a, b) => b.current.fineTotal - a.current.fineTotal || b.comparison.fineTotal - a.comparison.fineTotal);
 
     return {
       primaryMonth,

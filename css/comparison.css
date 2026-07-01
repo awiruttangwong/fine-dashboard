@@ -170,6 +170,22 @@
   box-shadow: var(--shadow-xs);
 }
 
+/* Compact variant — used inside chart-card__header (e.g. the daily trend
+   chart) so the toggle stays balanced against the title and doesn't
+   overpower the card header. */
+.comparison-segmented--compact {
+  padding: 2px;
+  align-self: flex-start;
+  flex-shrink: 0;
+}
+
+.comparison-segmented--compact button {
+  min-height: 22px;
+  padding: 0 var(--space-2);
+  font-size: 0.68rem;
+  white-space: nowrap;
+}
+
 .comparison-kpi-grid {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
@@ -399,7 +415,7 @@
 
 .comparison-table {
   width: 100%;
-  min-width: 720px;
+  min-width: 560px;
   border-collapse: collapse;
   table-layout: fixed;
 }
@@ -423,7 +439,7 @@
 
 .comparison-table th:first-child,
 .comparison-table td:first-child {
-  width: 24%;
+  width: 32%;
   text-align: left;
 }
 
@@ -562,11 +578,14 @@
     flex-direction: column;
   }
 
-  .comparison-segmented {
+  /* Full-width segmented controls only apply to the toolbar variant.
+     The compact variant (in the daily-trend card header) must stay
+     inline-sized so it doesn't stretch over the chart title on mobile. */
+  .comparison-segmented:not(.comparison-segmented--compact) {
     width: 100%;
   }
 
-  .comparison-segmented button {
+  .comparison-segmented:not(.comparison-segmented--compact) button {
     flex: 1;
   }
 
