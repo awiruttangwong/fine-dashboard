@@ -179,10 +179,9 @@ const ComparisonView = (() => {
 
     container.hidden = false;
     container.innerHTML = `
-      <section class="comparison-section" aria-labelledby="comparison-context-title">
+      <section class="comparison-section">
         <div class="comparison-toolbar">
           <div>
-            <div class="comparison-toolbar__eyebrow" id="comparison-context-title">เปรียบเทียบรายเดือน</div>
             <div class="comparison-toolbar__period">${escapeHtml(primaryLabel)} <span>เทียบกับ</span> ${escapeHtml(comparisonLabel)}</div>
           </div>
         </div>

@@ -316,14 +316,14 @@ const Tables = (() => {
     let filtered = filterBySearch(missingData, state.search);
     const total = filtered.length;
     const columns = [
-      { label: 'แถว', width: '8%', align: 'right', render: (row) => row.source_row },
+      { label: 'แถว', width: '6%', align: 'right', render: (row) => row.source_row },
       { label: 'วันที่', width: '12%', align: 'left', render: (row) => formatDate(row.fine_date) },
-      { label: 'ลูกค้า', width: '10%', align: 'left', render: (row) => escapeHtml(row.customer) },
+      { label: 'ลูกค้า', width: '11%', align: 'left', render: (row) => escapeHtml(row.customer) },
       { label: 'บาร์โค้ด', width: '16%', align: 'left', render: (row) => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
-      { label: 'พนักงาน', width: '24%', align: 'left', render: (row) => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
+      { label: 'พนักงาน', width: '18%', align: 'left', render: (row) => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
       { label: 'ยอดปรับ', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
       {
-        label: 'ปัญหา', width: '18%', align: 'center', className: 'cell-status', render: (row) => {
+        label: 'ปัญหา', width: '25%', align: 'center', className: 'cell-status', render: (row) => {
           const flags = [];
           if (row.is_driver_blank) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> ไม่ระบุชื่อ พขร.</span>`);
           if (row.is_full_duplicate) flags.push(`<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ข้อมูลซ้ำ</span>`);

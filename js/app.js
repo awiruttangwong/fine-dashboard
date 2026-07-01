@@ -117,27 +117,76 @@ const App = (() => {
   }
 
   function renderLoadingState() {
-    const kpiGrid = document.getElementById('kpi-grid');
-    if (kpiGrid) {
-      kpiGrid.innerHTML = `
-        <div class="kpi-card" style="grid-column: 1 / -1;">
-          <div class="kpi-card__content">
-            <div class="kpi-card__value kpi-card__value--small">กำลังโหลดข้อมูลจาก Google Sheet...</div>
-            <div class="kpi-card__detail">กำลังอ่านข้อมูลจาก sheet name data</div>
+    // ── Sidebar Filters Skeleton ──
+    const sidebarFilters = document.getElementById('sidebar-filters');
+    if (sidebarFilters) {
+      sidebarFilters.innerHTML = `
+        <div class="skeleton-sidebar-filter">
+          <div class="skeleton-sidebar-filter__header">
+            <div class="skeleton skeleton-text--md" style="width: 100px; height: 16px;"></div>
+          </div>
+          <div class="skeleton-sidebar-filter__section">
+            <div class="skeleton skeleton-text--sm" style="width: 90px; height: 10px;"></div>
+            <div class="skeleton" style="width: 100%; height: 32px; border-radius: var(--radius-md);"></div>
+          </div>
+          <div class="skeleton-sidebar-filter__section">
+            <div class="skeleton skeleton-text--sm" style="width: 60px; height: 10px;"></div>
+            <div style="display: grid; grid-template-columns: repeat(4, 1fr); gap: 4px;">
+              ${Array.from({ length: 12 }, () => '<div class="skeleton" style="height: 28px; border-radius: var(--radius-full);"></div>').join('')}
+            </div>
+          </div>
+          <div class="skeleton-sidebar-filter__section">
+            <div class="skeleton skeleton-text--sm" style="width: 80px; height: 10px;"></div>
+            <div style="display: flex; flex-wrap: wrap; gap: 4px;">
+              ${Array.from({ length: 6 }, () => '<div class="skeleton" style="width: 60px; height: 24px; border-radius: var(--radius-full);"></div>').join('')}
+            </div>
+          </div>
+          <div class="skeleton-sidebar-filter__section">
+            <div class="skeleton skeleton-text--sm" style="width: 100px; height: 10px;"></div>
+            <div class="skeleton" style="width: 100%; height: 32px; border-radius: var(--radius-md);"></div>
           </div>
         </div>
       `;
     }
 
-    const subtitleEl = document.querySelector('#section-charts .chart-card__subtitle');
-    if (subtitleEl) subtitleEl.textContent = 'กำลังโหลดข้อมูล...';
+    // ── KPI Cards Skeleton ──
+    const kpiGrid = document.getElementById('kpi-grid');
+    if (kpiGrid) {
+      const skeletonCards = Array.from({ length: 5 }, () => `
+        <div class="skeleton-kpi">
+          <div>
+            <div class="skeleton skeleton-icon"></div>
+            <div class="skeleton skeleton-text--sm"></div>
+          </div>
+          <div>
+            <div class="skeleton skeleton-text--lg"></div>
+            <div class="skeleton skeleton-text--sm"></div>
+          </div>
+        </div>
+      `).join('');
+      kpiGrid.innerHTML = skeletonCards;
+    }
 
+    // ── Charts: subtitle texts are already correct in HTML, no need to overwrite ──
+
+    // ── Tables Skeleton ──
     const tablesSection = document.getElementById('tables-section');
     if (tablesSection) {
+      const tableRows = Array.from({ length: 8 }, () => {
+        const widths = ['8%', '12%', '10%', '16%', '24%', '12%', '18%'];
+        return `<div class="skeleton-table-row">
+          ${widths.map(w => `<div class="skeleton skeleton-cell" style="width: ${w};"></div>`).join('')}
+        </div>`;
+      }).join('');
       tablesSection.innerHTML = `
         <div class="table-card">
-          <div class="empty-state">
-            <div class="empty-state__text">กำลังโหลดข้อมูล...</div>
+          <div class="table-card__header">
+            <div class="table-card__title-area">
+              <span class="skeleton skeleton-text--md" style="width: 160px; height: 18px;"></span>
+            </div>
+          </div>
+          <div class="table-container">
+            ${tableRows}
           </div>
         </div>
       `;

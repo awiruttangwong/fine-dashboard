@@ -183,7 +183,7 @@ const FineData = (() => {
       row.remaining_amount
     ]);
     row.payment_status = paymentStatus(row);
-    return row;
+    return isMeaningfulSourceRow(row) ? row : null;
   }
 
   function normalizeRawArray(raw, sourceRow) {
@@ -231,7 +231,7 @@ const FineData = (() => {
     };
 
     row.payment_status = paymentStatus(row);
-    return row;
+    return isMeaningfulSourceRow(row) ? row : null;
   }
 
   function applyQualityFlags(rows) {
@@ -449,12 +449,14 @@ const FineData = (() => {
         result.dataIssues++;
       }
 
-      if (!result.customerBreakdown[row.customer]) {
-        result.customerBreakdown[row.customer] = { count: 0, fineTotal: 0, paidTotal: 0 };
+      if (row.customer) {
+        if (!result.customerBreakdown[row.customer]) {
+          result.customerBreakdown[row.customer] = { count: 0, fineTotal: 0, paidTotal: 0 };
+        }
+        result.customerBreakdown[row.customer].count++;
+        result.customerBreakdown[row.customer].fineTotal += row.fine_amount || 0;
+        result.customerBreakdown[row.customer].paidTotal += row.paid_amount || 0;
       }
-      result.customerBreakdown[row.customer].count++;
-      result.customerBreakdown[row.customer].fineTotal += row.fine_amount || 0;
-      result.customerBreakdown[row.customer].paidTotal += row.paid_amount || 0;
 
       if (row.fine_date) {
         if (!result.dailyTrend[row.fine_date]) result.dailyTrend[row.fine_date] = { count: 0, fineTotal: 0 };
@@ -613,6 +615,26 @@ const FineData = (() => {
   function blankToNull(value) {
     const text = cleanText(value);
     return text ? text : null;
+  }
+
+  function isMeaningfulSourceRow(row) {
+    const textFields = [
+      row.fine_date_raw,
+      row.fine_date,
+      row.customer,
+      row.barcode,
+      row.route_raw,
+      row.driver_name,
+      row.transfer_receiver_name
+    ];
+    const numberFields = [
+      row.fine_amount,
+      row.paid_amount,
+      row.remaining_amount
+    ];
+
+    return textFields.some(value => cleanText(value) !== '')
+      || numberFields.some(value => value !== null && value !== undefined);
   }
 
   function toNullableNumber(value) {

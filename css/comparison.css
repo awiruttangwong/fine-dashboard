@@ -124,14 +124,8 @@
   gap: var(--space-4);
 }
 
-.comparison-toolbar__eyebrow {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-semibold);
-}
-
 .comparison-toolbar__period {
-  margin-top: 2px;
+  margin-top: 0;
   color: var(--color-text-primary);
   font-size: var(--font-size-md);
   font-weight: var(--font-weight-semibold);

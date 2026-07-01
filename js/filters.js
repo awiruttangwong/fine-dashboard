@@ -15,7 +15,7 @@ const Filters = (() => {
     mapPin: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>`,
     creditCard: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="1" y="4" width="22" height="16" rx="2" ry="2"/><line x1="1" y1="10" x2="23" y2="10"/></svg>`,
     search: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
-    filter: `<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 -960 960 960" width="22" fill="#999999"><path d="M80-200v-80h400v80H80Zm0-200v-80h200v80H80Zm0-200v-80h200v80H80Zm744 400L670-354q-24 17-52.5 25.5T560-320q-83 0-141.5-58.5T360-520q0-83 58.5-141.5T560-720q83 0 141.5 58.5T760-520q0 29-8.5 57.5T726-410l154 154-56 56ZM560-400q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Z"/></svg>`,
+    filter: `<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 -960 960 960" width="22" fill="currentColor"><path d="M80-200v-80h400v80H80Zm0-200v-80h200v80H80Zm0-200v-80h200v80H80Zm744 400L670-354q-24 17-52.5 25.5T560-320q-83 0-141.5-58.5T360-520q0-83 58.5-141.5T560-720q83 0 141.5 58.5T760-520q0 29-8.5 57.5T726-410l154 154-56 56ZM560-400q50 0 85-35t35-85q0-50-35-85t-85-35q-50 0-85 35t-35 85q0 50 35 85t85 35Z"/></svg>`,
     x: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
   };
 
@@ -114,7 +114,7 @@ const Filters = (() => {
     ]);
   }
 
-  function getMatchingSuggestions(suggestions, query, limit = 8) {
+  function getMatchingSuggestions(suggestions, query, limit = 20) {
     const normalizedQuery = String(query ?? '').trim().toLowerCase();
     if (!normalizedQuery) return [];
 
@@ -123,7 +123,7 @@ const Filters = (() => {
 
     suggestions.forEach(value => {
       const normalizedValue = String(value ?? '').trim().toLowerCase();
-      if (!normalizedValue || normalizedValue === normalizedQuery) return;
+      if (!normalizedValue) return;
       if (normalizedValue.startsWith(normalizedQuery)) {
         startsWithMatches.push(value);
       } else if (normalizedValue.includes(normalizedQuery)) {
@@ -173,6 +173,7 @@ const Filters = (() => {
 
     const customerItems = Object.entries(aggregates.customerBreakdown)
       .map(([name, data]) => ({ value: name, label: name, count: data.count }))
+      .filter(item => String(item.label || '').trim() !== '')
       .sort((a, b) => b.count - a.count);
 
     const paymentStatusLabels = {
@@ -195,7 +196,7 @@ const Filters = (() => {
       <div class="filter-group" style="margin-bottom: var(--space-4);">
         <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: var(--space-3);">
           <div style="display: flex; align-items: center; gap: var(--space-2);">
-            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;">${ICONS.filter}</span>
+            <span style="display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px; margin-top: -3px;">${ICONS.filter}</span>
             <span style="font-size: var(--font-size-md); font-weight: var(--font-weight-semibold); line-height: 1; display: inline-flex; align-items: center;">ตัวกรอง</span>
             ${activeCountBadge}
           </div>
@@ -203,23 +204,29 @@ const Filters = (() => {
         </div>
       </div>
 
-      <!-- ค้นหาข้อมูล (Global Search) -->
+      <!-- ค้นหาข้อมูล (Global Search - Custom Select Pattern) -->
       <div class="filter-group">
         <div class="filter-group__label">
           <span class="filter-group__label-icon">${ICONS.search}</span>
           ค้นหาข้อมูล
         </div>
-        <div class="search-suggest" id="filter-search-box">
-          <input type="text" class="text-input" id="filter-search-text" 
-                 autocomplete="off"
-                 placeholder="บาร์โค้ด, เส้นทาง, พนักงาน..." value="${escapeHtml(state.searchText)}"
-                 style="padding-right: var(--space-8);">
-          <div class="search-suggest__panel" id="filter-search-suggestions" hidden></div>
-          ${state.searchText ? `
-            <button id="clear-search-btn" class="search-suggest__clear" type="button" aria-label="ล้างคำค้นหา">
-              ${ICONS.x}
-            </button>
-          ` : ''}
+        <div class="custom-select" id="search-custom-select">
+          <div class="custom-select__trigger">
+            <span class="custom-select__placeholder">${state.searchText ? escapeHtml(state.searchText) : '<span style="color: var(--color-text-placeholder)">พิมพ์เพื่อค้นหา...</span>'}</span>
+            <svg width="10" height="10" viewBox="0 0 12 12" style="fill: none; stroke: #86868B; stroke-width: 1.5; stroke-linecap: round;"><path d="M3 4.5L6 7.5L9 4.5" /></svg>
+          </div>
+          <div class="custom-select__dropdown">
+            <div class="custom-select__search-wrapper">
+              <div class="search-input-wrapper">
+                <input type="text" class="custom-select__search" id="search-custom-input" placeholder="บาร์โค้ด, เส้นทาง, พนักงาน..." autocomplete="off">
+                <span class="search-input-clear" id="search-input-clear" style="display: none;">${ICONS.x}</span>
+              </div>
+            </div>
+            <div class="custom-select__options" id="search-custom-options">
+
+              <div class="custom-select__no-results" style="display: none;">ไม่พบข้อมูลที่ค้นหา</div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -235,7 +242,7 @@ const Filters = (() => {
           <div class="filter-group">
             <div class="filter-month-label">
               <span class="filter-month-label__left">
-                <span class="filter-group__label-icon">${ICONS.calendar}</span>
+                <span class="filter-group__label-icon" style="margin-top: -2px;">${ICONS.calendar}</span>
                 เดือน
               </span>
               <span class="filter-month-label__right">
@@ -284,7 +291,10 @@ const Filters = (() => {
           </div>
           <div class="custom-select__dropdown">
             <div class="custom-select__search-wrapper">
-              <input type="text" class="custom-select__search" placeholder="ค้นหาชื่อ พขร..." autocomplete="off">
+              <div class="search-input-wrapper">
+                <input type="text" class="custom-select__search" id="driver-search-input" placeholder="ค้นหาชื่อ พขร..." autocomplete="off">
+                <span class="search-input-clear" id="driver-input-clear" style="display: none;">${ICONS.x}</span>
+              </div>
             </div>
             <div class="custom-select__options">
               <div class="custom-select__option ${!state.driver ? 'selected' : ''}" data-value="">ทั้งหมด (${drivers.length} คน)</div>
@@ -313,82 +323,101 @@ const Filters = (() => {
     `;
 
     // ── Bind events ──
-    const searchInput = container.querySelector('#filter-search-text');
-    const searchPanel = container.querySelector('#filter-search-suggestions');
-    const searchBox = container.querySelector('#filter-search-box');
-    if (searchBox) {
-      searchBox.addEventListener('click', (e) => {
-        e.stopPropagation();
-      });
-    }
-    if (searchInput) {
-      const updateSearchSuggestions = (query) => {
-        if (!searchPanel) return;
+    // Custom Search Select (same pattern as Driver filter)
+    const searchSelectContainer = container.querySelector('#search-custom-select');
+    if (searchSelectContainer) {
+      const trigger = searchSelectContainer.querySelector('.custom-select__trigger');
+      const dropdown = searchSelectContainer.querySelector('.custom-select__dropdown');
+      const searchInput = searchSelectContainer.querySelector('.custom-select__search');
+      const optionsContainer = searchSelectContainer.querySelector('.custom-select__options');
 
-        const matches = getMatchingSuggestions(searchSuggestions, query);
-        if (!matches.length) {
-          searchPanel.hidden = true;
-          searchBox?.classList.remove('search-suggest--open');
-          searchPanel.innerHTML = '';
+      // Update search options based on query
+      const updateSearchOptions = (query) => {
+        const noResults = optionsContainer.querySelector('.custom-select__no-results');
+        // Remove old option items (but keep no-results and clear)
+        optionsContainer.querySelectorAll('.custom-select__option:not([data-search-clear])').forEach(el => el.remove());
+
+        const normalizedQuery = String(query ?? '').trim().toLowerCase();
+        if (!normalizedQuery) {
+          if (noResults) noResults.style.display = 'none';
           return;
         }
 
-        searchPanel.innerHTML = matches.map(value => `
-          <button type="button" class="search-suggest__item" data-search-value="${escapeHtml(value)}">
-            ${escapeHtml(value)}
-          </button>
-        `).join('');
-        searchPanel.hidden = false;
-        searchBox?.classList.add('search-suggest--open');
+        const matches = getMatchingSuggestions(searchSuggestions, normalizedQuery, 20);
+        if (!matches.length) {
+          if (noResults) noResults.style.display = '';
+          return;
+        }
+        if (noResults) noResults.style.display = 'none';
 
-        searchPanel.querySelectorAll('[data-search-value]').forEach(button => {
-          button.addEventListener('click', () => {
-            setState({ searchText: button.dataset.searchValue || '' });
+        matches.forEach(value => {
+          const opt = document.createElement('div');
+          opt.className = 'custom-select__option';
+          opt.dataset.searchValue = value;
+          opt.textContent = value;
+          opt.addEventListener('click', () => {
+            setState({ searchText: value });
+            searchSelectContainer.classList.remove('open');
             render();
-            const freshInput = container.querySelector('#filter-search-text');
-            if (freshInput) {
-              freshInput.focus();
-              freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
-            }
           });
+          optionsContainer.appendChild(opt);
         });
       };
 
-      updateSearchSuggestions(searchInput.value);
 
-      searchInput.addEventListener('input', debounce((e) => {
-        const nextValue = e.target.value;
-        setState({ searchText: nextValue });
-        updateSearchSuggestions(nextValue);
 
-        // Re-render clear button when it transitions between empty and non-empty
-        if (!nextValue || nextValue.length === 1) {
-          render();
-          const freshInput = container.querySelector('#filter-search-text');
-          if (freshInput) {
-            freshInput.focus();
-            freshInput.selectionStart = freshInput.selectionEnd = freshInput.value.length;
-          }
+      // Clear button (X) inside search input
+      const inputClearBtn = searchSelectContainer.querySelector('#search-input-clear');
+      const updateInputClearVisibility = () => {
+        if (inputClearBtn) inputClearBtn.style.display = searchInput.value ? '' : 'none';
+      };
+      if (inputClearBtn) {
+        inputClearBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          searchInput.value = '';
+          updateInputClearVisibility();
+          updateSearchOptions('');
+          searchInput.focus();
+        });
+      }
+
+      trigger.addEventListener('click', (e) => {
+        e.stopPropagation();
+
+        // Close other custom selects
+        document.querySelectorAll('.custom-select.open').forEach(el => {
+          if (el !== searchSelectContainer) el.classList.remove('open');
+        });
+
+        searchSelectContainer.classList.toggle('open');
+        if (searchSelectContainer.classList.contains('open')) {
+          searchInput.value = state.searchText || '';
+          updateSearchOptions(searchInput.value);
+          updateInputClearVisibility();
+          searchInput.focus();
         }
-      }, 200));
+      });
 
-      searchInput.addEventListener('focus', (e) => {
-        updateSearchSuggestions(e.target.value);
+      dropdown.addEventListener('click', (e) => {
+        e.stopPropagation();
+      });
+
+      searchInput.addEventListener('input', (e) => {
+        updateSearchOptions(e.target.value);
+        updateInputClearVisibility();
       });
 
       searchInput.addEventListener('keydown', (e) => {
         if (e.key === 'Escape') {
-          searchPanel.hidden = true;
-          searchBox?.classList.remove('search-suggest--open');
+          searchSelectContainer.classList.remove('open');
+        } else if (e.key === 'Enter') {
+          const val = searchInput.value.trim();
+          if (val) {
+            setState({ searchText: val });
+            searchSelectContainer.classList.remove('open');
+            render();
+          }
         }
-      });
-    }
-
-    const clearSearchBtn = container.querySelector('#clear-search-btn');
-    if (clearSearchBtn) {
-      clearSearchBtn.addEventListener('click', () => {
-        setState({ searchText: '' });
-        render();
       });
     }
 
@@ -456,6 +485,7 @@ const Filters = (() => {
         driverSelectContainer.classList.toggle('open');
         if (driverSelectContainer.classList.contains('open')) {
           searchInput.value = '';
+          updateDriverInputClearVisibility();
           optionsContainer.querySelectorAll('.custom-select__option').forEach(opt => opt.style.display = '');
           searchInput.focus();
         }
@@ -465,8 +495,24 @@ const Filters = (() => {
         e.stopPropagation();
       });
 
+      const driverInputClearBtn = driverSelectContainer.querySelector('#driver-input-clear');
+      const updateDriverInputClearVisibility = () => {
+        if (driverInputClearBtn) driverInputClearBtn.style.display = searchInput.value ? '' : 'none';
+      };
+      if (driverInputClearBtn) {
+        driverInputClearBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          searchInput.value = '';
+          updateDriverInputClearVisibility();
+          // Reset all option visibility
+          optionsContainer.querySelectorAll('.custom-select__option').forEach(opt => opt.style.display = '');
+          searchInput.focus();
+        });
+      }
+
       searchInput.addEventListener('input', (e) => {
         const query = e.target.value.toLowerCase().trim();
+        updateDriverInputClearVisibility();
         const options = optionsContainer.querySelectorAll('.custom-select__option');
         options.forEach(opt => {
           const val = opt.textContent.toLowerCase();
@@ -520,11 +566,6 @@ const Filters = (() => {
   document.addEventListener('click', () => {
     document.querySelectorAll('.custom-select.open').forEach(el => {
       el.classList.remove('open');
-    });
-    document.querySelectorAll('.search-suggest--open').forEach(el => {
-      el.classList.remove('search-suggest--open');
-      const panel = el.querySelector('.search-suggest__panel');
-      if (panel) panel.hidden = true;
     });
   });
 
