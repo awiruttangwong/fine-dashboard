@@ -84,6 +84,35 @@ const Charts = (() => {
     }
   };
 
+  // Custom plugin: draws center text inside doughnut charts.
+  // Shows total value and label centered in the doughnut hole.
+  const doughnutCenterText = {
+    id: 'doughnutCenterText',
+    afterDraw(chart, args, options) {
+      const { ctx, chartArea } = chart;
+      if (!chartArea) return;
+
+      const centerX = chartArea.left + (chartArea.width / 2);
+      const centerY = chartArea.top + (chartArea.height / 2);
+
+      ctx.save();
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      // Value (e.g., "23,000 ฿")
+      ctx.font = "bold 1.5rem 'Prompt', sans-serif";
+      ctx.fillStyle = '#1D1D1F';
+      ctx.fillText(options.total || '', centerX, centerY - 10);
+
+      // Label ("ยอดรวม")
+      ctx.font = "500 0.75rem 'Prompt', sans-serif";
+      ctx.fillStyle = '#86868B';
+      ctx.fillText(options.label || 'ยอดรวม', centerX, centerY + 14);
+
+      ctx.restore();
+    }
+  };
+
   // Custom plugin: dims non-hovered slices for a clean focus effect.
   // Registered per-chart via the chart's `plugins` array.
   const doughnutFocusPlugin = {
@@ -119,6 +148,70 @@ const Charts = (() => {
     }
   };
 
+  // Draw professional value labels above the daily trend bars. We keep the
+  // typography subtle and skip collisions on dense layouts so the chart stays
+  // readable on narrower screens.
+  const dailyTrendValueLabelPlugin = {
+    id: 'dailyTrendValueLabel',
+    afterDraw(chart, _args, pluginOptions) {
+      const datasetIndex = pluginOptions?.datasetIndex ?? 0;
+      const dataset = chart.data.datasets?.[datasetIndex];
+      const meta = chart.getDatasetMeta(datasetIndex);
+      if (!dataset?.data?.length || !meta?.data?.length) return;
+
+      const { ctx, chartArea } = chart;
+      const bars = meta.data;
+      const values = dataset.data;
+      const slotWidth = bars.length > 0 ? chartArea.width / bars.length : chartArea.width;
+      const isDenseLayout = slotWidth < 38;
+      const topPadding = Number(chart.options?.layout?.padding?.top) || 0;
+      const anchorTop = Math.max(chartArea.top - topPadding, 0);
+      let previousRight = chartArea.left - 999;
+
+      ctx.save();
+      ctx.font = `${isDenseLayout ? 9 : 11}px 'Prompt', sans-serif`;
+      ctx.textAlign = 'center';
+      ctx.textBaseline = 'middle';
+
+      bars.forEach((bar, index) => {
+        const rawValue = Number(values[index]) || 0;
+        if (rawValue <= 0) return;
+
+        const props = bar.getProps(['x', 'y', 'base'], true);
+        const barHeight = Math.abs(props.base - props.y);
+        const label = formatBarValueLabel(rawValue, isDenseLayout);
+        const textWidth = ctx.measureText(label).width;
+        const horizontalPadding = isDenseLayout ? 6 : 8;
+        const pillWidth = textWidth + horizontalPadding * 2;
+        const pillHeight = isDenseLayout ? 16 : 18;
+        const pillX = props.x - pillWidth / 2;
+        const topSafeY = anchorTop + 4;
+        const preferredPillY = props.y - pillHeight - 10;
+        const pillY = Math.max(topSafeY, preferredPillY);
+        const left = pillX;
+        const right = pillX + pillWidth;
+
+        if (left < chartArea.left || right > chartArea.right) return;
+        if (left < previousRight + 8 && (isDenseLayout || barHeight < 28)) return;
+
+        drawRoundedRect(ctx, pillX, pillY, pillWidth, pillHeight, pillHeight / 2);
+        ctx.save();
+        ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.10)';
+        ctx.shadowBlur = 10;
+        ctx.shadowOffsetY = 2;
+        ctx.fill();
+        ctx.restore();
+
+        ctx.fillStyle = '#5C5C61';
+        ctx.fillText(label, props.x, pillY + pillHeight / 2 + 0.5);
+        previousRight = right;
+      });
+
+      ctx.restore();
+    }
+  };
+
   function destroyChart(id) {
     if (chartInstances[id]) {
       chartInstances[id].destroy();
@@ -128,6 +221,32 @@ const Charts = (() => {
 
   function formatCurrency(val) {
     return new Intl.NumberFormat('th-TH').format(val) + ' ฿';
+  }
+
+  function formatBarValueLabel(val, compact = false) {
+    const amount = Number(val) || 0;
+    if (compact && amount >= 1000) {
+      const compactValue = amount >= 10000
+        ? Math.round(amount / 1000)
+        : Number((amount / 1000).toFixed(1));
+      return `${String(compactValue).replace('.0', '')}K฿`;
+    }
+    return `${new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(amount)}฿`;
+  }
+
+  function drawRoundedRect(ctx, x, y, width, height, radius) {
+    const safeRadius = Math.min(radius, width / 2, height / 2);
+    ctx.beginPath();
+    ctx.moveTo(x + safeRadius, y);
+    ctx.lineTo(x + width - safeRadius, y);
+    ctx.quadraticCurveTo(x + width, y, x + width, y + safeRadius);
+    ctx.lineTo(x + width, y + height - safeRadius);
+    ctx.quadraticCurveTo(x + width, y + height, x + width - safeRadius, y + height);
+    ctx.lineTo(x + safeRadius, y + height);
+    ctx.quadraticCurveTo(x, y + height, x, y + height - safeRadius);
+    ctx.lineTo(x, y + safeRadius);
+    ctx.quadraticCurveTo(x, y, x + safeRadius, y);
+    ctx.closePath();
   }
 
   function escapeHtml(value) {
@@ -215,6 +334,7 @@ const Charts = (() => {
 
     chartInstances['dailyTrend'] = new Chart(ctx, {
       type: 'bar',
+      plugins: [dailyTrendValueLabelPlugin],
       data: {
         labels,
         datasets: [
@@ -233,7 +353,7 @@ const Charts = (() => {
       },
       options: {
         ...baseOptions,
-        layout: { padding: { left: 0, right: 0, top: 4, bottom: 14 } },
+        layout: { padding: { left: 0, right: 0, top: 34, bottom: 14 } },
         interaction: { intersect: false, mode: 'index' },
         scales: {
           x: {
@@ -292,6 +412,7 @@ const Charts = (() => {
     const labels = entries.map(([name]) => name);
     const data = entries.map(([, v]) => v.fineTotal);
     const colors = [COLORS.blue, COLORS.orange, COLORS.purple, COLORS.teal];
+    const total = data.reduce((a, b) => a + b, 0);
 
     chartInstances['customerChart'] = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
@@ -303,18 +424,22 @@ const Charts = (() => {
           borderWidth: 0
         }]
       },
-      plugins: [doughnutFocusPlugin],
+      plugins: [doughnutFocusPlugin, doughnutCenterText],
       options: {
         ...baseOptions,
         ...DOUGHNUT_HOVER,
-        cutout: '68%',
+        cutout: '72%',
         plugins: {
           ...baseOptions.plugins,
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)} (${((ctx.raw / data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)`
+              label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)`
             }
+          },
+          doughnutCenterText: {
+            total: formatCurrency(total),
+            label: 'ยอดรวม'
           }
         }
       }
@@ -347,11 +472,20 @@ const Charts = (() => {
     container.innerHTML = sorted.map(([name, count], i) => {
       const pct = (count / maxCount) * 100;
       const rank = i + 1;
-      const color = i < 3 ? COLORS.blue : (i < 6 ? COLORS.teal : '#C7C7CC');
-      const rankBg = i === 0 ? 'background:' + COLORS.blue + ';color:#fff' :
-        i === 1 ? 'background:' + COLORS.indigo + ';color:#fff' :
-          i === 2 ? 'background:' + COLORS.teal + ';color:#fff' :
-            'background:#F0F0F2;color:#6E6E73';
+      const color = i === 0
+        ? '#0071E3'
+        : i === 1
+          ? '#2C78D6'
+          : i === 2
+            ? '#5A9BE8'
+            : '#C7C7CC';
+      const rankBg = i === 0
+        ? 'background:#0071E3;color:#fff'
+        : i === 1
+          ? 'background:#2C78D6;color:#fff'
+          : i === 2
+            ? 'background:#5A9BE8;color:#fff'
+            : 'background:#F0F0F2;color:#6E6E73';
       return `
         <div class="driver-rank-item">
           <div class="driver-rank-item__rank" style="${rankBg}">${rank}</div>

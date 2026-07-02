@@ -20,6 +20,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
+  gap: var(--space-4);
 }
 
 /* Glowing top borders */
@@ -57,6 +58,7 @@
   align-items: flex-start;
   width: 100%;
   gap: var(--space-2);
+  min-height: 2.25rem;
 }
 
 .kpi-card__icon {
@@ -92,12 +94,20 @@
 }
 
 .kpi-card__content {
-  display: flex;
-  flex-direction: column;
-  margin-top: var(--space-4);
+  display: grid;
+  grid-template-rows: minmax(2.6rem, auto) minmax(1.9rem, auto);
+  flex: 1;
+  align-content: end;
+  min-height: 0;
 }
 
 .kpi-card__value {
+  display: inline-flex;
+  align-items: baseline;
+  align-self: end;
+  gap: 0.35rem;
+  width: 100%;
+  min-height: 2.6rem;
   font-size: 1.85rem;
   font-weight: var(--font-weight-bold);
   color: var(--color-text-primary);
@@ -105,6 +115,20 @@
   line-height: 1.1;
   margin-bottom: 0;
   font-variant-numeric: tabular-nums;
+  padding-bottom: var(--space-3);
+  white-space: nowrap;
+}
+
+.kpi-card__value-main {
+  display: inline-block;
+  line-height: 1;
+}
+
+.kpi-card__value-suffix {
+  display: inline-block;
+  font-size: 0.78em;
+  line-height: 1;
+  color: var(--color-text-primary);
 }
 
 .kpi-card__value--small {
@@ -112,33 +136,40 @@
 }
 
 .kpi-card__detail {
-  font-size: var(--font-size-xs);
+  font-size: clamp(0.62rem, 0.58rem + 0.12vw, 0.68rem);
   color: var(--color-text-muted);
   display: inline-flex;
   align-items: center;
   gap: var(--space-1);
-  margin-top: var(--space-2);
+  align-self: end;
+  margin-top: auto;
   transition: all var(--transition-fast);
+  line-height: 1.2;
+  min-width: 0;
 }
 
 .kpi-card__detail:not(:empty) {
   background: var(--color-bg);
-  padding: 2px 8px;
+  padding: 4px 9px;
   border-radius: var(--radius-full);
   width: fit-content;
   max-width: 100%;
   border: 1px solid var(--color-border-light);
   font-weight: var(--font-weight-medium);
+  white-space: nowrap;
+  letter-spacing: 0;
 }
 
 @media (max-width: 480px) {
   .kpi-card {
     min-height: 140px;
     padding: var(--space-4);
+    gap: var(--space-3);
   }
 
   .kpi-card__value {
     font-size: 1.7rem;
+    min-height: 2.35rem;
   }
 
   .kpi-card__detail {
@@ -598,6 +629,14 @@
 
 .btn--ghost:hover {
   background: var(--color-accent-light);
+}
+
+.btn--ghost#btn-reset-filters {
+  color: var(--color-danger);
+}
+
+.btn--ghost#btn-reset-filters:hover {
+  background: var(--color-danger-light);
 }
 
 .btn--sm {

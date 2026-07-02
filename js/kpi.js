@@ -29,6 +29,30 @@ const KPICards = (() => {
     return num.toFixed(1) + '%';
   }
 
+  function buildMetricValueMarkup(formattedValue) {
+    const text = String(formattedValue ?? '').trim();
+    if (!text) {
+      return '<span class="kpi-card__value-main">0</span>';
+    }
+
+    if (text.endsWith(' ฿')) {
+      const main = text.slice(0, -2).trim();
+      return `<span class="kpi-card__value-main">${main}</span><span class="kpi-card__value-suffix">฿</span>`;
+    }
+
+    if (text.endsWith('%')) {
+      const main = text.slice(0, -1).trim();
+      return `<span class="kpi-card__value-main">${main}</span><span class="kpi-card__value-suffix">%</span>`;
+    }
+
+    return `<span class="kpi-card__value-main">${text}</span>`;
+  }
+
+  function setMetricValue(element, formattedValue) {
+    if (!element) return;
+    element.innerHTML = buildMetricValueMarkup(formattedValue);
+  }
+
   function animateValue(element, start, end, duration, formatter) {
     const startTime = performance.now();
     const diff = end - start;
@@ -38,7 +62,7 @@ const KPICards = (() => {
       const progress = Math.min(elapsed / duration, 1);
       const eased = 1 - Math.pow(1 - progress, 3);
       const current = start + diff * eased;
-      element.textContent = formatter(Math.round(current * 10) / 10);
+      setMetricValue(element, formatter(Math.round(current * 10) / 10));
       if (progress < 1) {
         requestAnimationFrame(step);
       }
@@ -110,7 +134,7 @@ const KPICards = (() => {
             <div class="kpi-card__icon ${config.iconClass}">${config.icon}</div>
           </div>
           <div class="kpi-card__content">
-            <div class="kpi-card__value" data-value="${value}">${config.format(0)}</div>
+            <div class="kpi-card__value" data-value="${value}">${buildMetricValueMarkup(config.format(0))}</div>
             <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
           </div>
         </div>
