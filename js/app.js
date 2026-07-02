@@ -5,6 +5,8 @@
 
 const App = (() => {
   let initialized = false;
+  const AUTO_REFRESH_INTERVAL_MS = 60000;
+  const MIN_REFRESH_GAP_MS = 10000;
 
   async function init() {
     if (initialized) return;
@@ -24,10 +26,61 @@ const App = (() => {
     let allData = [];
     let filteredData = [];
     let aggregates = null;
+    let lastRefreshAt = 0;
+    let refreshPromise = null;
+
+    function renderCurrentState(filterState, { fullRender = false } = {}) {
+      if (filterState.isComparisonMode) {
+        setViewMode(filterState);
+        ComparisonView.render(filterState);
+        return;
+      }
+
+      setViewMode(filterState);
+      filteredData = FineData.getFiltered(filterState);
+      aggregates = FineData.getAggregates(filteredData);
+
+      if (fullRender) {
+        KPICards.render(aggregates);
+        Charts.renderAll(aggregates, filteredData, filterState);
+        Tables.render(filteredData);
+        return;
+      }
+
+      KPICards.update(aggregates);
+      Charts.updateAll(aggregates, filteredData, filterState);
+      Tables.update(filteredData);
+    }
+
+    async function refreshFromSource(reason) {
+      if (refreshPromise) return refreshPromise;
+
+      refreshPromise = (async () => {
+        try {
+          allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+          lastRefreshAt = Date.now();
+          Filters.render();
+          renderCurrentState(Filters.getState(), { fullRender: true });
+          console.info(`[Fine Dashboard] Data refreshed from source (${reason})`);
+        } catch (err) {
+          console.warn(`[Fine Dashboard] Background refresh failed (${reason})`, err);
+        } finally {
+          refreshPromise = null;
+        }
+      })();
+
+      return refreshPromise;
+    }
+
+    function refreshIfStale(reason) {
+      if (Date.now() - lastRefreshAt < MIN_REFRESH_GAP_MS) return;
+      refreshFromSource(reason);
+    }
 
     try {
       renderLoadingState();
       allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+      lastRefreshAt = Date.now();
       aggregates = FineData.getAggregates(allData);
     } catch (err) {
       renderLoadError(err);
@@ -38,28 +91,11 @@ const App = (() => {
     // ── Render all components ──
     Filters.render();
     const initialFilterState = Filters.getState();
-    filteredData = FineData.getFiltered(initialFilterState);
-    aggregates = FineData.getAggregates(filteredData);
-    KPICards.render(aggregates);
-    Charts.renderAll(aggregates, filteredData, initialFilterState);
-    Tables.render(filteredData);
-    setViewMode(initialFilterState);
+    renderCurrentState(initialFilterState, { fullRender: true });
 
     // ── Wire filter changes ──
     Filters.onChange((filterState) => {
-      if (filterState.isComparisonMode) {
-        setViewMode(filterState);
-        ComparisonView.render(filterState);
-        return;
-      }
-
-      setViewMode(filterState);
-      const filtered = FineData.getFiltered(filterState);
-      const newAggregates = FineData.getAggregates(filtered);
-
-      KPICards.update(newAggregates);
-      Charts.updateAll(newAggregates, filtered, filterState);
-      Tables.update(filtered);
+      renderCurrentState(filterState);
     });
 
     // ── Mobile sidebar toggle ──
@@ -78,6 +114,18 @@ const App = (() => {
         overlay.classList.remove('active');
       });
     }
+
+    document.addEventListener('visibilitychange', () => {
+      if (document.visibilityState === 'visible') refreshIfStale('visibilitychange');
+    });
+
+    window.addEventListener('focus', () => {
+      refreshIfStale('focus');
+    });
+
+    window.setInterval(() => {
+      if (document.visibilityState === 'visible') refreshIfStale('interval');
+    }, AUTO_REFRESH_INTERVAL_MS);
 
 
 

@@ -134,6 +134,20 @@ const Filters = (() => {
     return [...startsWithMatches, ...includesMatches].slice(0, limit);
   }
 
+  function getMonthScopedRows() {
+    return FineData.getFiltered({
+      selectedMonth: state.selectedMonth,
+      customers: [],
+      driver: '',
+      routeGroups: [],
+      vehicleType: '',
+      routeStatuses: [],
+      paymentStatuses: [],
+      qualityFlags: [],
+      searchText: ''
+    });
+  }
+
   function createChipGroup(label, iconSvg, items, selectedItems, filterType) {
     return `
       <div class="filter-group">
@@ -166,15 +180,33 @@ const Filters = (() => {
     if (!availableMonths.includes(state.comparisonMonth) || state.comparisonMonth === state.selectedMonth) {
       state.comparisonMonth = FineData.getDefaultComparisonMonth(state.selectedMonth);
     }
-    const aggregates = FineData.getAggregates(allData);
-    const drivers = FineData.getUniqueValues('driver_name');
-    const vehicleTypes = FineData.getUniqueValues('vehicle_type');
-    const searchSuggestions = getSearchSuggestions(allData);
+    const monthScopedRows = getMonthScopedRows();
+    const aggregates = FineData.getAggregates(monthScopedRows);
+    const drivers = uniqueValues(monthScopedRows.map(row => row.driver_name));
+    const vehicleTypes = uniqueValues(monthScopedRows.map(row => row.vehicle_type));
+    const searchSuggestions = getSearchSuggestions(monthScopedRows);
 
     const customerItems = Object.entries(aggregates.customerBreakdown)
       .map(([name, data]) => ({ value: name, label: name, count: data.count }))
       .filter(item => String(item.label || '').trim() !== '')
       .sort((a, b) => b.count - a.count);
+
+    const availableCustomers = new Set(customerItems.map(item => item.value));
+    const nextCustomers = state.customers.filter(customer => availableCustomers.has(customer));
+    const statePatches = {};
+    if (nextCustomers.length !== state.customers.length) {
+      statePatches.customers = nextCustomers;
+    }
+    if (state.driver && !drivers.includes(state.driver)) {
+      statePatches.driver = '';
+    }
+    if (state.vehicleType && !vehicleTypes.includes(state.vehicleType)) {
+      statePatches.vehicleType = '';
+    }
+    if (Object.keys(statePatches).length > 0) {
+      state = { ...state, ...statePatches };
+      if (onChangeCallback) onChangeCallback(state);
+    }
 
     const paymentStatusLabels = {
       'open': 'ค้างชำระ', 'paid': 'ชำระค่าปรับแล้ว', 'data_error': 'ยอดไม่ตรง'
@@ -184,9 +216,9 @@ const Filters = (() => {
       .sort((a, b) => b.count - a.count);
 
     const qualityFlagItems = [
-      { value: 'full_duplicate', label: 'ข้อมูลซ้ำ', count: allData.filter(r => r.is_full_duplicate).length },
-      { value: 'barcode_duplicate', label: 'บาร์โค้ดซ้ำ', count: allData.filter(r => r.is_barcode_duplicate).length },
-      { value: 'blank_driver', label: 'ไม่ระบุชื่อ พขร.', count: allData.filter(r => r.is_driver_blank).length }
+      { value: 'full_duplicate', label: 'ข้อมูลซ้ำ', count: monthScopedRows.filter(r => r.is_full_duplicate).length },
+      { value: 'barcode_duplicate', label: 'บาร์โค้ดซ้ำ', count: monthScopedRows.filter(r => r.is_barcode_duplicate).length },
+      { value: 'blank_driver', label: 'ไม่ระบุชื่อ พขร.', count: monthScopedRows.filter(r => r.is_driver_blank).length }
     ].filter(item => item.count > 0);
 
     const activeCount = getActiveFilterCount();
