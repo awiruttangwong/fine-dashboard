@@ -64,7 +64,7 @@ function buildDashboardPayload_() {
   for (let i = 0; i < values.length; i++) {
     const sourceRow = i + 2;
     const row = normalizeRow_(values[i], displayValues[i], sourceRow);
-    prepared.push(row);
+    if (isMeaningfulSourceRow_(row)) prepared.push(row);
   }
 
   applyQualityFlags_(prepared);
@@ -160,18 +160,6 @@ function applyQualityFlags_(rows) {
 }
 
 function normalizeDate_(value, displayValue) {
-  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
-    const year = value.getFullYear();
-    const month = value.getMonth() + 1;
-    const day = value.getDate();
-
-    if (year === 2026 && day === 6 && month >= 1 && month <= 12) {
-      return dateParts_(year, 6, month, 'ok_excel_serial_swapped');
-    }
-
-    return dateParts_(year, month, day, 'ok_excel_serial_as_is');
-  }
-
   const text = trim_(displayValue || value);
   const dmy = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
   if (dmy) {
@@ -180,7 +168,14 @@ function normalizeDate_(value, displayValue) {
 
   const ymd = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
   if (ymd) {
-    return dateParts_(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]), 'ok_excel_serial_as_is');
+    return dateParts_(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]), 'ok_text_ymd');
+  }
+
+  if (Object.prototype.toString.call(value) === '[object Date]' && !isNaN(value.getTime())) {
+    const year = value.getFullYear();
+    const month = value.getMonth() + 1;
+    const day = value.getDate();
+    return dateParts_(year, month, day, 'ok_excel_serial_as_is');
   }
 
   return {
@@ -300,6 +295,29 @@ function trim_(value) {
 function blankToNull_(value) {
   const text = trim_(value);
   return text ? text : null;
+}
+
+function isMeaningfulSourceRow_(row) {
+  const textFields = [
+    row.fine_date_raw,
+    row.fine_date,
+    row.customer,
+    row.barcode,
+    row.route_raw,
+    row.driver_name,
+    row.transfer_receiver_name
+  ];
+  const numberFields = [
+    row.fine_amount,
+    row.paid_amount,
+    row.remaining_amount
+  ];
+
+  return textFields.some(function(value) {
+    return trim_(value) !== '';
+  }) || numberFields.some(function(value) {
+    return value !== null && value !== undefined;
+  });
 }
 
 function hashRaw_(raw) {

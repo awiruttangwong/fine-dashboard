@@ -134,12 +134,13 @@ const FineData = (() => {
     row.source_file = row.source_file || 'Google Sheet: Fine Dashboard';
     row.source_sheet = row.source_sheet || 'data';
 
-    const date = normalizeDate(row.fine_date || row.fine_date_raw);
-    row.fine_date = row.fine_date || date.fine_date;
-    row.fine_date_parse_status = row.fine_date_parse_status || date.fine_date_parse_status;
-    row.fine_year = toNumber(row.fine_year, date.fine_year);
-    row.fine_month = toNumber(row.fine_month, date.fine_month);
-    row.fine_day = toNumber(row.fine_day, date.fine_day);
+    const date = resolveCanonicalDate(row.fine_date_raw, row.fine_date);
+    row.fine_date_raw = cleanText(row.fine_date_raw);
+    row.fine_date = date.fine_date || cleanText(row.fine_date) || null;
+    row.fine_date_parse_status = date.fine_date_parse_status || row.fine_date_parse_status || 'invalid';
+    row.fine_year = date.fine_year ?? toNumber(row.fine_year, null);
+    row.fine_month = date.fine_month ?? toNumber(row.fine_month, null);
+    row.fine_day = date.fine_day ?? toNumber(row.fine_day, null);
 
     row.customer = cleanText(row.customer).toUpperCase();
     row.barcode = cleanText(row.barcode);
@@ -260,7 +261,7 @@ const FineData = (() => {
     if (dmy) return dateParts(Number(dmy[3]), Number(dmy[2]), Number(dmy[1]), 'ok_text_dmy');
 
     const ymd = text.match(/^(\d{4})[\/\-](\d{1,2})[\/\-](\d{1,2})$/);
-    if (ymd) return dateParts(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]), 'ok_excel_serial_as_is');
+    if (ymd) return dateParts(Number(ymd[1]), Number(ymd[2]), Number(ymd[3]), 'ok_text_ymd');
 
     return {
       fine_date: null,
@@ -269,6 +270,13 @@ const FineData = (() => {
       fine_month: null,
       fine_day: null
     };
+  }
+
+  function resolveCanonicalDate(rawValue, normalizedValue) {
+    const rawCandidate = normalizeDate(rawValue);
+    if (rawCandidate.fine_date) return rawCandidate;
+
+    return normalizeDate(normalizedValue);
   }
 
   function dateParts(year, month, day, status) {
