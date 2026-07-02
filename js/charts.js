@@ -162,6 +162,18 @@ const Charts = (() => {
       const { ctx, chartArea } = chart;
       const bars = meta.data;
       const values = dataset.data;
+      const activeItems = chart.tooltip?._active || [];
+      const activeIndexes = new Set(
+        activeItems
+          .filter(item => item.datasetIndex === datasetIndex)
+          .map(item => item.index)
+      );
+      const isNearActiveTooltip = (index) => {
+        for (const activeIndex of activeIndexes) {
+          if (Math.abs(activeIndex - index) <= 1) return true;
+        }
+        return false;
+      };
       const slotWidth = bars.length > 0 ? chartArea.width / bars.length : chartArea.width;
       const isDenseLayout = slotWidth < 38;
       const topPadding = Number(chart.options?.layout?.padding?.top) || 0;
@@ -176,6 +188,7 @@ const Charts = (() => {
       bars.forEach((bar, index) => {
         const rawValue = Number(values[index]) || 0;
         if (rawValue <= 0) return;
+        if (isNearActiveTooltip(index)) return;
 
         const props = bar.getProps(['x', 'y', 'base'], true);
         const barHeight = Math.abs(props.base - props.y);
