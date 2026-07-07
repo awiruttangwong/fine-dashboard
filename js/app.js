@@ -28,6 +28,23 @@ const App = (() => {
     let aggregates = null;
     let lastRefreshAt = 0;
     let refreshPromise = null;
+    let lastDataSignature = '';
+
+    function buildDataSignature(rows) {
+      return rows.map((row) => [
+        row.raw_record_hash || '',
+        row.fine_date || '',
+        row.customer || '',
+        row.barcode || '',
+        row.transfer_receiver_name || '',
+        row.fine_amount ?? '',
+        row.paid_amount ?? '',
+        row.computed_remaining_amount ?? '',
+        row.payment_status || '',
+        row.source_type || '',
+        row.installment_flag ? '1' : '0'
+      ].join('|')).join('||');
+    }
 
     function renderCurrentState(filterState, { fullRender = false } = {}) {
       if (filterState.isComparisonMode) {
@@ -57,10 +74,19 @@ const App = (() => {
 
       refreshPromise = (async () => {
         try {
-          allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+          const nextData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+          const nextSignature = buildDataSignature(nextData);
           lastRefreshAt = Date.now();
+
+          if (nextSignature === lastDataSignature) {
+            console.info(`[Fine Dashboard] Refresh skipped (no data change: ${reason})`);
+            return;
+          }
+
+          allData = nextData;
+          lastDataSignature = nextSignature;
           Filters.render();
-          renderCurrentState(Filters.getState(), { fullRender: true });
+          renderCurrentState(Filters.getState(), { fullRender: false });
           console.info(`[Fine Dashboard] Data refreshed from source (${reason})`);
         } catch (err) {
           console.warn(`[Fine Dashboard] Background refresh failed (${reason})`, err);
@@ -80,6 +106,7 @@ const App = (() => {
     try {
       renderLoadingState();
       allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+      lastDataSignature = buildDataSignature(allData);
       lastRefreshAt = Date.now();
       aggregates = FineData.getAggregates(allData);
     } catch (err) {
@@ -150,7 +177,7 @@ const App = (() => {
 
     if (title) {
       title.textContent = isComparisonMode
-        ? 'เปรียบเทียบข้อมูลรายเดือน'
+        ? 'ภาพรวมทั้งปี'
         : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
     }
 

@@ -1,11 +1,9 @@
 /* ============================================================
    Fine Dashboard — Tables
-   Rendering, sorting, pagination, search, tab switching
-   All icons use inline SVG — no emoji
+   Receiver-grouped summary with detail modal
    ============================================================ */
 
 const Tables = (() => {
-  // ── SVG Icons ──
   const ICONS = {
     search: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>`,
     chevronLeft: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>`,
@@ -13,23 +11,28 @@ const Tables = (() => {
     sortAsc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 5l-7 7h14l-7-7z"/></svg>`,
     sortDesc: `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor"><path d="M12 19l-7-7h14l-7 7z"/></svg>`,
     sortNone: `<svg width="10" height="10" viewBox="0 0 24 24" fill="currentColor" opacity="0.3"><path d="M12 5l-5 5h10l-5-5z M12 19l-5-5h10l-5 5z"/></svg>`,
-    warning: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
-    alertCircle: `<svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>`,
     list: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><line x1="3" y1="6" x2="3.01" y2="6"/><line x1="3" y1="12" x2="3.01" y2="12"/><line x1="3" y1="18" x2="3.01" y2="18"/></svg>`,
-    copy: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>`,
-    notEqual: `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 9h14"/><path d="M5 15h14"/><path d="m19 5-14 14"/></svg>`,
-    userX: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="8.5" cy="7" r="4"/><line x1="18" y1="8" x2="23" y2="13"/><line x1="23" y1="8" x2="18" y2="13"/></svg>`
+    userStack: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M22 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>`,
+    external: `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M7 17 17 7"/><path d="M7 7h10v10"/></svg>`,
+    close: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`
   };
 
-  let currentTab = 'all-fines';
+  const RECEIVER_FALLBACK_KEY = '__blank_receiver__';
+  const RECEIVER_FALLBACK_LABEL = 'ไม่ระบุผู้รับโอน';
+  const SUMMARY_TAB = 'receiver-summary';
+  const INSTALLMENT_TAB = 'receiver-installment';
+  const STATUS_WEIGHT = { paid: 1, partial: 2, open: 3 };
+
   let tableState = {
-    'all-fines': { page: 1, perPage: 15, sortField: 'payment_status', sortDir: 'asc', search: '' },
-    'dup-barcodes': { page: 1, perPage: 15, sortField: 'count', sortDir: 'desc', search: '' },
-    'mismatches': { page: 1, perPage: 15, sortField: 'source_row', sortDir: 'asc', search: '' },
-    'missing-data': { page: 1, perPage: 15, sortField: 'source_row', sortDir: 'asc', search: '' }
+    [SUMMARY_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' },
+    [INSTALLMENT_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' }
   };
 
   let currentData = [];
+  let currentSummaryGroups = [];
+  let currentInstallmentGroups = [];
+  let currentGroups = [];
+  let detailState = { receiverKey: null };
 
   function escapeHtml(value) {
     return String(value ?? '')
@@ -40,25 +43,20 @@ const Tables = (() => {
       .replace(/'/g, '&#39;');
   }
 
+  function cleanText(value) {
+    return String(value ?? '').trim();
+  }
+
   function formatCurrency(val) {
     if (val === null || val === undefined) return '-';
     return new Intl.NumberFormat('th-TH').format(val) + ' ฿';
   }
 
-  function formatDate(d) {
-    if (!d) return '-';
-    const parts = d.split('-');
-    return `${parseInt(parts[2])}/${parseInt(parts[1])}/${parts[0]}`;
-  }
-
-  function getStatusBadge(status) {
-    const map = {
-      'open': { label: 'ค้างชำระ', class: 'status-badge--open' },
-      'paid': { label: 'ชำระค่าปรับแล้ว', class: 'status-badge--paid' },
-      'data_error': { label: 'ยอดไม่ตรง', class: 'status-badge--error' }
-    };
-    const info = map[status] || { label: status, class: 'status-badge--open' };
-    return `<span class="status-badge ${info.class}"><span class="status-dot"></span><span class="status-label">${info.label}</span></span>`;
+  function formatDate(dateValue) {
+    if (!dateValue) return '-';
+    const parts = String(dateValue).split('-');
+    if (parts.length !== 3) return escapeHtml(dateValue);
+    return `${parseInt(parts[2], 10)}/${parseInt(parts[1], 10)}/${parts[0]}`;
   }
 
   function getSortIcon(field, state) {
@@ -66,75 +64,27 @@ const Tables = (() => {
     return `<span class="sort-icon">${state.sortDir === 'asc' ? ICONS.sortAsc : ICONS.sortDesc}</span>`;
   }
 
-  const STATUS_WEIGHT = {
-    'paid': 1,
-    'data_error': 2,
-    'open': 3
-  };
-
-  function sortData(data, field, dir) {
-    return [...data].sort((a, b) => {
-      if (field === 'payment_status') {
-        const weightA = STATUS_WEIGHT[a.payment_status] || 99;
-        const weightB = STATUS_WEIGHT[b.payment_status] || 99;
-        if (weightA !== weightB) {
-          return dir === 'asc' ? weightA - weightB : weightB - weightA;
-        }
-        // Tie-breaker: date descending, then row order ascending
-        if (a.fine_date !== b.fine_date) {
-          return a.fine_date > b.fine_date ? -1 : 1;
-        }
-        return a.source_row - b.source_row;
-      }
-
-      let va = a[field], vb = b[field];
-      if (va === null || va === undefined) va = '';
-      if (vb === null || vb === undefined) vb = '';
-      if (typeof va === 'number' && typeof vb === 'number') {
-        return dir === 'asc' ? va - vb : vb - va;
-      }
-      return dir === 'asc' ? String(va).localeCompare(String(vb)) : String(vb).localeCompare(String(va));
-    });
+  function getStatusMeta(status) {
+    const map = {
+      open: { label: 'ค้างชำระ', class: 'status-badge--open' },
+      partial: { label: 'ผ่อนชำระ', class: 'status-badge--partial' },
+      paid: { label: 'ชำระค่าปรับแล้ว', class: 'status-badge--paid' }
+    };
+    return map[status] || map.open;
   }
 
-  function filterBySearch(data, search) {
-    if (!search.trim()) return data;
-    const q = search.toLowerCase();
-    return data.filter(row => {
-      const searchable = Object.values(row).join(' ').toLowerCase();
-      return searchable.includes(q);
-    });
+  function getStatusBadge(status) {
+    const info = getStatusMeta(status);
+    return `<span class="status-badge ${info.class}"><span class="status-dot"></span><span class="status-label">${info.label}</span></span>`;
   }
 
-  function renderPagination(total, state, tabId) {
-    const totalPages = Math.ceil(total / state.perPage);
-    if (totalPages <= 1) return '';
-
-    const start = (state.page - 1) * state.perPage + 1;
-    const end = Math.min(state.page * state.perPage, total);
-
-    let pages = '';
-    const maxVisible = 5;
-    let startPage = Math.max(1, state.page - Math.floor(maxVisible / 2));
-    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
-    if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
-
-    for (let p = startPage; p <= endPage; p++) {
-      pages += `<button class="table-pagination__btn ${p === state.page ? 'active' : ''}" data-tab="${tabId}" data-page="${p}">${p}</button>`;
-    }
-
-    return `
-      <div class="table-pagination">
-        <div class="table-pagination__info">
-          แสดง ${start}-${end} จาก ${total} รายการ
-        </div>
-        <div class="table-pagination__controls">
-          <button class="table-pagination__btn" data-tab="${tabId}" data-page="${state.page - 1}" ${state.page <= 1 ? 'disabled' : ''}>${ICONS.chevronLeft}</button>
-          ${pages}
-          <button class="table-pagination__btn" data-tab="${tabId}" data-page="${state.page + 1}" ${state.page >= totalPages ? 'disabled' : ''}>${ICONS.chevronRight}</button>
-        </div>
-      </div>
-    `;
+  function getColumnClass(col, target = 'td') {
+    const classes = [
+      col.className,
+      target === 'th' ? col.thClass : col.tdClass,
+      col.align ? `cell-${col.align}` : ''
+    ];
+    return classes.filter(Boolean).join(' ');
   }
 
   function renderColGroup(columns) {
@@ -147,202 +97,295 @@ const Tables = (() => {
     `;
   }
 
-  function getColumnClass(col, target = 'td') {
-    const classes = [
-      col.className,
-      target === 'th' ? col.thClass : col.tdClass,
-      col.align ? `cell-${col.align}` : ''
-    ];
-    return classes.filter(Boolean).join(' ');
+  function normalizeReceiverInfo(row) {
+    const receiverLabel = cleanText(row.transfer_receiver_name);
+    return {
+      key: receiverLabel || RECEIVER_FALLBACK_KEY,
+      label: receiverLabel || RECEIVER_FALLBACK_LABEL,
+      isFallback: !receiverLabel
+    };
   }
 
-  // ── Tab: All Fines ──
-  function renderAllFines(data) {
-    const state = tableState['all-fines'];
-    let filtered = filterBySearch(data, state.search);
-    let sorted = sortData(filtered, state.sortField, state.sortDir);
-    const total = sorted.length;
-    const paginated = sorted.slice((state.page - 1) * state.perPage, state.page * state.perPage);
+  function isInstallmentRow(row) {
+    return row.source_type === 'LOAN' || row.installment_flag === true || row.payment_status === 'partial';
+  }
 
-    const columns = [
-      { field: 'fine_date', label: 'วันที่', width: '8%', align: 'left', render: (r) => formatDate(r.fine_date) },
-      { field: 'customer', label: 'ลูกค้า', width: '7%', align: 'left', render: (r) => escapeHtml(r.customer) },
-      { field: 'barcode', label: 'บาร์โค้ด', width: '12%', align: 'left', render: (r) => `<span class="cell-mono">${escapeHtml(r.barcode)}</span>` },
-      { field: 'route_raw', label: 'เส้นทาง', width: '18%', align: 'left', render: (r) => `<code class="cell-mono" style="font-size: var(--font-size-xs); background: none; padding: 0;">${escapeHtml(r.route_raw)}</code>` },
-      { field: 'driver_name', label: 'พนักงาน', width: '12%', align: 'left', render: (r) => r.driver_name ? escapeHtml(r.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
-      { field: 'fine_amount', label: 'ยอดปรับ', width: '10%', align: 'right', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.fine_amount)}</span>` },
-      { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '12%', align: 'right', className: 'column-financial column-paid', render: (r) => `<span class="cell-amount ${r.paid_amount ? 'cell-amount--positive' : ''}">${formatCurrency(r.paid_amount || 0)}</span>` },
-      { field: 'computed_remaining', label: 'คงเหลือ', width: '9%', align: 'right', className: 'column-financial', render: (r) => `<span class="cell-amount">${formatCurrency(r.computed_remaining)}</span>` },
-      { field: 'payment_status', label: 'สถานะ', width: '12%', align: 'center', className: 'cell-status column-status', render: (r) => getStatusBadge(r.payment_status) }
-    ];
+  function sortRowsForDetail(rows) {
+    return [...rows].sort((a, b) => {
+      if (a.fine_date !== b.fine_date) {
+        return a.fine_date > b.fine_date ? -1 : 1;
+      }
+      return (a.source_row || 0) - (b.source_row || 0);
+    });
+  }
+
+  function deriveGroupPaymentStatus(group, mode = 'standard') {
+    const fine = group.total_fine || 0;
+    const paid = group.total_paid || 0;
+    const remaining = group.total_remaining || 0;
+
+    if (fine > 0 && paid >= fine && remaining <= 0) return 'paid';
+    if (mode === 'installment') return 'partial';
+    return 'open';
+  }
+
+  function buildReceiverGroups(data, mode = 'standard') {
+    const groups = new Map();
+
+    data.forEach(row => {
+      const receiver = normalizeReceiverInfo(row);
+      const groupKey = `${mode}::${receiver.key}`;
+      if (!groups.has(groupKey)) {
+        groups.set(groupKey, {
+          receiver_key: groupKey,
+          receiver_raw_key: receiver.key,
+          receiver_label: receiver.label,
+          receiver_missing: receiver.isFallback,
+          view_mode: mode,
+          total_fine: 0,
+          total_paid: 0,
+          total_remaining: 0,
+          item_count: 0,
+          customer_names: new Set(),
+          rows: []
+        });
+      }
+
+      const group = groups.get(groupKey);
+      group.total_fine += row.fine_amount || 0;
+      group.total_paid += row.paid_amount || 0;
+      group.total_remaining += row.computed_remaining_amount || 0;
+      group.item_count += 1;
+      if (row.customer) group.customer_names.add(row.customer);
+      group.rows.push(row);
+    });
+
+    return Array.from(groups.values()).map(group => {
+      const rows = sortRowsForDetail(group.rows);
+      const customerNames = Array.from(group.customer_names).sort();
+
+      return {
+        ...group,
+        rows,
+        customer_names: customerNames,
+        customer_count: customerNames.length,
+        latest_fine_date: rows[0]?.fine_date || null,
+        payment_status: deriveGroupPaymentStatus(group, mode)
+      };
+    });
+  }
+
+  function sortGroups(data, field, dir) {
+    return [...data].sort((a, b) => {
+      if (field === 'payment_status') {
+        const weightA = STATUS_WEIGHT[a.payment_status] || 99;
+        const weightB = STATUS_WEIGHT[b.payment_status] || 99;
+        if (weightA !== weightB) return dir === 'asc' ? weightA - weightB : weightB - weightA;
+      }
+
+      let valueA = a[field];
+      let valueB = b[field];
+
+      if (field === 'receiver_label') {
+        valueA = a.receiver_missing ? `zzz_${a.receiver_label}` : a.receiver_label;
+        valueB = b.receiver_missing ? `zzz_${b.receiver_label}` : b.receiver_label;
+      }
+
+      if (typeof valueA === 'number' && typeof valueB === 'number') {
+        return dir === 'asc' ? valueA - valueB : valueB - valueA;
+      }
+
+      valueA = valueA ?? '';
+      valueB = valueB ?? '';
+      return dir === 'asc'
+        ? String(valueA).localeCompare(String(valueB), 'th')
+        : String(valueB).localeCompare(String(valueA), 'th');
+    });
+  }
+
+  function filterGroupsBySearch(groups, search) {
+    if (!search.trim()) return groups;
+    const query = search.trim().toLowerCase();
+
+    return groups.filter(group => {
+      const haystack = [
+        group.receiver_label,
+        group.customer_names.join(' '),
+        ...group.rows.flatMap(row => [
+          row.customer,
+          row.barcode,
+          row.route_raw,
+          row.driver_name,
+          row.transfer_receiver_name
+        ])
+      ].join(' ').toLowerCase();
+
+      return haystack.includes(query);
+    });
+  }
+
+  function renderPagination(total, state, tabId) {
+    const totalPages = Math.ceil(total / state.perPage);
+    if (totalPages <= 1) return '';
+
+    const start = (state.page - 1) * state.perPage + 1;
+    const end = Math.min(state.page * state.perPage, total);
+    const maxVisible = 5;
+    let startPage = Math.max(1, state.page - Math.floor(maxVisible / 2));
+    let endPage = Math.min(totalPages, startPage + maxVisible - 1);
+    if (endPage - startPage < maxVisible - 1) startPage = Math.max(1, endPage - maxVisible + 1);
+
+    let pages = '';
+    for (let page = startPage; page <= endPage; page++) {
+      pages += `<button class="table-pagination__btn ${page === state.page ? 'active' : ''}" data-tab="${tabId}" data-page="${page}">${page}</button>`;
+    }
 
     return `
-      <div class="table-card__header">
-        <div class="table-card__title-area">
-          ${ICONS.list}
-          <span class="table-card__title">รายการค่าปรับทั้งหมด</span>
-          <span class="table-card__row-count">${total} รายการ</span>
+      <div class="table-pagination">
+        <div class="table-pagination__info">แสดง ${start}-${end} จาก ${total} ผู้รับโอน</div>
+        <div class="table-pagination__controls">
+          <button class="table-pagination__btn" data-tab="${tabId}" data-page="${state.page - 1}" ${state.page <= 1 ? 'disabled' : ''}>${ICONS.chevronLeft}</button>
+          ${pages}
+          <button class="table-pagination__btn" data-tab="${tabId}" data-page="${state.page + 1}" ${state.page >= totalPages ? 'disabled' : ''}>${ICONS.chevronRight}</button>
         </div>
-        <div class="table-card__actions">
-          <div class="table-search">
-            <span class="table-search__icon">${ICONS.search}</span>
-            <input type="text" class="table-search__input" placeholder="ค้นหา..." value="${escapeHtml(state.search)}" data-tab="all-fines">
+      </div>
+    `;
+  }
+
+  function renderSummaryReceiverCell(group) {
+    return `
+      <div class="receiver-cell">
+        <div class="receiver-cell__main">
+          <div class="receiver-cell__title-wrap">
+            <div class="receiver-cell__name">${escapeHtml(group.receiver_label)}</div>
+            <div class="receiver-cell__hint">${group.receiver_missing ? 'กลุ่มรายการที่ยังไม่ระบุผู้รับโอน' : 'คลิกเพื่อดูรายละเอียดรายการทั้งหมด'}</div>
           </div>
+          <button type="button" class="receiver-cell__action" data-detail-trigger="${escapeHtml(group.receiver_key)}" aria-label="ดูรายละเอียด ${escapeHtml(group.receiver_label)}">
+            ดูรายละเอียด
+            <span aria-hidden="true">${ICONS.external}</span>
+          </button>
         </div>
-      </div>
-      <div class="table-container">
-        <table class="data-table" id="table-all-fines">
-          ${renderColGroup(columns)}
-          <thead>
-            <tr>
-              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}" data-tab="all-fines" data-sort="${col.field}">${col.label} ${getSortIcon(col.field, state)}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${paginated.length === 0
-        ? `<tr><td colspan="${columns.length}" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูล</div></td></tr>`
-        : paginated.map(row => {
-          const rowClass = row.has_amount_mismatch ? 'row-error' : (row.is_full_duplicate ? 'row-highlight' : '');
-          return `<tr class="${rowClass}">${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}</tr>`;
-        }).join('')
-      }
-          </tbody>
-        </table>
-      </div>
-      ${renderPagination(total, state, 'all-fines')}
-    `;
-  }
-
-  // ── Tab: Duplicate Barcodes ──
-  function renderDuplicateBarcodes(data) {
-    const state = tableState['dup-barcodes'];
-    const dupData = FineData.getDuplicateBarcodeRows(data);
-    let filtered = filterBySearch(dupData, state.search);
-    const total = filtered.length;
-    const columns = [
-      { label: 'บาร์โค้ด', width: '28%', align: 'left', render: (item) => `<span class="cell-mono">${escapeHtml(item.barcode)}</span>` },
-      { label: 'จำนวนซ้ำ', width: '16%', align: 'center', render: (item) => `<span class="badge badge--orange">${item.count}</span>` },
-      { label: 'ยอดปรับรวม', width: '22%', align: 'right', render: (item) => `<span class="cell-amount">${formatCurrency(item.totalFine)}</span>` },
-      { label: 'ข้อมูลจากแถวต้นทาง', width: '34%', align: 'center', render: (item) => `<span class="cell-muted">${escapeHtml(item.rows.map(r => r.source_row).join(', '))}</span>` }
-    ];
-
-    return `
-      <div class="table-card__header">
-        <div class="table-card__title-area">
-          ${ICONS.copy}
-          <span class="table-card__title">บาร์โค้ดซ้ำ</span>
-          <span class="table-card__row-count">${total} รายการ</span>
+        <div class="receiver-cell__meta">
+          <span class="receiver-chip">${group.item_count} รายการ</span>
+          <span class="receiver-chip">${group.customer_count} ลูกค้า</span>
+          ${getStatusBadge(group.payment_status)}
         </div>
-        <div class="table-card__actions">
-          <div class="table-search">
-            <span class="table-search__icon">${ICONS.search}</span>
-            <input type="text" class="table-search__input" placeholder="ค้นหา..." value="${escapeHtml(state.search)}" data-tab="dup-barcodes">
-          </div>
-        </div>
-      </div>
-      <div class="table-container">
-        <table class="data-table">
-          ${renderColGroup(columns)}
-          <thead>
-            <tr>
-              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}">${col.label}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${filtered.length === 0
-        ? `<tr><td colspan="4" class="empty-state"><div class="empty-state__text">ไม่พบบาร์โค้ดซ้ำ</div></td></tr>`
-        : filtered.map(item => `
-                  <tr class="row-highlight">
-                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(item)}</td>`).join('')}
-                  </tr>
-                `).join('')
-      }
-          </tbody>
-        </table>
       </div>
     `;
   }
 
-  // ── Tab: Amount Mismatches ──
-  function renderMismatches(data) {
-    const state = tableState['mismatches'];
-    const mismatchData = FineData.getMismatchRows(data);
-    const columns = [
-      { label: 'แถว', width: '8%', align: 'right', render: (row) => row.source_row },
-      { label: 'วันที่', width: '12%', align: 'left', render: (row) => formatDate(row.fine_date) },
-      { label: 'บาร์โค้ด', width: '16%', align: 'left', render: (row) => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
-      { label: 'ยอดปรับ', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
-      { label: 'ชำระค่าปรับแล้ว', width: '13%', align: 'right', className: 'column-paid', render: (row) => `<span class="cell-amount">${formatCurrency(row.paid_amount || 0)}</span>` },
-      { label: 'คงเหลือ (ต้นทาง)', width: '14%', align: 'right', render: (row) => `<span class="cell-amount cell-amount--negative">${formatCurrency(row.remaining_amount)}</span>` },
-      { label: 'คงเหลือ (คำนวณ)', width: '15%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.computed_remaining)}</span>` },
-      { label: 'สถานะ', width: '10%', align: 'center', className: 'cell-status column-status', render: () => `<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ไม่ตรง</span>` }
-    ];
+  function renderReceiverSummary(data, options = {}) {
+    const {
+      tabId = SUMMARY_TAB,
+      title = 'สรุปตามผู้รับโอน',
+      rowCountLabel = 'ผู้รับโอน',
+      summaryNote = 'รวมยอดตามผู้รับโอนก่อน และกดดูรายละเอียดเพื่อเปิดรายการย่อยทั้งหมดของแต่ละกลุ่ม',
+      searchPlaceholder = 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
+    } = options;
+    const state = tableState[tabId];
+    const searchedGroups = filterGroupsBySearch(data, state.search);
+    const sortedGroups = sortGroups(searchedGroups, state.sortField, state.sortDir);
+    const totalGroups = sortedGroups.length;
+    const paginatedGroups = sortedGroups.slice((state.page - 1) * state.perPage, state.page * state.perPage);
 
-    return `
-      <div class="table-card__header">
-        <div class="table-card__title-area">
-          ${ICONS.notEqual}
-          <span class="table-card__title">ข้อมูลยอดไม่ตรงกัน</span>
-          <span class="table-card__row-count">${mismatchData.length} รายการ</span>
-        </div>
-      </div>
-      <div class="table-container">
-        <table class="data-table">
-          ${renderColGroup(columns)}
-          <thead>
-            <tr>
-              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}">${col.label}</th>`).join('')}
-            </tr>
-          </thead>
-          <tbody>
-            ${mismatchData.length === 0
-        ? `<tr><td colspan="8" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลที่ไม่ตรงกัน</div></td></tr>`
-        : mismatchData.map(row => `
-                  <tr class="row-error">
-                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}
-                  </tr>
-                `).join('')
-      }
-          </tbody>
-        </table>
-      </div>
-    `;
-  }
-
-  // ── Tab: Missing Data ──
-  function renderMissingData(data) {
-    const state = tableState['missing-data'];
-    const missingData = data.filter(r => r.is_driver_blank || r.is_full_duplicate || r.is_barcode_duplicate);
-    let filtered = filterBySearch(missingData, state.search);
-    const total = filtered.length;
     const columns = [
-      { label: 'แถว', width: '6%', align: 'right', render: (row) => row.source_row },
-      { label: 'วันที่', width: '12%', align: 'left', render: (row) => formatDate(row.fine_date) },
-      { label: 'ลูกค้า', width: '11%', align: 'left', render: (row) => escapeHtml(row.customer) },
-      { label: 'บาร์โค้ด', width: '16%', align: 'left', render: (row) => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
-      { label: 'พนักงาน', width: '18%', align: 'left', render: (row) => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
-      { label: 'ยอดปรับ', width: '12%', align: 'right', render: (row) => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
       {
-        label: 'ปัญหา', width: '25%', align: 'center', className: 'cell-status', render: (row) => {
-          const flags = [];
-          if (row.is_driver_blank) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> ไม่ระบุชื่อ พขร.</span>`);
-          if (row.is_full_duplicate) flags.push(`<span class="badge badge--red"><span class="flag-icon flag-icon--error">${ICONS.alertCircle}</span> ข้อมูลซ้ำ</span>`);
-          if (row.is_barcode_duplicate && !row.is_full_duplicate) flags.push(`<span class="badge badge--orange"><span class="flag-icon flag-icon--warning">${ICONS.warning}</span> บาร์โค้ดซ้ำ</span>`);
-          return flags.join(' ');
-        }
+        field: 'receiver_label',
+        label: 'ผู้รับโอน',
+        width: '43%',
+        align: 'left',
+        render: renderSummaryReceiverCell
+      },
+      {
+        field: 'total_fine',
+        label: 'ยอดปรับ',
+        width: '19%',
+        align: 'right',
+        className: 'column-financial',
+        render: (group) => `<span class="cell-amount">${formatCurrency(group.total_fine)}</span>`
+      },
+      {
+        field: 'total_paid',
+        label: 'ชำระค่าปรับแล้ว',
+        width: '19%',
+        align: 'right',
+        className: 'column-financial column-paid',
+        render: (group) => `<span class="cell-amount ${group.total_paid > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(group.total_paid)}</span>`
+      },
+      {
+        field: 'total_remaining',
+        label: 'คงเหลือ',
+        width: '19%',
+        align: 'right',
+        className: 'column-financial',
+        render: (group) => `<span class="cell-amount ${group.total_remaining > 0 ? 'cell-amount--negative' : ''}">${formatCurrency(group.total_remaining)}</span>`
       }
     ];
 
     return `
-      <div class="table-card__header">
-        <div class="table-card__title-area">
-          ${ICONS.userX}
-          <span class="table-card__title">ข้อมูลไม่ครบถ้วน</span>
-          <span class="table-card__row-count">${total} รายการ</span>
+      <div class="table-card__header table-card__header--stacked">
+        <div class="table-card__title-block">
+          <div class="table-card__title-area">
+            ${ICONS.userStack}
+            <span class="table-card__title">${title}</span>
+            <span class="table-card__row-count">${totalGroups} ${rowCountLabel}</span>
+          </div>
+          <div class="table-card__summary-note">
+            ${summaryNote}
+          </div>
+        </div>
+        <div class="table-card__actions">
+          <div class="table-search">
+            <span class="table-search__icon">${ICONS.search}</span>
+            <input
+              type="text"
+              class="table-search__input"
+              placeholder="${searchPlaceholder}"
+              value="${escapeHtml(state.search)}"
+              data-tab="${tabId}">
+          </div>
         </div>
       </div>
       <div class="table-container">
-        <table class="data-table">
+        <table class="data-table data-table--receiver-summary" id="table-${tabId}">
+          ${renderColGroup(columns)}
+          <thead>
+            <tr>
+              ${columns.map(col => `<th class="${getColumnClass(col, 'th')}" data-tab="${tabId}" data-sort="${col.field}">${col.label} ${getSortIcon(col.field, state)}</th>`).join('')}
+            </tr>
+          </thead>
+          <tbody>
+            ${paginatedGroups.length === 0
+              ? `<tr><td colspan="${columns.length}" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลผู้รับโอนที่ตรงกับเงื่อนไข</div></td></tr>`
+              : paginatedGroups.map(group => `
+                  <tr class="summary-row" tabindex="0" role="button" data-detail-trigger="${escapeHtml(group.receiver_key)}" aria-label="เปิดรายละเอียด ${escapeHtml(group.receiver_label)}">
+                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(group)}</td>`).join('')}
+                  </tr>
+                `).join('')
+            }
+          </tbody>
+        </table>
+      </div>
+      ${renderPagination(totalGroups, state, tabId)}
+    `;
+  }
+
+  function renderDetailRows(rows) {
+    const columns = [
+      { field: 'fine_date', label: 'วันที่', width: '112px', align: 'left', render: row => formatDate(row.fine_date) },
+      { field: 'customer', label: 'ลูกค้า', width: '88px', align: 'left', render: row => escapeHtml(row.customer) },
+      { field: 'barcode', label: 'บาร์โค้ด', width: '150px', align: 'left', render: row => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
+      { field: 'route_raw', label: 'เส้นทาง', width: '320px', align: 'left', render: row => `<code class="cell-mono table-inline-code">${escapeHtml(row.route_raw)}</code>` },
+      { field: 'driver_name', label: 'ชื่อ พขร', width: '180px', align: 'left', render: row => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
+      { field: 'fine_amount', label: 'ยอดปรับ', width: '110px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
+      { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '150px', align: 'right', className: 'column-financial column-paid', render: row => `<span class="cell-amount ${row.paid_amount > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(row.paid_amount || 0)}</span>` },
+      { field: 'computed_remaining', label: 'คงเหลือ', width: '120px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount ${row.computed_remaining > 0 ? 'cell-amount--negative' : ''}">${formatCurrency(row.computed_remaining)}</span>` },
+      { field: 'payment_status', label: 'สถานะ', width: '136px', align: 'center', className: 'cell-status column-status column-status-detail', render: row => getStatusBadge(row.payment_status) }
+    ];
+
+    return `
+      <div class="table-container table-container--modal">
+        <table class="data-table data-table--detail">
           ${renderColGroup(columns)}
           <thead>
             <tr>
@@ -350,80 +393,167 @@ const Tables = (() => {
             </tr>
           </thead>
           <tbody>
-            ${filtered.length === 0
-        ? `<tr><td colspan="7" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลที่ไม่ครบถ้วน</div></td></tr>`
-        : filtered.map(row => `
-                  <tr class="row-highlight">
-                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}
-                  </tr>
-                `).join('')
-      }
+            ${rows.map(row => `
+              <tr>
+                ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(row)}</td>`).join('')}
+              </tr>
+            `).join('')}
           </tbody>
         </table>
       </div>
     `;
   }
 
-  // ── Render ──
+  function renderDetailModal() {
+    const modalRoot = ensureModalRoot();
+    const activeGroup = currentGroups.find(group => group.receiver_key === detailState.receiverKey);
+
+    if (!activeGroup) {
+      modalRoot.innerHTML = '';
+      document.body.classList.remove('modal-open');
+      return;
+    }
+
+    document.body.classList.add('modal-open');
+    const isInstallmentView = activeGroup.view_mode === 'installment';
+    modalRoot.innerHTML = `
+      <div class="table-modal" role="dialog" aria-modal="true" aria-labelledby="receiver-detail-title">
+        <div class="table-modal__backdrop" data-modal-close></div>
+        <div class="table-modal__dialog">
+          <div class="table-modal__header">
+            <div class="table-modal__title-wrap">
+              <div class="table-modal__eyebrow">${isInstallmentView ? 'รายละเอียดผ่อนชำระ' : 'รายละเอียดผู้รับโอน'}</div>
+              <h3 class="table-modal__title" id="receiver-detail-title">${escapeHtml(activeGroup.receiver_label)}</h3>
+              <div class="table-modal__subtitle">
+                ${isInstallmentView
+                  ? 'แสดงเฉพาะรายการจากชีท LOAN ของผู้รับโอนนี้ โดยยอดรวมด้านล่างต้องสอดคล้องกับยอดสรุปในตารางผ่อนชำระ'
+                  : 'แสดงรายละเอียดรายการทั้งหมดในกลุ่มนี้ โดยยอดรวมด้านล่างต้องสอดคล้องกับยอดสรุปในตารางหลัก'}
+              </div>
+            </div>
+            <button type="button" class="table-modal__close" data-modal-close aria-label="ปิดหน้าต่างรายละเอียด">
+              ${ICONS.close}
+            </button>
+          </div>
+
+          <div class="table-modal__summary">
+            <div class="table-modal__stat">
+              <div class="table-modal__stat-label">รายการทั้งหมด</div>
+              <div class="table-modal__stat-value">${activeGroup.item_count}</div>
+            </div>
+            <div class="table-modal__stat">
+              <div class="table-modal__stat-label">ยอดปรับ</div>
+              <div class="table-modal__stat-value">${formatCurrency(activeGroup.total_fine)}</div>
+            </div>
+            <div class="table-modal__stat">
+              <div class="table-modal__stat-label">ชำระค่าปรับแล้ว</div>
+              <div class="table-modal__stat-value table-modal__stat-value--positive">${formatCurrency(activeGroup.total_paid)}</div>
+            </div>
+            <div class="table-modal__stat">
+              <div class="table-modal__stat-label">คงเหลือ</div>
+              <div class="table-modal__stat-value ${activeGroup.total_remaining > 0 ? 'table-modal__stat-value--negative' : ''}">${formatCurrency(activeGroup.total_remaining)}</div>
+            </div>
+          </div>
+
+          <div class="table-modal__body">
+            ${renderDetailRows(activeGroup.rows)}
+          </div>
+        </div>
+      </div>
+    `;
+
+    bindModalEvents();
+  }
+
+  function ensureModalRoot() {
+    let root = document.getElementById('receiver-detail-modal-root');
+    if (!root) {
+      root = document.createElement('div');
+      root.id = 'receiver-detail-modal-root';
+      document.body.appendChild(root);
+    }
+    return root;
+  }
+
+  function openDetail(receiverKey) {
+    detailState.receiverKey = receiverKey;
+    renderDetailModal();
+  }
+
+  function closeDetail() {
+    detailState.receiverKey = null;
+    renderDetailModal();
+  }
+
+  function bindModalEvents() {
+    const modalRoot = document.getElementById('receiver-detail-modal-root');
+    if (!modalRoot) return;
+
+    modalRoot.querySelectorAll('[data-modal-close]').forEach(node => {
+      node.addEventListener('click', closeDetail);
+    });
+  }
+
+  function onEscapeClose(event) {
+    if (event.key === 'Escape' && detailState.receiverKey) closeDetail();
+  }
+
   function render(data) {
     currentData = data;
+    const summaryRows = data.filter(row => !isInstallmentRow(row));
+    const installmentRows = data.filter(isInstallmentRow);
+    currentSummaryGroups = buildReceiverGroups(summaryRows, 'standard');
+    currentInstallmentGroups = buildReceiverGroups(installmentRows, 'installment');
+    currentGroups = [...currentSummaryGroups, ...currentInstallmentGroups];
+
+    if (detailState.receiverKey && !currentGroups.some(group => group.receiver_key === detailState.receiverKey)) {
+      detailState.receiverKey = null;
+    }
+
     const container = document.getElementById('tables-section');
     if (!container) return;
 
-    const tabs = [
-      { id: 'all-fines', label: 'รายการทั้งหมด', count: data.length },
-      { id: 'dup-barcodes', label: 'บาร์โค้ดซ้ำ', count: FineData.getDuplicateBarcodeRows(data).length },
-      { id: 'mismatches', label: 'ยอดไม่ตรง', count: FineData.getMismatchRows(data).length },
-      { id: 'missing-data', label: 'ข้อมูลไม่ครบ', count: data.filter(r => r.is_driver_blank || r.is_full_duplicate || r.is_barcode_duplicate).length }
-    ];
-
-    let tableContent = '';
-    switch (currentTab) {
-      case 'all-fines': tableContent = renderAllFines(data); break;
-      case 'dup-barcodes': tableContent = renderDuplicateBarcodes(data); break;
-      case 'mismatches': tableContent = renderMismatches(data); break;
-      case 'missing-data': tableContent = renderMissingData(data); break;
-    }
-
     container.innerHTML = `
-      <div class="tab-nav" id="table-tabs">
-        ${tabs.map(tab => `
-          <button class="tab-nav__item ${tab.id === currentTab ? 'active' : ''}" data-tab-id="${tab.id}">
-            ${tab.label} <span class="tab-count">${tab.count}</span>
-          </button>
-        `).join('')}
-      </div>
       <div class="table-card" id="table-card-content">
-        ${tableContent}
+        ${renderReceiverSummary(currentSummaryGroups, {
+          tabId: SUMMARY_TAB,
+          title: 'สรุปตามผู้รับโอน',
+          rowCountLabel: 'ผู้รับโอน',
+          summaryNote: 'รวมยอดจากรายการปกติตามผู้รับโอนก่อน และกดดูรายละเอียดเพื่อเปิดรายการย่อยทั้งหมดของแต่ละกลุ่ม',
+          searchPlaceholder: 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
+        })}
       </div>
+      ${currentInstallmentGroups.length > 0 ? `
+        <div class="table-card">
+          ${renderReceiverSummary(currentInstallmentGroups, {
+            tabId: INSTALLMENT_TAB,
+            title: 'สรุปผ่อนชำระ',
+            rowCountLabel: 'ผู้รับโอน',
+            summaryNote: 'แสดงเฉพาะรายการจากชีท LOAN เพื่อแยกการติดตามผ่อนชำระออกจากตารางหลัก โดยยอดยังสัมพันธ์กับข้อมูลรวมของเดือนเดียวกัน',
+            searchPlaceholder: 'ค้นหาผู้รับโอนผ่อนชำระ, ลูกค้า, บาร์โค้ด...'
+          })}
+        </div>
+      ` : ''}
     `;
 
     bindEvents();
+    renderDetailModal();
   }
 
   function bindEvents() {
-    // Tab switching
-    document.querySelectorAll('#table-tabs .tab-nav__item').forEach(tab => {
-      tab.addEventListener('click', () => {
-        currentTab = tab.dataset.tabId;
-        render(currentData);
-      });
-    });
-
-    // Search
     document.querySelectorAll('.table-search__input').forEach(input => {
-      input.addEventListener('input', debounce((e) => {
-        const tabId = e.target.dataset.tab;
-        tableState[tabId].search = e.target.value;
+      input.addEventListener('input', debounce((event) => {
+        const tabId = event.target.dataset.tab;
+        tableState[tabId].search = event.target.value;
         tableState[tabId].page = 1;
         render(currentData);
-        // Refocus input
         const newInput = document.querySelector(`.table-search__input[data-tab="${tabId}"]`);
-        if (newInput) { newInput.focus(); newInput.selectionStart = newInput.value.length; }
-      }, 300));
+        if (newInput) {
+          newInput.focus();
+          newInput.selectionStart = newInput.value.length;
+        }
+      }, 250));
     });
 
-    // Sort
     document.querySelectorAll('th[data-sort]').forEach(th => {
       th.addEventListener('click', () => {
         const tabId = th.dataset.tab;
@@ -433,26 +563,44 @@ const Tables = (() => {
           state.sortDir = state.sortDir === 'asc' ? 'desc' : 'asc';
         } else {
           state.sortField = field;
-          state.sortDir = 'asc';
+          state.sortDir = field === 'receiver_label' ? 'asc' : 'desc';
         }
         render(currentData);
       });
     });
 
-    // Pagination
-    document.querySelectorAll('.table-pagination__btn[data-page]').forEach(btn => {
-      btn.addEventListener('click', () => {
-        const tabId = btn.dataset.tab;
-        const page = parseInt(btn.dataset.page);
-        if (isNaN(page) || page < 1) return;
+    document.querySelectorAll('.table-pagination__btn[data-page]').forEach(button => {
+      button.addEventListener('click', () => {
+        const tabId = button.dataset.tab;
+        const page = parseInt(button.dataset.page, 10);
+        if (Number.isNaN(page) || page < 1) return;
         tableState[tabId].page = page;
         render(currentData);
       });
     });
+
+    document.querySelectorAll('[data-detail-trigger]').forEach(node => {
+      const handler = (event) => {
+        event.preventDefault();
+        event.stopPropagation();
+        openDetail(node.dataset.detailTrigger);
+      };
+
+      node.addEventListener('click', handler);
+
+      if (node.matches('tr.summary-row')) {
+        node.addEventListener('keydown', (event) => {
+          if (event.key === 'Enter' || event.key === ' ') {
+            event.preventDefault();
+            openDetail(node.dataset.detailTrigger);
+          }
+        });
+      }
+    });
   }
 
   function debounce(fn, delay) {
-    let timer;
+    let timer = null;
     return function (...args) {
       clearTimeout(timer);
       timer = setTimeout(() => fn.apply(this, args), delay);
@@ -460,10 +608,13 @@ const Tables = (() => {
   }
 
   function update(data) {
-    // Reset page to 1 on filter change
-    Object.keys(tableState).forEach(k => { tableState[k].page = 1; });
+    Object.keys(tableState).forEach(key => {
+      tableState[key].page = 1;
+    });
     render(data);
   }
+
+  document.addEventListener('keydown', onEscapeClose);
 
   return { render, update };
 })();

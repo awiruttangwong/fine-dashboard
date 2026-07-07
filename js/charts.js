@@ -168,6 +168,10 @@ const Charts = (() => {
           .filter(item => item.datasetIndex === datasetIndex)
           .map(item => item.index)
       );
+
+      // Hide all value labels when tooltip is active to prevent overlap
+      if (activeIndexes.size > 0) return;
+
       const isNearActiveTooltip = (index) => {
         for (const activeIndex of activeIndexes) {
           if (Math.abs(activeIndex - index) <= 1) return true;
@@ -178,10 +182,10 @@ const Charts = (() => {
       const isDenseLayout = slotWidth < 38;
       const topPadding = Number(chart.options?.layout?.padding?.top) || 0;
       const anchorTop = Math.max(chartArea.top - topPadding, 0);
-      let previousRight = chartArea.left - 999;
+      const occupiedRects = [];
 
       ctx.save();
-      ctx.font = `${isDenseLayout ? 9 : 11}px 'Prompt', sans-serif`;
+      ctx.font = `${isDenseLayout ? 8.5 : 10}px 'Prompt', sans-serif`;
       ctx.textAlign = 'center';
       ctx.textBaseline = 'middle';
 
@@ -194,31 +198,68 @@ const Charts = (() => {
         const barHeight = Math.abs(props.base - props.y);
         const label = formatBarValueLabel(rawValue, isDenseLayout);
         const textWidth = ctx.measureText(label).width;
-        const horizontalPadding = isDenseLayout ? 6 : 8;
+        const horizontalPadding = isDenseLayout ? 5 : 6;
         const pillWidth = textWidth + horizontalPadding * 2;
-        const pillHeight = isDenseLayout ? 16 : 18;
-        const pillX = props.x - pillWidth / 2;
+        const pillHeight = isDenseLayout ? 14 : 16;
+        const unclampedPillX = props.x - pillWidth / 2;
         const topSafeY = anchorTop + 4;
-        const preferredPillY = props.y - pillHeight - 10;
-        const pillY = Math.max(topSafeY, preferredPillY);
+        const preferredPillY = props.y - pillHeight - 8;
+        const pillX = Math.min(
+          Math.max(unclampedPillX, chartArea.left + 2),
+          chartArea.right - pillWidth - 2
+        );
+        const textX = pillX + pillWidth / 2;
         const left = pillX;
         const right = pillX + pillWidth;
 
-        if (left < chartArea.left || right > chartArea.right) return;
-        if (left < previousRight + 8 && (isDenseLayout || barHeight < 28)) return;
+        let resolvedRect = null;
+        const maxLanes = barHeight < 22 ? 4 : 3;
 
-        drawRoundedRect(ctx, pillX, pillY, pillWidth, pillHeight, pillHeight / 2);
+        for (let lane = 0; lane < maxLanes; lane++) {
+          const laneOffset = lane * (pillHeight + 4);
+          const laneY = Math.max(topSafeY, preferredPillY - laneOffset);
+          const candidateRect = {
+            left,
+            right,
+            top: laneY,
+            bottom: laneY + pillHeight
+          };
+
+          const collides = occupiedRects.some((rect) => {
+            const horizontalOverlap = candidateRect.left < rect.right + 6 && candidateRect.right > rect.left - 6;
+            const verticalOverlap = candidateRect.top < rect.bottom + 2 && candidateRect.bottom > rect.top - 2;
+            return horizontalOverlap && verticalOverlap;
+          });
+
+          if (!collides) {
+            resolvedRect = candidateRect;
+            break;
+          }
+        }
+
+        if (!resolvedRect && !isDenseLayout && barHeight >= 28) {
+          resolvedRect = {
+            left,
+            right,
+            top: Math.max(topSafeY, preferredPillY),
+            bottom: Math.max(topSafeY, preferredPillY) + pillHeight
+          };
+        }
+
+        if (!resolvedRect) return;
+
+        drawRoundedRect(ctx, pillX, resolvedRect.top, pillWidth, pillHeight, pillHeight / 2);
         ctx.save();
         ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
-        ctx.shadowColor = 'rgba(15, 23, 42, 0.10)';
-        ctx.shadowBlur = 10;
-        ctx.shadowOffsetY = 2;
+        ctx.shadowColor = 'rgba(15, 23, 42, 0.08)';
+        ctx.shadowBlur = 8;
+        ctx.shadowOffsetY = 1;
         ctx.fill();
         ctx.restore();
 
-        ctx.fillStyle = '#5C5C61';
-        ctx.fillText(label, props.x, pillY + pillHeight / 2 + 0.5);
-        previousRight = right;
+        ctx.fillStyle = '#4A4A4F';
+        ctx.fillText(label, textX, resolvedRect.top + pillHeight / 2 + 0.5);
+        occupiedRects.push(resolvedRect);
       });
 
       ctx.restore();
@@ -262,6 +303,41 @@ const Charts = (() => {
     ctx.closePath();
   }
 
+  function getBarGradient(ctx) {
+    const barGrad = ctx.createLinearGradient(0, 0, 0, 300);
+    barGrad.addColorStop(0, 'rgba(0, 113, 227, 0.85)');
+    barGrad.addColorStop(1, 'rgba(0, 113, 227, 0.10)');
+    return barGrad;
+  }
+
+  function ensureDailyTrendLegend(canvas) {
+    let legendEl = document.getElementById('chart-daily-trend-legend');
+    if (!legendEl) {
+      legendEl = document.createElement('div');
+      legendEl.id = 'chart-daily-trend-legend';
+      legendEl.style.cssText =
+        'display:flex;align-items:center;gap:24px;padding:2px 0 14px 2px;' +
+        'font-size:0.72rem;font-family:Prompt,sans-serif;color:#6E6E73;flex-wrap:wrap;';
+      canvas.parentNode.insertBefore(legendEl, canvas);
+    }
+
+    legendEl.innerHTML = `
+      <span style="display:flex;align-items:center;gap:8px;">
+        <span style="display:inline-block;width:14px;height:14px;border-radius:4px;
+              background:linear-gradient(180deg,rgba(0,113,227,0.70) 0%,rgba(0,113,227,0.10) 100%);
+              border-top:2px solid rgba(0,113,227,0.9);"></span>
+        ยอดค่าปรับ (฿)
+      </span>
+    `;
+  }
+
+  function setLegendItems(legendEl, html) {
+    if (!legendEl) return;
+    if (legendEl.dataset.renderedHtml === html) return;
+    legendEl.innerHTML = html;
+    legendEl.dataset.renderedHtml = html;
+  }
+
   function escapeHtml(value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -293,7 +369,6 @@ const Charts = (() => {
 
   // ── 1. Daily Fine Trend (Bar + Premium Smooth Line) ──
   function renderDailyTrend(aggregates, selectedMonth) {
-    destroyChart('dailyTrend');
     const canvas = document.getElementById('chart-daily-trend');
     if (!canvas) return;
 
@@ -320,30 +395,27 @@ const Charts = (() => {
       }
     }
 
-    // ── Legend (rebuild each render so it stays in sync with filter) ──
-    const oldLegend = document.getElementById('chart-daily-trend-legend');
-    if (oldLegend) oldLegend.remove();
-    const legendEl = document.createElement('div');
-    legendEl.id = 'chart-daily-trend-legend';
-    legendEl.style.cssText =
-      'display:flex;align-items:center;gap:24px;padding:2px 0 14px 2px;' +
-      'font-size:0.72rem;font-family:Prompt,sans-serif;color:#6E6E73;flex-wrap:wrap;';
-    legendEl.innerHTML = `
-      <span style="display:flex;align-items:center;gap:8px;">
-        <span style="display:inline-block;width:14px;height:14px;border-radius:4px;
-              background:linear-gradient(180deg,rgba(0,113,227,0.70) 0%,rgba(0,113,227,0.10) 100%);
-              border-top:2px solid rgba(0,113,227,0.9);"></span>
-        ยอดค่าปรับ (฿)
-      </span>
-    `;
-    canvas.parentNode.insertBefore(legendEl, canvas);
+    ensureDailyTrendLegend(canvas);
 
     const ctx = canvas.getContext('2d');
+    const barGrad = getBarGradient(ctx);
+    const existingChart = chartInstances['dailyTrend'];
 
-    // Gradient for bars (top → bottom: vivid → almost-clear)
-    const barGrad = ctx.createLinearGradient(0, 0, 0, 300);
-    barGrad.addColorStop(0, 'rgba(0, 113, 227, 0.85)');
-    barGrad.addColorStop(1, 'rgba(0, 113, 227, 0.10)');
+    if (existingChart) {
+      existingChart.data.labels = labels;
+      existingChart.data.datasets[0].data = amounts;
+      existingChart.data.datasets[0].backgroundColor = barGrad;
+      existingChart.options.plugins.tooltip.callbacks = {
+        title: (items) => {
+          const index = items?.[0]?.dataIndex ?? 0;
+          return formatThaiDateLabel(dates[index]);
+        },
+        label: (tooltipCtx) => `  ยอดปรับ: ${formatCurrency(tooltipCtx.raw)}`,
+        afterLabel: (tooltipCtx) => `  จำนวนรายการ: ${counts[tooltipCtx.dataIndex] || 0} รายการ`
+      };
+      existingChart.update('none');
+      return;
+    }
 
     chartInstances['dailyTrend'] = new Chart(ctx, {
       type: 'bar',
@@ -366,7 +438,7 @@ const Charts = (() => {
       },
       options: {
         ...baseOptions,
-        layout: { padding: { left: 0, right: 0, top: 34, bottom: 14 } },
+        layout: { padding: { left: 0, right: 0, top: 48, bottom: 14 } },
         interaction: { intersect: false, mode: 'index' },
         scales: {
           x: {
@@ -404,8 +476,8 @@ const Charts = (() => {
                 const index = items?.[0]?.dataIndex ?? 0;
                 return formatThaiDateLabel(dates[index]);
               },
-              label: (ctx) => `  ยอดปรับ: ${formatCurrency(ctx.raw)}`,
-              afterLabel: (ctx) => `  จำนวนรายการ: ${counts[ctx.dataIndex] || 0} รายการ`
+              label: (tooltipCtx) => `  ยอดปรับ: ${formatCurrency(tooltipCtx.raw)}`,
+              afterLabel: (tooltipCtx) => `  จำนวนรายการ: ${counts[tooltipCtx.dataIndex] || 0} รายการ`
             }
           }
         }
@@ -417,7 +489,6 @@ const Charts = (() => {
 
   // ── 2. Fine by Customer (Doughnut) ──
   function renderCustomerChart(aggregates) {
-    destroyChart('customerChart');
     const canvas = document.getElementById('chart-customer');
     if (!canvas) return;
 
@@ -427,7 +498,21 @@ const Charts = (() => {
     const colors = [COLORS.blue, COLORS.orange, COLORS.purple, COLORS.teal];
     const total = data.reduce((a, b) => a + b, 0);
 
-    chartInstances['customerChart'] = new Chart(canvas.getContext('2d'), {
+    const existingChart = chartInstances['customerChart'];
+    if (existingChart) {
+      existingChart.data.labels = labels;
+      existingChart.data.datasets[0].data = data;
+      existingChart.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
+      existingChart.options.plugins.tooltip.callbacks = {
+        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${formatCurrency(tooltipCtx.raw)} (${total > 0 ? ((tooltipCtx.raw / total) * 100).toFixed(1) : '0.0'}%)`
+      };
+      existingChart.options.plugins.doughnutCenterText = {
+        total: formatCurrency(total),
+        label: 'ยอดรวม'
+      };
+      existingChart.update('none');
+    } else {
+      chartInstances['customerChart'] = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
       data: {
         labels,
@@ -456,17 +541,19 @@ const Charts = (() => {
           }
         }
       }
-    });
+      });
+    }
 
     const legendEl = document.getElementById('legend-customer');
     if (legendEl) {
-      legendEl.innerHTML = entries.map(([name, v], i) => `
+      const legendHtml = entries.map(([name, v], i) => `
         <div class="chart-legend__item">
           <span class="chart-legend__color" style="background:${colors[i]}"></span>
           ${escapeHtml(name)}
           <span class="chart-legend__value">${formatCurrency(v.fineTotal)}</span>
         </div>
       `).join('');
+      setLegendItems(legendEl, legendHtml);
     }
   }
 
@@ -516,7 +603,6 @@ const Charts = (() => {
 
   // ── 4. Route Group Distribution (Doughnut) ──
   function renderRouteGroups(aggregates) {
-    destroyChart('routeGroups');
     const canvas = document.getElementById('chart-route-groups');
     if (!canvas) return;
 
@@ -524,7 +610,18 @@ const Charts = (() => {
     const labels = sorted.map(([name]) => name);
     const data = sorted.map(([, count]) => count);
 
-    chartInstances['routeGroups'] = new Chart(canvas.getContext('2d'), {
+    const total = data.reduce((a, b) => a + b, 0);
+    const existingChart = chartInstances['routeGroups'];
+    if (existingChart) {
+      existingChart.data.labels = labels;
+      existingChart.data.datasets[0].data = data;
+      existingChart.data.datasets[0].backgroundColor = PALETTE.slice(0, labels.length);
+      existingChart.options.plugins.tooltip.callbacks = {
+        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ (${total > 0 ? ((tooltipCtx.raw / total) * 100).toFixed(1) : '0.0'}%)`
+      };
+      existingChart.update('none');
+    } else {
+      chartInstances['routeGroups'] = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
       data: {
         labels,
@@ -544,22 +641,24 @@ const Charts = (() => {
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${ctx.raw} รายการ (${((ctx.raw / data.reduce((a, b) => a + b, 0)) * 100).toFixed(1)}%)`
+              label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ (${total > 0 ? ((tooltipCtx.raw / total) * 100).toFixed(1) : '0.0'}%)`
             }
           }
         }
       }
-    });
+      });
+    }
 
     const legendEl = document.getElementById('legend-route-groups');
     if (legendEl) {
-      legendEl.innerHTML = sorted.map(([name, count], i) => `
+      const legendHtml = sorted.map(([name, count], i) => `
         <div class="chart-legend__item">
           <span class="chart-legend__color" style="background:${PALETTE[i]}"></span>
           ${escapeHtml(name)}
           <span class="chart-legend__value">${count}</span>
         </div>
       `).join('');
+      setLegendItems(legendEl, legendHtml);
     }
   }
 
@@ -600,23 +699,38 @@ const Charts = (() => {
 
   // ── 6. Payment Status (Doughnut) ──
   function renderPaymentStatus(aggregates) {
-    destroyChart('paymentStatus');
     const canvas = document.getElementById('chart-payment-status');
     if (!canvas) return;
 
     const statusLabels = {
-      'open': 'ค้างชำระ', 'paid': 'ชำระค่าปรับแล้ว', 'data_error': 'ยอดไม่ตรง'
+      'open': 'ค้างชำระ',
+      'partial': 'ผ่อนชำระ',
+      'paid': 'ชำระค่าปรับแล้ว'
     };
     const statusColors = {
-      'open': COLORS.blue, 'paid': COLORS.green, 'data_error': COLORS.red
+      'open': COLORS.blue,
+      'partial': COLORS.orange,
+      'paid': COLORS.green
     };
 
-    const entries = Object.entries(aggregates.paymentStatusCounts).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(aggregates.paymentStatusCounts)
+      .filter(([key]) => statusLabels[key] && statusColors[key])
+      .sort((a, b) => b[1] - a[1]);
     const labels = entries.map(([k]) => statusLabels[k] || k);
     const data = entries.map(([, v]) => v);
     const colors = entries.map(([k]) => statusColors[k] || COLORS.gray);
 
-    chartInstances['paymentStatus'] = new Chart(canvas.getContext('2d'), {
+    const existingChart = chartInstances['paymentStatus'];
+    if (existingChart) {
+      existingChart.data.labels = labels;
+      existingChart.data.datasets[0].data = data;
+      existingChart.data.datasets[0].backgroundColor = colors;
+      existingChart.options.plugins.tooltip.callbacks = {
+        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ`
+      };
+      existingChart.update('none');
+    } else {
+      chartInstances['paymentStatus'] = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
       data: {
         labels,
@@ -636,22 +750,24 @@ const Charts = (() => {
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${ctx.raw} รายการ`
+              label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ`
             }
           }
         }
       }
-    });
+      });
+    }
 
     const legendEl = document.getElementById('legend-payment-status');
     if (legendEl) {
-      legendEl.innerHTML = entries.map(([k, count], i) => `
+      const legendHtml = entries.map(([k, count], i) => `
         <div class="chart-legend__item">
           <span class="chart-legend__color" style="background:${colors[i]}"></span>
           ${escapeHtml(statusLabels[k] || k)}
           <span class="chart-legend__value">${count}</span>
         </div>
       `).join('');
+      setLegendItems(legendEl, legendHtml);
     }
   }
 

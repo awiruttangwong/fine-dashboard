@@ -546,6 +546,138 @@
   text-align: center;
 }
 
+/* ── Yearly Mode Banner (sidebar) ── */
+.yearly-mode-banner {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  background: linear-gradient(135deg, rgba(0, 113, 227, 0.06) 0%, rgba(90, 200, 250, 0.06) 100%);
+  border: 1px solid rgba(0, 113, 227, 0.12);
+  border-radius: var(--radius-lg);
+  position: relative;
+  overflow: hidden;
+}
+
+.yearly-mode-banner::before {
+  content: '';
+  position: absolute;
+  top: -30%;
+  right: -20%;
+  width: 80px;
+  height: 80px;
+  background: radial-gradient(circle, rgba(0, 113, 227, 0.08) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+}
+
+.yearly-mode-banner__text {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+
+.yearly-mode-banner__label {
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
+}
+
+.yearly-mode-banner__year {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: 1.3;
+}
+
+.yearly-mode-banner__badge {
+  margin-left: auto;
+  padding: 3px 8px;
+  background: var(--color-accent);
+  color: #FFFFFF;
+  font-size: 0.625rem;
+  font-weight: var(--font-weight-semibold);
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+  letter-spacing: 0.02em;
+}
+
+/* ── Yearly Table ── */
+.comparison-yearly-table {
+  width: 100%;
+  border-collapse: collapse;
+  table-layout: auto;
+  min-width: 0 !important;
+}
+
+.comparison-yearly-table th,
+.comparison-yearly-table td {
+  padding: var(--space-3) var(--space-3);
+  border-bottom: 1px solid var(--color-border-light);
+  font-size: var(--font-size-xs);
+  font-variant-numeric: tabular-nums;
+}
+
+.comparison-yearly-table th {
+  color: var(--color-text-muted);
+  background: var(--color-surface-alt);
+  font-weight: var(--font-weight-semibold);
+  white-space: nowrap;
+}
+
+.comparison-yearly-table td {
+  color: var(--color-text-secondary);
+}
+
+.comparison-yearly-table td:first-child {
+  white-space: nowrap;
+}
+
+.cell-month-name {
+  text-align: left;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+}
+
+.cell-right {
+  text-align: right;
+}
+
+.cell-customer-name {
+  text-align: left;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-semibold);
+}
+
+.row-total td {
+  border-top: 2px solid var(--color-border);
+  border-bottom: none !important;
+  background: var(--color-surface-alt);
+}
+
+.row--current-month td {
+  background: var(--color-accent-surface);
+}
+
+.row--current-month .cell-month-name {
+  color: var(--color-accent);
+  font-weight: var(--font-weight-bold);
+}
+
+.comparison-yearly-table-card {
+  min-height: 0;
+  overflow: visible;
+}
+
+.comparison-customer-chart-card {
+  min-height: 0;
+}
+
+.comparison-yearly-chart-card {
+  margin-bottom: 0;
+}
+
 @media (max-width: 1280px) {
   .comparison-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));

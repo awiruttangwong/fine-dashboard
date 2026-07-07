@@ -1,6 +1,7 @@
 /* ============================================================
-   Fine Dashboard - Monthly Comparison View
-   Two-month KPI, daily trend, summary and customer breakdown
+   Fine Dashboard - Yearly Comparison View
+   Shows all 12 months of the year with KPI, monthly trend,
+   monthly table, and customer breakdown
    ============================================================ */
 
 const ComparisonView = (() => {
@@ -9,29 +10,24 @@ const ComparisonView = (() => {
     'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'
   ];
   const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
-  const COLORS = ['#0071E3', '#FF9500', '#34C759', '#FF3B30', '#AF52DE', '#5AC8FA', '#5856D6', '#00C7BE'];
+  const COLORS = ['#0071E3', '#FF9500', '#34C759', '#FF3B30', '#AF52DE', '#5AC8FA', '#5856D6', '#00C7BE', '#32ADE6', '#FFCC00'];
 
   const ICONS = {
-    money: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
-    file: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg>`,
-    check: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
-    clock: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
-    trend: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>`,
-    arrowUp: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m18 15-6-6-6 6"/></svg>`,
-    arrowDown: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m6 9 6 6 6-6"/></svg>`,
-    minus: `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" aria-hidden="true"><path d="M5 12h14"/></svg>`
+    money: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+    file: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg>`,
+    check: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
+    clock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
+    trend: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>`
   };
 
   const KPI_CONFIGS = [
-    { key: 'totalFine', label: 'ยอดปรับรวม', format: 'currency', icon: ICONS.money, tone: 'red', positiveWhenIncrease: false },
-    { key: 'count', label: 'จำนวนรายการปรับ', format: 'count', icon: ICONS.file, tone: 'blue', positiveWhenIncrease: false },
-    { key: 'totalPaid', label: 'ยอดชำระค่าปรับแล้ว', format: 'currency', icon: ICONS.check, tone: 'green', positiveWhenIncrease: true },
-    { key: 'totalRemaining', label: 'ยอดคงเหลือ', format: 'currency', icon: ICONS.clock, tone: 'orange', positiveWhenIncrease: false },
-    { key: 'collectionRate', label: 'อัตราการเรียกเก็บเงิน', format: 'percent', icon: ICONS.trend, tone: 'purple', positiveWhenIncrease: true }
+    { key: 'totalFine', label: 'ยอดปรับรวมทั้งปี', format: 'currency', icon: ICONS.money, tone: 'red' },
+    { key: 'totalRows', label: 'จำนวนรายการปรับ', format: 'count', icon: ICONS.file, tone: 'blue' },
+    { key: 'totalPaid', label: 'ยอดชำระแล้ว', format: 'currency', icon: ICONS.check, tone: 'green' },
+    { key: 'totalRemaining', label: 'ยอดคงเหลือ', format: 'currency', icon: ICONS.clock, tone: 'orange' },
+    { key: 'collectionRate', label: 'อัตราการเรียกเก็บ', format: 'percent', icon: ICONS.trend, tone: 'purple' }
   ];
-  const SUMMARY_CONFIGS = KPI_CONFIGS.filter(config => config.key !== 'collectionRate');
 
-  let metricMode = 'amount';
   let dailyChart = null;
   let customerChart = null;
 
@@ -58,285 +54,229 @@ const ComparisonView = (() => {
     return `${formatNumber(value)} รายการ`;
   }
 
-  function formatMonth(monthValue, short = false) {
-    const match = String(monthValue || '').match(/^(\d{4})-(\d{2})$/);
-    if (!match) return String(monthValue || '');
-    const months = short ? THAI_MONTHS_SHORT : THAI_MONTHS;
-    return `${months[Number(match[2]) - 1]} ${Number(match[1]) + 543}`;
-  }
-
-  function formatDelta(metric, type) {
-    const sign = metric.delta > 0 ? '+' : '';
-    if (type === 'currency') return `${sign}${formatCurrency(metric.delta)}`;
-    // Percentage metrics (e.g. collection rate) use "จุดเปอร์เซ็นต์"
-    // (percentage points) for the absolute difference — distinct from the
-    // relative "%" change shown separately. The bare word "จุด" was
-    // ambiguous and unclear.
-    if (type === 'percent') return `${sign}${formatNumber(metric.delta, 1)} จุดเปอร์เซ็นต์`;
-    return `${sign}${formatNumber(metric.delta)} รายการ`;
-  }
-
-  function formatDeltaPercent(metric) {
-    if (metric.percent === null) return metric.delta === 0 ? '0.0%' : 'รายการใหม่';
-    const sign = metric.percent > 0 ? '+' : '';
-    return `${sign}${formatNumber(metric.percent, 1)}%`;
-  }
-
-  function trendState(metric, positiveWhenIncrease) {
-    if (metric.delta === 0) return { className: 'neutral', icon: ICONS.minus };
-    const isIncrease = metric.delta > 0;
-    const isPositive = positiveWhenIncrease ? isIncrease : !isIncrease;
-    return {
-      className: isPositive ? 'positive' : 'negative',
-      icon: isIncrease ? ICONS.arrowUp : ICONS.arrowDown
-    };
-  }
-
-  function renderKpiCard(config, model) {
-    const metric = model.metrics[config.key];
-    const trend = trendState(metric, config.positiveWhenIncrease);
+  function renderKpiCard(config, yearly) {
+    const value = yearly[config.key];
     return `
       <article class="comparison-kpi comparison-kpi--${config.tone}">
         <div class="comparison-kpi__header">
           <span class="comparison-kpi__label">${escapeHtml(config.label)}</span>
           <span class="comparison-kpi__icon">${config.icon}</span>
         </div>
-        <div class="comparison-kpi__value">${formatValue(metric.current, config.format)}</div>
+        <div class="comparison-kpi__value">${formatValue(value, config.format)}</div>
         <div class="comparison-kpi__footer">
-          <span class="comparison-trend comparison-trend--${trend.className}">${trend.icon}${formatDeltaPercent(metric)}</span>
-          <span class="comparison-kpi__baseline">จาก ${formatValue(metric.comparison, config.format)}</span>
+          <span class="comparison-kpi__baseline">ปี ${yearly.year + 543} ข้อมูล ${formatNumber(yearly.totalRows)} รายการ</span>
         </div>
       </article>
     `;
   }
 
-  function renderSummary(model) {
-    return SUMMARY_CONFIGS.map(config => {
-      const metric = model.metrics[config.key];
-      const trend = trendState(metric, config.positiveWhenIncrease);
-      return `
-        <div class="comparison-summary__row">
-          <span>${escapeHtml(config.label)}</span>
-          <strong class="comparison-summary__value comparison-summary__value--${trend.className}">
-            ${formatDelta(metric, config.format)}
-            <small>(${formatDeltaPercent(metric)})</small>
-          </strong>
-        </div>
-      `;
-    }).join('');
-  }
+  function renderMonthlyTable(model) {
+    const { months, monthlyData, yearly } = model;
 
-  function renderCustomerRows(model) {
-    if (!model.customerComparison.length) {
-      return `<tr><td colspan="4" class="comparison-empty-cell">ไม่พบข้อมูลลูกค้าในเดือนที่เลือก</td></tr>`;
-    }
-
-    return model.customerComparison.map(item => {
-      const metric = item[metricMode];
-      const trend = trendState(metric, false);
-      const type = metricMode === 'amount' ? 'currency' : 'count';
+    const rows = monthlyData.map(m => {
+      const isCurrentMonth = m.index === new Date().getMonth() + 1;
+      const rowClass = isCurrentMonth ? 'row--current-month' : '';
       return `
-        <tr>
-          <td><span class="comparison-customer-name">${escapeHtml(item.customer || '(ไม่ระบุ)')}</span></td>
-          <td>${formatValue(metric.current, type)}</td>
-          <td>${formatValue(metric.comparison, type)}</td>
-          <td class="comparison-delta comparison-delta--${trend.className}">${formatDelta(metric, type)}</td>
+        <tr class="${rowClass}">
+          <td class="cell-month-name">${escapeHtml(m.label)}</td>
+          <td class="cell-right">${formatNumber(m.count)}</td>
+          <td class="cell-right cell-amount">${formatCurrency(m.totalFine)}</td>
+          <td class="cell-right cell-amount cell-amount--positive">${formatCurrency(m.totalPaid)}</td>
+          <td class="cell-right cell-amount">${formatCurrency(m.totalRemaining)}</td>
+          <td class="cell-right">${formatNumber(m.collectionRate, 1)}%</td>
         </tr>
       `;
     }).join('');
+
+    return `
+      <div class="table-card__header">
+        <div class="table-card__title-area">
+          ${ICONS.file}
+          <span class="table-card__title">ภาพรวมรายเดือน ปี ${yearly.year + 543}</span>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table comparison-yearly-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;white-space:nowrap">เดือน</th>
+              <th style="text-align:right;white-space:nowrap">จำนวนรายการ</th>
+              <th style="text-align:right;white-space:nowrap">ยอดปรับ</th>
+              <th style="text-align:right;white-space:nowrap">ชำระแล้ว</th>
+              <th style="text-align:right;white-space:nowrap">คงเหลือ</th>
+              <th style="text-align:right;white-space:nowrap">อัตราเรียกเก็บ</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+            <tr class="row-total">
+              <td class="cell-month-name" style="font-weight:700">รวมทั้งปี</td>
+              <td class="cell-right" style="font-weight:700">${formatNumber(yearly.totalRows)}</td>
+              <td class="cell-right cell-amount" style="font-weight:700">${formatCurrency(yearly.totalFine)}</td>
+              <td class="cell-right cell-amount cell-amount--positive" style="font-weight:700">${formatCurrency(yearly.totalPaid)}</td>
+              <td class="cell-right cell-amount" style="font-weight:700">${formatCurrency(yearly.totalRemaining)}</td>
+              <td class="cell-right" style="font-weight:700">${formatNumber(yearly.collectionRate, 1)}%</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
-  function renderCustomerLegend(model) {
-    const type = metricMode === 'amount' ? 'currency' : 'count';
-    const entries = model.customerComparison.filter(item => item[metricMode].current > 0);
-    const total = entries.reduce((sum, item) => sum + item[metricMode].current, 0);
+  function renderCustomerYearlyTable(model) {
+    const { customerBreakdown, yearly } = model;
+    const entries = Object.entries(customerBreakdown)
+      .sort((a, b) => b[1].fineTotal - a[1].fineTotal);
 
-    if (!entries.length) return `<div class="comparison-empty">ไม่มีข้อมูลลูกค้าในเดือนหลัก</div>`;
+    if (!entries.length) {
+      return `<div class="comparison-empty">ไม่มีข้อมูลลูกค้าในปีนี้</div>`;
+    }
 
-    return entries.map((item, index) => {
-      const value = item[metricMode].current;
-      const percent = total > 0 ? (value / total) * 100 : 0;
+    const rows = entries.map(([name, data]) => {
+      const pct = yearly.totalFine > 0 ? ((data.fineTotal / yearly.totalFine) * 100).toFixed(1) : '0.0';
       return `
-        <div class="comparison-customer-legend__item">
-          <span class="comparison-customer-legend__dot" style="background:${COLORS[index % COLORS.length]}"></span>
-          <span class="comparison-customer-legend__name">${escapeHtml(item.customer || '(ไม่ระบุ)')}</span>
-          <strong>${formatValue(value, type)}</strong>
-          <span>${formatNumber(percent, 1)}%</span>
-        </div>
+        <tr>
+          <td class="cell-customer-name">${escapeHtml(name)}</td>
+          <td class="cell-right">${formatNumber(data.count)}</td>
+          <td class="cell-right cell-amount">${formatCurrency(data.fineTotal)}</td>
+          <td class="cell-right cell-amount cell-amount--positive">${formatCurrency(data.paidTotal)}</td>
+          <td class="cell-right">${pct}%</td>
+        </tr>
       `;
     }).join('');
+
+    return `
+      <div class="table-card__header">
+        <div class="table-card__title-area">
+          ${ICONS.money}
+          <span class="table-card__title">สัดส่วนตามลูกค้า</span>
+        </div>
+      </div>
+      <div class="table-container">
+        <table class="data-table comparison-yearly-table">
+          <thead>
+            <tr>
+              <th style="text-align:left;white-space:nowrap">ลูกค้า</th>
+              <th style="text-align:right;white-space:nowrap">จำนวนรายการ</th>
+              <th style="text-align:right;white-space:nowrap">ยอดปรับรวม</th>
+              <th style="text-align:right;white-space:nowrap">ชำระแล้ว</th>
+              <th style="text-align:right;white-space:nowrap">สัดส่วน</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${rows}
+          </tbody>
+        </table>
+      </div>
+    `;
   }
 
   function render(filters) {
     const container = document.getElementById('comparison-view');
     if (!container) return;
 
-    const model = FineData.getComparisonModel(filters);
-    const primaryLabel = formatMonth(model.primaryMonth);
-    const comparisonLabel = formatMonth(model.comparisonMonth);
-    const primaryCount = model.primaryRows.length;
-    const comparisonCount = model.comparisonRows.length;
+    const model = FineData.getYearlyComparisonModel(filters);
+    const { year, yearly, months } = model;
 
     container.hidden = false;
     container.innerHTML = `
       <section class="comparison-section">
         <div class="comparison-toolbar">
           <div>
-            <div class="comparison-toolbar__period">${escapeHtml(primaryLabel)} <span>เทียบกับ</span> ${escapeHtml(comparisonLabel)}</div>
+            <div class="comparison-toolbar__period">ภาพรวมทั้งปี พ.ศ. ${year + 543}</div>
           </div>
         </div>
 
         <div class="comparison-kpi-grid">
-          ${KPI_CONFIGS.map(config => renderKpiCard(config, model)).join('')}
+          ${KPI_CONFIGS.map(config => renderKpiCard(config, yearly)).join('')}
         </div>
 
-        <div class="comparison-analysis-grid">
-          <article class="chart-card comparison-trend-card">
-            <div class="chart-card__header">
-              <div>
-                <div class="chart-card__title">แนวโน้มค่าปรับรายวัน</div>
-                <div class="chart-card__subtitle">เปรียบเทียบวันที่ 1-${model.days.length} ของทั้งสองเดือน</div>
-              </div>
-              <div class="comparison-segmented comparison-segmented--compact" role="group" aria-label="รูปแบบค่าที่ใช้ในกราฟและตาราง">
-                <button type="button" data-comparison-metric="amount" class="${metricMode === 'amount' ? 'active' : ''}" aria-pressed="${metricMode === 'amount'}">มูลค่า</button>
-                <button type="button" data-comparison-metric="count" class="${metricMode === 'count' ? 'active' : ''}" aria-pressed="${metricMode === 'count'}">จำนวนรายการ</button>
-              </div>
+        <div class="comparison-yearly-chart-card chart-card">
+          <div class="chart-card__header">
+            <div>
+              <div class="chart-card__title">แนวโน้มค่าปรับรายเดือน</div>
+              <div class="chart-card__subtitle">ยอดค่าปรับสะสมรายเดือน ประจำปี ${year + 543}</div>
             </div>
-            <div class="comparison-chart-legend" aria-hidden="true">
-              <span><i class="comparison-chart-legend__dot comparison-chart-legend__dot--primary"></i>${escapeHtml(primaryLabel)}</span>
-              <span><i class="comparison-chart-legend__dot comparison-chart-legend__dot--comparison"></i>${escapeHtml(comparisonLabel)}</span>
+          </div>
+          <div class="chart-card__body">
+            <div class="comparison-daily-chart">
+              <canvas id="chart-yearly-trend" role="img" aria-label="กราฟแนวโน้มค่าปรับรายเดือน ปี ${year + 543}"></canvas>
             </div>
-            <div class="chart-card__body">
-              <div class="comparison-daily-chart">
-                <canvas id="chart-comparison-daily" role="img" aria-label="กราฟเปรียบเทียบค่าปรับรายวันระหว่าง ${escapeHtml(primaryLabel)} และ ${escapeHtml(comparisonLabel)}"></canvas>
-              </div>
-            </div>
-          </article>
-
-          <aside class="comparison-summary-card" aria-label="สรุปการเปรียบเทียบ">
-            <div class="comparison-summary-card__header">
-              <div class="chart-card__title">สรุปการเปรียบเทียบ</div>
-              <div class="chart-card__subtitle">${escapeHtml(primaryLabel)} เทียบกับ ${escapeHtml(comparisonLabel)}</div>
-            </div>
-            <div class="comparison-summary">${renderSummary(model)}</div>
-            <div class="comparison-summary__counts">
-              <span>${formatNumber(primaryCount)} รายการเดือนหลัก</span>
-              <span>${formatNumber(comparisonCount)} รายการเดือนเปรียบเทียบ</span>
-            </div>
-          </aside>
+          </div>
         </div>
 
         <div class="comparison-breakdown-grid">
-          <article class="chart-card comparison-customer-table-card">
-            <div class="chart-card__header">
-              <div>
-                <div class="chart-card__title">เปรียบเทียบตามลูกค้า</div>
-                <div class="chart-card__subtitle">แสดงลูกค้าจากทั้งสองเดือน รวมถึงลูกค้าที่มีข้อมูลเพียงเดือนเดียว</div>
-              </div>
-            </div>
-            <div class="comparison-table-wrap">
-              <table class="comparison-table">
-                <thead><tr>
-                  <th>ลูกค้า</th>
-                  <th>${escapeHtml(primaryLabel)}</th>
-                  <th>${escapeHtml(comparisonLabel)}</th>
-                  <th>ผลต่าง</th>
-                </tr></thead>
-                <tbody>${renderCustomerRows(model)}</tbody>
-              </table>
-            </div>
-          </article>
-
-          <article class="chart-card comparison-customer-chart-card">
+          <div class="chart-card comparison-yearly-table-card">
+            ${renderMonthlyTable(model)}
+          </div>
+          <div class="chart-card comparison-customer-chart-card">
             <div class="chart-card__header">
               <div>
                 <div class="chart-card__title">สัดส่วนยอดปรับตามลูกค้า</div>
-                <div class="chart-card__subtitle">${escapeHtml(primaryLabel)}</div>
+                <div class="chart-card__subtitle">ปี ${year + 543}</div>
               </div>
             </div>
             <div class="comparison-customer-chart-layout">
               <div class="comparison-doughnut-wrap">
-                <canvas id="chart-comparison-customer" role="img" aria-label="กราฟสัดส่วนยอดปรับตามลูกค้าของ ${escapeHtml(primaryLabel)}"></canvas>
+                <canvas id="chart-yearly-customer" role="img" aria-label="กราฟสัดส่วนลูกค้าทั้งปี"></canvas>
                 <div class="comparison-doughnut-center">
-                  <strong>${metricMode === 'amount' ? formatCurrency(model.primary.totalFine) : formatNumber(model.primary.count)}</strong>
-                  <span>${metricMode === 'amount' ? 'ยอดปรับรวม' : 'รายการทั้งหมด'}</span>
+                  <strong>${formatCurrency(yearly.totalFine)}</strong>
+                  <span>ยอดรวมทั้งปี</span>
                 </div>
               </div>
-              <div class="comparison-customer-legend">${renderCustomerLegend(model)}</div>
+              <div class="comparison-customer-legend" id="yearly-customer-legend"></div>
             </div>
-          </article>
+          </div>
+        </div>
+
+        <div class="chart-card">
+          ${renderCustomerYearlyTable(model)}
         </div>
       </section>
     `;
 
-    container.querySelectorAll('[data-comparison-metric]').forEach(button => {
-      button.addEventListener('click', () => {
-        const nextMode = button.dataset.comparisonMetric;
-        if (nextMode === metricMode) return;
-        metricMode = nextMode;
-        render(Filters.getState());
-      });
-    });
-
-    renderDailyChart(model);
+    renderYearlyTrendChart(model);
     renderCustomerChart(model);
   }
 
-  function renderDailyChart(model) {
+  function renderYearlyTrendChart(model) {
     if (dailyChart) dailyChart.destroy();
-    const canvas = document.getElementById('chart-comparison-daily');
+    const canvas = document.getElementById('chart-yearly-trend');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const isAmount = metricMode === 'amount';
-    const valueKey = isAmount ? 'amount' : 'count';
+    const { monthlyData } = model;
+    const labels = monthlyData.map(m => m.shortLabel);
+    const amounts = monthlyData.map(m => m.totalFine);
+    const counts = monthlyData.map(m => m.count);
 
-    // Premium bar gradients (top → bottom: vivid → almost-clear) so bars
-    // feel dimensional and Apple-like instead of flat solid color blocks.
-    // Built fresh per render because the canvas size can change.
     const ctx = canvas.getContext('2d');
     const chartArea = { height: 320 };
-    const primaryGrad = ctx.createLinearGradient(0, 0, 0, chartArea.height);
-    primaryGrad.addColorStop(0, 'rgba(0, 113, 227, 0.92)');
-    primaryGrad.addColorStop(1, 'rgba(0, 113, 227, 0.18)');
+    const barGrad = ctx.createLinearGradient(0, 0, 0, chartArea.height);
+    barGrad.addColorStop(0, 'rgba(0, 113, 227, 0.92)');
+    barGrad.addColorStop(1, 'rgba(0, 113, 227, 0.18)');
 
-    const comparisonGrad = ctx.createLinearGradient(0, 0, 0, chartArea.height);
-    comparisonGrad.addColorStop(0, 'rgba(174, 174, 178, 0.78)');
-    comparisonGrad.addColorStop(1, 'rgba(174, 174, 178, 0.12)');
+    const activeMonthIndex = new Date().getMonth();
 
     dailyChart = new Chart(ctx, {
       type: 'bar',
       data: {
-        labels: model.days.map(day => String(day)),
+        labels,
         datasets: [
           {
-            label: formatMonth(model.primaryMonth),
-            data: model.primaryDaily.map(item => item[valueKey]),
-            comparisonCounts: model.primaryDaily.map(item => item.count),
-            comparisonAmounts: model.primaryDaily.map(item => item.amount),
-            backgroundColor: primaryGrad,
+            label: 'ยอดปรับ (฿)',
+            data: amounts,
+            backgroundColor: amounts.map((_, i) => {
+              if (i === activeMonthIndex) return 'rgba(0, 113, 227, 1)';
+              return barGrad;
+            }),
             hoverBackgroundColor: 'rgba(0, 113, 227, 1)',
-            borderColor: 'rgba(0, 113, 227, 0.95)',
-            borderWidth: 0,
-            borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
+            borderColor: amounts.map((_, i) => i === activeMonthIndex ? 'rgba(0, 113, 227, 1)' : 'rgba(0, 113, 227, 0)'),
+            borderWidth: amounts.map((_, i) => i === activeMonthIndex ? 2 : 0),
+            borderRadius: 6,
             borderSkipped: false,
-            maxBarThickness: 22,
-            categoryPercentage: 0.7,
-            barPercentage: 0.85
-          },
-          {
-            label: formatMonth(model.comparisonMonth),
-            data: model.comparisonDaily.map(item => item[valueKey]),
-            comparisonCounts: model.comparisonDaily.map(item => item.count),
-            comparisonAmounts: model.comparisonDaily.map(item => item.amount),
-            backgroundColor: comparisonGrad,
-            hoverBackgroundColor: 'rgba(120, 120, 128, 0.95)',
-            borderColor: 'rgba(174, 174, 178, 0.9)',
-            borderWidth: 0,
-            borderRadius: { topLeft: 6, topRight: 6, bottomLeft: 0, bottomRight: 0 },
-            borderSkipped: false,
-            maxBarThickness: 22,
-            categoryPercentage: 0.7,
-            barPercentage: 0.85
+            maxBarThickness: 48,
+            categoryPercentage: 0.72,
+            barPercentage: 0.82
           }
         ]
       },
@@ -345,12 +285,17 @@ const ComparisonView = (() => {
         maintainAspectRatio: false,
         animation: { duration: 600, easing: 'easeOutQuart' },
         interaction: { mode: 'index', intersect: false },
-        layout: { padding: { top: 6, right: 4 } },
+        layout: { padding: { top: 34, right: 4, bottom: 14 } },
         scales: {
           x: {
             grid: { display: false },
             border: { display: false },
-            ticks: { color: '#6E6E73', font: { family: "'Prompt'", size: 10 }, maxTicksLimit: 16, maxRotation: 0 }
+            ticks: {
+              color: '#6E6E73',
+              font: { family: "'Prompt'", size: 11 },
+              maxRotation: 0,
+              padding: 8
+            }
           },
           y: {
             beginAtZero: true,
@@ -358,11 +303,9 @@ const ComparisonView = (() => {
             border: { display: false },
             ticks: {
               color: '#86868B',
-              font: { family: "'Prompt'", size: 10 },
+              font: { family: "'Prompt'", size: 11 },
               padding: 8,
-              callback: value => isAmount
-                ? `${value >= 1000 ? `${formatNumber(value / 1000, 1)}K` : formatNumber(value)} ฿`
-                : formatNumber(value)
+              callback: value => value >= 1000 ? `${(value / 1000).toFixed(1).replace('.0', '')}K ฿` : `${value} ฿`
             }
           }
         },
@@ -377,26 +320,100 @@ const ComparisonView = (() => {
             titleFont: { family: "'Prompt'", size: 12, weight: '600' },
             bodyFont: { family: "'Prompt'", size: 11 },
             callbacks: {
-              title: items => `วันที่ ${model.days[items[0]?.dataIndex || 0]}`,
+              title: items => {
+                const idx = items[0]?.dataIndex ?? 0;
+                return model.months[idx]?.label || '';
+              },
               label: context => {
-                const amount = context.dataset.comparisonAmounts[context.dataIndex];
-                const count = context.dataset.comparisonCounts[context.dataIndex];
-                if (amount === null || count === null) return ` ${context.dataset.label}: ไม่มีวันนี้ในเดือน`;
-                return ` ${context.dataset.label}: ${formatCurrency(amount)} (${formatNumber(count)} รายการ)`;
+                const idx = context.dataIndex;
+                const amount = amounts[idx];
+                const count = counts[idx];
+                return `  ยอดปรับ: ${formatCurrency(amount)} (${count} รายการ)`;
               }
             }
           }
         }
       }
     });
+
+    drawYearlyValueLabels(dailyChart, amounts, counts);
+  }
+
+  function drawYearlyValueLabels(chart, amounts, counts) {
+    const valueLabelPlugin = {
+      id: 'yearlyValueLabel',
+      afterDraw(ch) {
+        const meta = ch.getDatasetMeta(0);
+        if (!meta?.data?.length) return;
+
+        const { ctx, chartArea } = ch;
+        const bars = meta.data;
+        const topPadding = Number(ch.options?.layout?.padding?.top) || 0;
+        const anchorTop = Math.max(chartArea.top - topPadding, 0);
+        let previousRight = chartArea.left - 999;
+
+        ctx.save();
+        ctx.font = "11px 'Prompt', sans-serif";
+        ctx.textAlign = 'center';
+        ctx.textBaseline = 'middle';
+
+        bars.forEach((bar, index) => {
+          const rawValue = Number(amounts[index]) || 0;
+          if (rawValue <= 0) return;
+
+          const props = bar.getProps(['x', 'y', 'base'], true);
+          const label = formatNumber(rawValue) + ' ฿';
+          const textWidth = ctx.measureText(label).width;
+          const pillWidth = textWidth + 12;
+          const pillHeight = 18;
+          const pillX = props.x - pillWidth / 2;
+          const pillY = Math.max(anchorTop + 4, props.y - pillHeight - 10);
+
+          if (pillX < chartArea.left || pillX + pillWidth > chartArea.right) return;
+          if (pillX < previousRight + 4) return;
+
+          ctx.beginPath();
+          const r = pillHeight / 2;
+          ctx.moveTo(pillX + r, pillY);
+          ctx.lineTo(pillX + pillWidth - r, pillY);
+          ctx.quadraticCurveTo(pillX + pillWidth, pillY, pillX + pillWidth, pillY + r);
+          ctx.lineTo(pillX + pillWidth, pillY + pillHeight - r);
+          ctx.quadraticCurveTo(pillX + pillWidth, pillY + pillHeight, pillX + pillWidth - r, pillY + pillHeight);
+          ctx.lineTo(pillX + r, pillY + pillHeight);
+          ctx.quadraticCurveTo(pillX, pillY + pillHeight, pillX, pillY + pillHeight - r);
+          ctx.lineTo(pillX, pillY + r);
+          ctx.quadraticCurveTo(pillX, pillY, pillX + r, pillY);
+          ctx.closePath();
+          ctx.fillStyle = 'rgba(255, 255, 255, 0.96)';
+          ctx.shadowColor = 'rgba(15, 23, 42, 0.10)';
+          ctx.shadowBlur = 10;
+          ctx.shadowOffsetY = 2;
+          ctx.fill();
+          ctx.shadowColor = 'transparent';
+
+          ctx.fillStyle = '#5C5C61';
+          ctx.fillText(label, props.x, pillY + pillHeight / 2 + 0.5);
+          previousRight = pillX + pillWidth;
+        });
+
+        ctx.restore();
+      }
+    };
+
+    chart.config.plugins = [valueLabelPlugin];
+    chart.update('none');
   }
 
   function renderCustomerChart(model) {
     if (customerChart) customerChart.destroy();
-    const canvas = document.getElementById('chart-comparison-customer');
+    const canvas = document.getElementById('chart-yearly-customer');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const entries = model.customerComparison.filter(item => item[metricMode].current > 0);
+    const { customerBreakdown, yearly } = model;
+    const entries = Object.entries(customerBreakdown)
+      .filter(([, data]) => data.fineTotal > 0)
+      .sort((a, b) => b[1].fineTotal - a[1].fineTotal);
+
     if (!entries.length) {
       canvas.hidden = true;
       return;
@@ -405,13 +422,13 @@ const ComparisonView = (() => {
     customerChart = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
       data: {
-        labels: entries.map(item => item.customer || '(ไม่ระบุ)'),
+        labels: entries.map(([name]) => name),
         datasets: [{
-          data: entries.map(item => item[metricMode].current),
-          backgroundColor: entries.map((_, index) => COLORS[index % COLORS.length]),
+          data: entries.map(([, data]) => data.fineTotal),
+          backgroundColor: entries.map((_, i) => COLORS[i % COLORS.length]),
           borderColor: '#FFFFFF',
           borderWidth: 3,
-          hoverOffset: 0
+          hoverOffset: 3
         }]
       },
       options: {
@@ -427,14 +444,31 @@ const ComparisonView = (() => {
             titleFont: { family: "'Prompt'", size: 12, weight: '600' },
             bodyFont: { family: "'Prompt'", size: 11 },
             callbacks: {
-              label: context => metricMode === 'amount'
-                ? ` ${context.label}: ${formatCurrency(context.raw)}`
-                : ` ${context.label}: ${formatNumber(context.raw)} รายการ`
+              label: context => {
+                const pct = yearly.totalFine > 0 ? ((context.raw / yearly.totalFine) * 100).toFixed(1) : '0.0';
+                return ` ${context.label}: ${formatCurrency(context.raw)} (${pct}%)`;
+              }
             }
           }
         }
       }
     });
+
+    const legendEl = document.getElementById('yearly-customer-legend');
+    if (legendEl) {
+      const total = entries.reduce((sum, [, data]) => sum + data.fineTotal, 0);
+      legendEl.innerHTML = entries.map(([name, data], i) => {
+        const pct = total > 0 ? ((data.fineTotal / total) * 100).toFixed(1) : '0.0';
+        return `
+          <div class="comparison-customer-legend__item">
+            <span class="comparison-customer-legend__dot" style="background:${COLORS[i % COLORS.length]}"></span>
+            <span class="comparison-customer-legend__name">${escapeHtml(name)}</span>
+            <strong>${formatCurrency(data.fineTotal)}</strong>
+            <span>${pct}%</span>
+          </div>
+        `;
+      }).join('');
+    }
   }
 
   function hide() {

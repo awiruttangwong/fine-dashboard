@@ -108,7 +108,14 @@ const KPICards = (() => {
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.totalRemaining,
       format: formatCurrency,
-      getDetail: (agg) => `${agg.paymentStatusCounts['open'] || 0} รายการค้างชำระ`
+      getDetail: (agg) => {
+        const openCount = agg.paymentStatusCounts['open'] || 0;
+        const installmentCount = agg.paymentStatusCounts['partial'] || 0;
+        const parts = [];
+        if (openCount > 0) parts.push(`${openCount} รายการค้างชำระ`);
+        if (installmentCount > 0) parts.push(`${installmentCount} รายการผ่อนชำระ`);
+        return parts.join(' • ') || 'ไม่มีรายการที่ต้องติดตาม';
+      }
     },
     {
       id: 'collection-rate',

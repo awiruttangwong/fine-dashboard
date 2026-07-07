@@ -21,10 +21,10 @@
   --color-text-inverse:    #FFFFFF;
 
   /* ── Accent Colors ── */
-  --color-accent:          #0071E3;
-  --color-accent-hover:    #0077ED;
-  --color-accent-light:    rgba(0, 113, 227, 0.08);
-  --color-accent-surface:  rgba(0, 113, 227, 0.05);
+  --color-accent:          #4A9FDB;
+  --color-accent-hover:    #3A8FC8;
+  --color-accent-light:    rgba(74, 159, 219, 0.10);
+  --color-accent-surface:  rgba(74, 159, 219, 0.05);
 
   /* ── Semantic Colors ── */
   --color-success:         #34C759;

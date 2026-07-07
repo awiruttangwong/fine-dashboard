@@ -317,11 +317,24 @@ const FineData = (() => {
   }
 
   function paymentStatus(row) {
+    const explicitStatus = cleanText(row.payment_status).toLowerCase();
     const fine = row.fine_amount || 0;
     const paid = row.paid_amount || 0;
+    const isInstallment = row.source_type === 'LOAN' || row.installment_flag === true;
 
-    if (row.has_amount_mismatch || row.fine_amount < 0 || row.paid_amount < 0) return 'data_error';
-    if (row.paid_amount !== null && paid >= fine) return 'paid';
+    if (explicitStatus === 'paid' || explicitStatus === 'open') {
+      return explicitStatus;
+    }
+    if (explicitStatus === 'partial') return isInstallment ? 'partial' : 'open';
+
+    if (explicitStatus === 'data_error') {
+      if (row.paid_amount !== null && fine > 0 && paid >= fine) return 'paid';
+      if (isInstallment) return 'partial';
+      return 'open';
+    }
+
+    if (row.paid_amount !== null && fine > 0 && paid >= fine) return 'paid';
+    if (isInstallment) return 'partial';
     return 'open';
   }
 
@@ -345,18 +358,6 @@ const FineData = (() => {
       if (filters.vehicleType && filters.vehicleType !== '' && row.vehicle_type !== filters.vehicleType) return false;
       if (filters.routeStatuses && filters.routeStatuses.length > 0 && !filters.routeStatuses.includes(row.route_status)) return false;
       if (filters.paymentStatuses && filters.paymentStatuses.length > 0 && !filters.paymentStatuses.includes(row.payment_status)) return false;
-
-      if (filters.qualityFlags && filters.qualityFlags.length > 0) {
-        const hasFlag = filters.qualityFlags.some(flag => {
-          if (flag === 'full_duplicate')    return row.is_full_duplicate;
-          if (flag === 'barcode_duplicate') return row.is_barcode_duplicate;
-          if (flag === 'duplicate')         return row.is_full_duplicate || row.is_barcode_duplicate; // backwards compat
-          if (flag === 'mismatch')          return row.has_amount_mismatch;
-          if (flag === 'blank_driver')      return row.is_driver_blank;
-          return false;
-        });
-        if (!hasFlag) return false;
-      }
 
       if (filters.searchText && filters.searchText.trim() !== '') {
         const q = filters.searchText.toLowerCase();
@@ -589,6 +590,83 @@ const FineData = (() => {
     };
   }
 
+  function getYearlyComparisonModel(filters) {
+    const now = nowInThailand();
+    const year = now.getFullYear();
+    const THAI_MONTHS_FULL = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
+
+    const months = Array.from({ length: 12 }, (_, i) => ({
+      index: i + 1,
+      key: `${year}-${String(i + 1).padStart(2, '0')}`,
+      label: THAI_MONTHS_FULL[i],
+      shortLabel: THAI_MONTHS_FULL[i].slice(0, 3) + '.'
+    }));
+
+    const yearData = allData.filter(row => row.fine_year === year);
+
+    const monthlyData = months.map(month => {
+      const rows = yearData.filter(row => row.fine_month === month.index);
+      return {
+        ...month,
+        count: rows.length,
+        totalFine: rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0),
+        totalPaid: rows.reduce((sum, r) => sum + (r.paid_amount || 0), 0),
+        totalRemaining: rows.reduce((sum, r) => sum + (r.computed_remaining_amount || 0), 0),
+        collectionRate: 0,
+        rows
+      };
+    });
+
+    monthlyData.forEach(m => {
+      m.collectionRate = m.totalFine > 0 ? (m.totalPaid / m.totalFine) * 100 : 0;
+    });
+
+    const customerBreakdown = {};
+    yearData.forEach(row => {
+      const customer = row.customer || '(ไม่ระบุ)';
+      if (!customerBreakdown[customer]) {
+        customerBreakdown[customer] = { count: 0, fineTotal: 0, paidTotal: 0, remainingTotal: 0 };
+      }
+      customerBreakdown[customer].count++;
+      customerBreakdown[customer].fineTotal += row.fine_amount || 0;
+      customerBreakdown[customer].paidTotal += row.paid_amount || 0;
+      customerBreakdown[customer].remainingTotal += row.computed_remaining_amount || 0;
+    });
+
+    const customerMonthlyBreakdown = {};
+    yearData.forEach(row => {
+      const customer = row.customer || '(ไม่ระบุ)';
+      const monthKey = row.fine_month;
+      if (!customerMonthlyBreakdown[customer]) customerMonthlyBreakdown[customer] = {};
+      if (!customerMonthlyBreakdown[customer][monthKey]) {
+        customerMonthlyBreakdown[customer][monthKey] = { count: 0, fineTotal: 0, paidTotal: 0 };
+      }
+      customerMonthlyBreakdown[customer][monthKey].count++;
+      customerMonthlyBreakdown[customer][monthKey].fineTotal += row.fine_amount || 0;
+      customerMonthlyBreakdown[customer][monthKey].paidTotal += row.paid_amount || 0;
+    });
+
+    const yearly = {
+      year,
+      totalRows: yearData.length,
+      totalFine: yearData.reduce((s, r) => s + (r.fine_amount || 0), 0),
+      totalPaid: yearData.reduce((s, r) => s + (r.paid_amount || 0), 0),
+      totalRemaining: yearData.reduce((s, r) => s + (r.computed_remaining_amount || 0), 0),
+      collectionRate: 0,
+      dataIssues: yearData.filter(r => r.is_full_duplicate || r.is_barcode_duplicate || r.has_amount_mismatch || r.is_driver_blank).length
+    };
+    yearly.collectionRate = yearly.totalFine > 0 ? (yearly.totalPaid / yearly.totalFine) * 100 : 0;
+
+    return {
+      year,
+      months,
+      monthlyData,
+      yearly,
+      customerBreakdown,
+      customerMonthlyBreakdown
+    };
+  }
+
   function getDuplicateBarcodeRows(data) {
     const barcodeCounts = {};
     data.forEach(row => {
@@ -680,6 +758,7 @@ const FineData = (() => {
     nowInThailand,
     getAggregates,
     getComparisonModel,
+    getYearlyComparisonModel,
     getDuplicateBarcodeRows,
     getMismatchRows,
     getMissingDataRows,
