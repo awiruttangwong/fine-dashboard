@@ -26,6 +26,12 @@
   force = true
 
 [[redirects]]
+  from = "/docs/PRODUCTION-RELEASE-CHECKLIST.md"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
   from = "/docs/*"
   to = "/index.html"
   status = 404
