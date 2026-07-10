@@ -8,3 +8,55 @@
     X-Content-Type-Options = "nosniff"
     X-Frame-Options = "DENY"
     Referrer-Policy = "strict-origin-when-cross-origin"
+
+# .netlifyignore does not prevent these paths from being uploaded/served by
+# `netlify deploy`, so block them at routing level instead: backend source,
+# the separately-copied driver-debt module, backups, and dev tooling must
+# never be reachable from the public site.
+[[redirects]]
+  from = "/backend/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/tools/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/docs/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/backup_fine_P'BOY/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/Dashboard*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/code*"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*.xlsx"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/*.txt"
+  to = "/index.html"
+  status = 404
+  force = true
