@@ -7,5 +7,12 @@ skills/
 references/
 Code.gs
 Data *.xlsx
+*.xlsx
 *.log
+*.txt
+tools/
+backend/
+backup_fine_P'BOY/
+Dashboard ยอดค้างปรับพขร/
+docs/
 
