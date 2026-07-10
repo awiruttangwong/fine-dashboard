@@ -2,9 +2,6 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu(BACKEND_CONFIG.menuName)
     .addItem(BACKEND_CONFIG.syncMenuLabel, BACKEND_CONFIG.syncMenuFunction)
-    .addSeparator()
-    .addItem(BACKEND_CONFIG.healthMenuLabel, BACKEND_CONFIG.healthMenuFunction)
-    .addItem(BACKEND_CONFIG.metaMenuLabel, BACKEND_CONFIG.metaMenuFunction)
     .addToUi();
 }
 
@@ -17,6 +14,10 @@ function executeCentralDataSync() {
   }
 
   SpreadsheetApp.getUi().alert('บันทึกการทำงานระบบกลาง:\n' + result.process_log.join('\n'));
+}
+
+function onEdit(e) {
+  return;
 }
 
 function runCentralDataSync_() {
@@ -32,12 +33,12 @@ function runCentralDataSync_() {
     try {
       var sourceSs = SpreadsheetApp.openById(cleanText_(source.id));
       var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')');
-      var loanStatus = refreshAndRebuildWarehouse_(sourceSs, 'LOAN', ssCentral, 'LOAN(' + source.label + ')');
+      var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label);
 
-      if (sumStatus && loanStatus) {
-        processLog.push(source.label + ': สำเร็จ');
+      if (sumStatus) {
+        processLog.push(source.label + ': สำเร็จ' + buildStatusSyncLog_(statusResults));
       } else {
-        processLog.push(source.label + ': พบปัญหาโครงสร้างแผ่นงานต้นทาง');
+        processLog.push(source.label + ': พบปัญหาโครงสร้างแผ่นงานต้นทาง SUM');
       }
     } catch (error) {
       processLog.push(source.label + ': ล้มเหลว (สาเหตุ: ' + error.message + ')');
@@ -50,9 +51,36 @@ function runCentralDataSync_() {
   };
 }
 
-function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, centralSpreadsheet, targetSheetName) {
+function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel) {
+  return BACKEND_CONFIG.statusSheetNames.map(function(sheetType) {
+    var synced = refreshAndRebuildWarehouse_(
+      sourceSpreadsheet,
+      sheetType,
+      centralSpreadsheet,
+      sheetType + '(' + sourceLabel + ')',
+      { required: false }
+    );
+    return { type: sheetType, synced: synced };
+  });
+}
+
+function buildStatusSyncLog_(statusResults) {
+  var summary = statusResults.map(function(result) {
+    return result.type + (result.synced ? '' : ' ว่าง');
+  });
+  return summary.length ? ' + ' + summary.join(', ') : '';
+}
+
+function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, centralSpreadsheet, targetSheetName, options) {
+  options = options || {};
   var sourceSheet = findSourceSheetByType_(sourceSpreadsheet, sourceSheetType);
-  if (!sourceSheet) return false;
+  if (!sourceSheet) {
+    if (options.required === false) {
+      rebuildEmptyWarehouseSheet_(centralSpreadsheet, targetSheetName);
+      return false;
+    }
+    return false;
+  }
 
   var targetSheet = centralSpreadsheet.getSheetByName(targetSheetName);
   if (targetSheet) {
@@ -78,6 +106,16 @@ function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, central
   targetSheet.getRange(1, 1, lastRowSource, lastColSource).setValues(syncedValues);
   applyStrictStructuralLayout_(targetSheet, targetSheetName, lastRowSource, lastColSource);
   return true;
+}
+
+function rebuildEmptyWarehouseSheet_(centralSpreadsheet, targetSheetName) {
+  var targetSheet = centralSpreadsheet.getSheetByName(targetSheetName);
+  if (targetSheet) {
+    centralSpreadsheet.deleteSheet(targetSheet);
+  }
+
+  targetSheet = centralSpreadsheet.insertSheet(targetSheetName);
+  createEmptyStandardHeader_(targetSheet);
 }
 
 function buildSyncedWarehouseValues_(rawValues, displayValues, sheetMonth) {
@@ -160,13 +198,6 @@ function applyStrictStructuralLayout_(targetSheet, targetSheetName, lastRowSourc
 
     if (col >= 7 && col <= 9) {
       targetSheet.setColumnWidth(col, currentWidth + 25);
-    } else if (col === 10) {
-      targetSheet.setColumnWidth(10, 80);
-      if (targetSheetName.indexOf('SUM') !== -1 && lastRowSource > 1) {
-        var checkboxRange = targetSheet.getRange(2, 10, lastRowSource - 1, 1);
-        var rule = SpreadsheetApp.newDataValidation().requireCheckbox().build();
-        checkboxRange.setDataValidation(rule).setHorizontalAlignment('center');
-      }
     } else {
       targetSheet.setColumnWidth(col, currentWidth + 12);
     }
@@ -205,37 +236,13 @@ function doGet(e) {
   }
 }
 
-function showBackendHealth() {
-  var payload = buildHealthPayload_();
-  var sheetSummaries = payload.sheet_catalog.map(function(item) {
-    return item.name + ' [' + item.type + '] rows=' + item.data_row_count;
-  });
-  SpreadsheetApp.getUi().alert(
-    'Fine Database Backend',
-    [
-      'matched sheets: ' + payload.sheet_catalog.length,
-      'warnings: ' + payload.warnings.length,
-      sheetSummaries.join('\n') || '-'
-    ].join('\n\n'),
-    SpreadsheetApp.getUi().ButtonSet.OK
-  );
-}
-
-function showBackendMetaPreview() {
-  var payload = buildMetaPayload_();
-  SpreadsheetApp.getUi().alert(
-    'Meta Preview',
-    JSON.stringify({
-      available_months: payload.available_months,
-      sheet_catalog: payload.sheet_catalog,
-      warnings: payload.warnings
-    }, null, 2)
-  );
-}
-
 function buildHealthPayload_() {
   var spreadsheet = openBackendSpreadsheet_();
   var discovery = discoverMonthlySheets_(spreadsheet);
+  var matchedNames = {};
+  discovery.catalog.forEach(function(item) { matchedNames[item.name] = true; });
+  var allSheetNames = spreadsheet.getSheets().map(function(sheet) { return sheet.getName(); });
+  var unmatchedSheetNames = allSheetNames.filter(function(name) { return !matchedNames[name]; });
 
   return {
     ok: true,
@@ -247,6 +254,8 @@ function buildHealthPayload_() {
       timezone: BACKEND_CONFIG.timezone
     },
     sheet_catalog: discovery.catalog,
+    all_sheet_names: allSheetNames,
+    unmatched_sheet_names: unmatchedSheetNames,
     warnings: discovery.warnings
   };
 }
@@ -290,6 +299,7 @@ function buildDataPayload_(params) {
   applyQualityFlags_(rows);
 
   var filteredRows = filterRowsByParams_(rows, params || {});
+  var statusRows = collectStatusBreakdownRows_(spreadsheet, discovery.catalog, params || {});
 
   return {
     ok: true,
@@ -297,11 +307,25 @@ function buildDataPayload_(params) {
     generated_at: new Date().toISOString(),
     source: buildSourceMeta_(spreadsheet, discovery.catalog, filteredRows.length),
     rows: filteredRows,
+    status_rows: statusRows,
     metrics: summarize_(filteredRows),
     available_months: getAvailableMonthsFromRows_(rows),
     available_sheet_months: getAvailableSheetMonths_(discovery.catalog),
     warnings: discovery.warnings
   };
+}
+
+function collectStatusBreakdownRows_(spreadsheet, catalog, params) {
+  var result = {};
+
+  BACKEND_CONFIG.statusSheetNames.forEach(function(type) {
+    var typeParams = { sheet_type: type, sheet_month: params.sheet_month };
+    var rows = collectCanonicalRows_(spreadsheet, catalog, typeParams);
+    applyQualityFlags_(rows);
+    result[type] = filterRowsByParams_(rows, params);
+  });
+
+  return result;
 }
 
 function buildSyncPayload_() {
@@ -323,6 +347,11 @@ function openBackendSpreadsheet_() {
 }
 
 function discoverMonthlySheets_(spreadsheet) {
+  var directDiscovery = discoverDirectSheets_(spreadsheet);
+  if (directDiscovery.catalog.length > 0) {
+    return directDiscovery;
+  }
+
   var warnings = [];
   var catalog = spreadsheet.getSheets()
     .map(function(sheet) {
@@ -333,7 +362,7 @@ function discoverMonthlySheets_(spreadsheet) {
     });
 
   if (catalog.length === 0) {
-    throw new Error('ไม่พบชีตรูปแบบ SUM(Mx) หรือ LOAN(Mx) ในไฟล์ Google Sheet นี้');
+    throw new Error('ไม่พบชีท SUM(Mx), รอปรับ(Mx), ปรับได้(Mx) หรือ ปรับไม่ได้(Mx) ในไฟล์ Google Sheet นี้');
   }
 
   catalog.forEach(function(item) {
@@ -349,16 +378,52 @@ function discoverMonthlySheets_(spreadsheet) {
   };
 }
 
+function discoverDirectSheets_(spreadsheet) {
+  var warnings = [];
+  var catalog = [];
+
+  BACKEND_CONFIG.supportedSheetTypes.forEach(function(type) {
+    var aliases = BACKEND_CONFIG.sourceSheetAliases[type] || [type];
+    for (var i = 0; i < aliases.length; i++) {
+      var sheet = spreadsheet.getSheetByName(aliases[i]);
+      if (!sheet || sheet.getLastColumn() === 0) continue;
+
+      var descriptor = {
+        name: sheet.getName(),
+        type: type,
+        mode: 'direct',
+        sheet_month: null,
+        header_row: BACKEND_CONFIG.headerRow,
+        data_row_count: Math.max(sheet.getLastRow() - BACKEND_CONFIG.headerRow, 0),
+        last_column: sheet.getLastColumn()
+      };
+      catalog.push(descriptor);
+
+      var validation = validateSheetHeaders_(sheet, type);
+      if (validation.missing.length > 0) {
+        warnings.push('Sheet ' + descriptor.name + ' missing headers: ' + validation.missing.join(', '));
+      }
+      break;
+    }
+  });
+
+  return {
+    catalog: catalog,
+    warnings: warnings
+  };
+}
+
 function parseSheetDescriptor_(sheet) {
   var match = sheet.getName().match(BACKEND_CONFIG.monthlySheetPattern);
   if (!match) return null;
 
-  var type = String(match[1] || '').toUpperCase();
+  var type = normalizeSheetType_(match[1]);
   if (BACKEND_CONFIG.supportedSheetTypes.indexOf(type) === -1) return null;
 
   return {
     name: sheet.getName(),
     type: type,
+    mode: 'monthly',
     sheet_month: Number(match[2]),
     header_row: BACKEND_CONFIG.headerRow,
     data_row_count: Math.max(sheet.getLastRow() - BACKEND_CONFIG.headerRow, 0),
@@ -378,6 +443,11 @@ function validateSheetHeaders_(sheet, sheetType) {
     header_map: headerMap,
     missing: missing
   };
+}
+
+function normalizeSheetType_(value) {
+  var text = cleanText_(value);
+  return text.toUpperCase() === 'SUM' ? 'SUM' : text;
 }
 
 function getHeaderRow_(sheet) {
@@ -411,13 +481,11 @@ function normalizeHeader_(value) {
 
 function collectCanonicalRows_(spreadsheet, catalog, params) {
   var rows = [];
-  var targetType = cleanText_(params.sheet_type || params.type).toUpperCase();
-  var includeLoan = parseBooleanParam_(params.include_loan, BACKEND_CONFIG.includeLoanSheetsByDefault);
+  var targetType = normalizeSheetType_(params.sheet_type || params.type) || 'SUM';
   var targetSheetMonth = toNullableNumber_(params.sheet_month);
 
   catalog.forEach(function(descriptor) {
     if (targetType && descriptor.type !== targetType) return;
-    if (!includeLoan && descriptor.type === 'LOAN') return;
     if (targetSheetMonth !== null && descriptor.sheet_month !== targetSheetMonth) return;
 
     var sheet = spreadsheet.getSheetByName(descriptor.name);
@@ -460,12 +528,14 @@ function normalizeSheetRow_(values, displayValues, headerMap, descriptor, source
   var remainingAmount = toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'remaining_amount'));
 
   if (paidAmount === null && fineAmount !== null && remainingAmount !== null) {
-    paidAmount = fineAmount - remainingAmount;
+    paidAmount = fineAmount + remainingAmount;
   }
 
-  var computedRemainingAmount = remainingAmount;
-  if (computedRemainingAmount === null && fineAmount !== null) {
+  var computedRemainingAmount = null;
+  if (fineAmount !== null) {
     computedRemainingAmount = fineAmount - (paidAmount || 0);
+  } else if (remainingAmount !== null) {
+    computedRemainingAmount = remainingAmount;
   }
 
   var row = {
@@ -497,7 +567,6 @@ function normalizeSheetRow_(values, displayValues, headerMap, descriptor, source
     remaining_amount: remainingAmount,
     computed_remaining_amount: computedRemainingAmount,
     computed_remaining: computedRemainingAmount,
-    installment_flag: parseBooleanCell_(getCellByField_(values, displayValues, headerMap, 'installment_flag')),
     record_status: blankToNull_(getCellByField_(values, displayValues, headerMap, 'status')),
     payment_status: 'open',
     is_full_duplicate: false,
@@ -508,7 +577,7 @@ function normalizeSheetRow_(values, displayValues, headerMap, descriptor, source
   };
 
   if (row.remaining_amount !== null && row.computed_remaining_amount !== null) {
-    row.has_amount_mismatch = row.remaining_amount !== row.computed_remaining_amount;
+    row.has_amount_mismatch = row.remaining_amount !== -row.computed_remaining_amount;
   }
 
   row.is_driver_blank = !row.driver_name;
@@ -608,7 +677,9 @@ function getAvailableMonthsFromRows_(rows) {
 function getAvailableSheetMonths_(catalog) {
   var values = {};
   catalog.forEach(function(item) {
-    values[item.sheet_month] = true;
+    if (item.sheet_month !== null && item.sheet_month !== undefined && !isNaN(item.sheet_month)) {
+      values[item.sheet_month] = true;
+    }
   });
   return Object.keys(values).map(function(value) {
     return Number(value);
@@ -741,15 +812,11 @@ function paymentStatus_(row) {
     if (normalizedStatus === 'paid' || normalizedStatus === 'open') {
       return normalizedStatus;
     }
-    if (normalizedStatus === 'partial') {
-      return (row.source_type === 'LOAN' || row.installment_flag) ? 'partial' : 'open';
-    }
+    if (normalizedStatus === 'partial') return 'open';
   }
 
   if (row.has_amount_mismatch || row.fine_amount < 0 || row.paid_amount < 0) return 'data_error';
-  if (row.paid_amount !== null && paid > fine) return 'overpaid';
   if (row.paid_amount !== null && fine > 0 && paid >= fine && (remaining === null || remaining <= 0)) return 'paid';
-  if (row.source_type === 'LOAN' || row.installment_flag) return 'partial';
   return 'open';
 }
 
@@ -787,13 +854,6 @@ function toNullableNumber_(value) {
   if (typeof value === 'number' && !isNaN(value)) return value;
   var parsed = Number(cleanText_(value).replace(/,/g, ''));
   return isNaN(parsed) ? null : parsed;
-}
-
-function parseBooleanCell_(value) {
-  if (value === true || value === false) return value;
-  var text = cleanText_(value).toLowerCase();
-  if (!text) return false;
-  return text === 'true' || text === '1' || text === 'yes' || text === 'y' || text === 'ใช่';
 }
 
 function parseBooleanParam_(value, fallback) {

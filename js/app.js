@@ -29,6 +29,7 @@ const App = (() => {
     let lastRefreshAt = 0;
     let refreshPromise = null;
     let lastDataSignature = '';
+    let isLoaded = false;
 
     function buildDataSignature(rows) {
       return rows.map((row) => [
@@ -41,8 +42,7 @@ const App = (() => {
         row.paid_amount ?? '',
         row.computed_remaining_amount ?? '',
         row.payment_status || '',
-        row.source_type || '',
-        row.installment_flag ? '1' : '0'
+        row.source_type || ''
       ].join('|')).join('||');
     }
 
@@ -55,7 +55,7 @@ const App = (() => {
 
       setViewMode(filterState);
       filteredData = FineData.getFiltered(filterState);
-      aggregates = FineData.getAggregates(filteredData);
+      aggregates = FineData.getAggregates(filteredData, filterState.selectedMonth);
 
       if (fullRender) {
         KPICards.render(aggregates);
@@ -103,27 +103,45 @@ const App = (() => {
       refreshFromSource(reason);
     }
 
-    try {
-      renderLoadingState();
-      allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
-      lastDataSignature = buildDataSignature(allData);
-      lastRefreshAt = Date.now();
-      aggregates = FineData.getAggregates(allData);
-    } catch (err) {
-      renderLoadError(err);
-      console.error('[Fine Dashboard] Data load failed', err);
-      return;
+    // ── Driver debt module switch (external Apps Script app, embedded via iframe) ──
+    // Wired up unconditionally, before the data load, so the toggle still works
+    // even if the main fine-data fetch fails or times out.
+    const DRIVER_MODULE_URL = 'https://script.google.com/a/macros/2klogistics.co.th/s/AKfycbyuwAXedxKCm0r2jQjtED0pW2AuUfk2bwceze74WVlPxkhjTmPZfyFvWEE1CFdjb3B6mg/exec';
+    const driverModuleToggle = document.getElementById('driver-module-toggle');
+    const driverModuleFrame = document.getElementById('driver-module-frame');
+    const driverModuleIframe = document.getElementById('driver-module-iframe');
+    const mainContentEl = document.querySelector('.main__content');
+    const sidebarFiltersEl = document.getElementById('sidebar-filters');
+    const mainTitleEl = document.getElementById('main-title');
+    let driverModuleActive = false;
+
+    function setDriverModuleActive(active) {
+      driverModuleActive = active;
+      if (driverModuleToggle) {
+        driverModuleToggle.classList.toggle('active', active);
+        driverModuleToggle.setAttribute('aria-pressed', String(active));
+      }
+
+      if (active) {
+        if (driverModuleIframe && !driverModuleIframe.src) driverModuleIframe.src = DRIVER_MODULE_URL;
+        if (mainContentEl) mainContentEl.hidden = true;
+        if (sidebarFiltersEl) sidebarFiltersEl.hidden = true;
+        if (driverModuleFrame) driverModuleFrame.hidden = false;
+        if (mainTitleEl) mainTitleEl.textContent = 'ยอดค้างปรับ พขร.';
+      } else {
+        if (driverModuleFrame) driverModuleFrame.hidden = true;
+        if (sidebarFiltersEl) sidebarFiltersEl.hidden = false;
+        if (mainContentEl) mainContentEl.hidden = false;
+        if (mainTitleEl) mainTitleEl.textContent = 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
+        if (isLoaded) renderCurrentState(Filters.getState(), { fullRender: true });
+      }
     }
 
-    // ── Render all components ──
-    Filters.render();
-    const initialFilterState = Filters.getState();
-    renderCurrentState(initialFilterState, { fullRender: true });
-
-    // ── Wire filter changes ──
-    Filters.onChange((filterState) => {
-      renderCurrentState(filterState);
-    });
+    if (driverModuleToggle) {
+      driverModuleToggle.addEventListener('click', () => {
+        setDriverModuleActive(!driverModuleActive);
+      });
+    }
 
     // ── Mobile sidebar toggle ──
     const sidebar = document.querySelector('.sidebar');
@@ -141,6 +159,45 @@ const App = (() => {
         overlay.classList.remove('active');
       });
     }
+
+    // ── Release stuck focus when the mouse leaves the sidebar ──
+    // Clicking any control inside the sidebar (chips, dropdown triggers, the
+    // module toggle) gives it keyboard focus, which keeps :focus-within true
+    // indefinitely — that alone was enough to hold the hover-expand sidebar
+    // open forever, even after the mouse moved away. Blurring on mouseleave
+    // lets :focus-within release so the CSS collapse (driven by :hover) can
+    // actually take effect again. Pure-keyboard tabbing is unaffected since
+    // mouseleave never fires if the mouse never entered.
+    if (sidebar) {
+      sidebar.addEventListener('mouseleave', () => {
+        if (document.activeElement && sidebar.contains(document.activeElement)) {
+          document.activeElement.blur();
+        }
+      });
+    }
+
+    try {
+      renderLoadingState();
+      allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+      lastDataSignature = buildDataSignature(allData);
+      lastRefreshAt = Date.now();
+      aggregates = FineData.getAggregates(allData);
+      isLoaded = true;
+    } catch (err) {
+      renderLoadError(err);
+      console.error('[Fine Dashboard] Data load failed', err);
+      return;
+    }
+
+    // ── Render all components ──
+    Filters.render();
+    const initialFilterState = Filters.getState();
+    renderCurrentState(initialFilterState, { fullRender: true });
+
+    // ── Wire filter changes ──
+    Filters.onChange((filterState) => {
+      renderCurrentState(filterState);
+    });
 
     document.addEventListener('visibilitychange', () => {
       if (document.visibilityState === 'visible') refreshIfStale('visibilitychange');
@@ -227,7 +284,7 @@ const App = (() => {
     // ── KPI Cards Skeleton ──
     const kpiGrid = document.getElementById('kpi-grid');
     if (kpiGrid) {
-      const skeletonCards = Array.from({ length: 5 }, () => `
+      const skeletonCards = Array.from({ length: 4 }, () => `
         <div class="skeleton-kpi">
           <div>
             <div class="skeleton skeleton-icon"></div>

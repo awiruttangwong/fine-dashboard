@@ -41,20 +41,34 @@
 .table-card__title-area {
   display: flex;
   align-items: center;
-  gap: var(--space-3);
+  gap: 12px;
+  min-height: 34px;
 }
 
-.table-card__title {
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+.table-card__title-area > svg {
+  width: 21px;
+  height: 21px;
+  flex: 0 0 21px;
   color: var(--color-text-primary);
 }
 
+.table-card__title {
+  font-size: 1rem;
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: 1.25;
+}
+
 .table-card__row-count {
+  display: inline-flex;
+  align-items: center;
+  min-height: 24px;
   font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  line-height: 1;
   color: var(--color-text-muted);
   background: var(--color-surface-hover);
-  padding: 2px 8px;
+  padding: 0 10px;
   border-radius: var(--radius-full);
 }
 
@@ -250,6 +264,7 @@
 
 .cell-amount--positive { color: var(--color-success); }
 .cell-amount--negative { color: var(--color-danger); }
+.cell-amount--overpaid { color: #AF52DE; }
 
 .cell-muted {
   color: var(--color-text-muted);
@@ -265,14 +280,14 @@
 .receiver-cell {
   display: flex;
   flex-direction: column;
-  gap: var(--space-3);
+  gap: var(--space-2);
 }
 
 .receiver-cell__main {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
+  gap: var(--space-3);
 }
 
 .receiver-cell__title-wrap {
@@ -286,13 +301,6 @@
   line-height: 1.3;
 }
 
-.receiver-cell__hint {
-  margin-top: 4px;
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  line-height: 1.45;
-}
-
 .receiver-cell__meta {
   display: flex;
   align-items: center;
@@ -304,8 +312,8 @@
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  min-height: 26px;
-  padding: 4px 10px;
+  min-height: 24px;
+  padding: 3px 9px;
   border-radius: var(--radius-full);
   background: var(--color-surface-hover);
   color: var(--color-text-secondary);
@@ -316,15 +324,16 @@
 .receiver-cell__action {
   display: inline-flex;
   align-items: center;
+  align-self: flex-end;
   gap: 6px;
-  margin-top: 30px;
-  min-height: 36px;
-  padding: 0 12px;
+  margin-top: 28px;
+  min-height: 28px;
+  padding: 0 9px;
   border-radius: var(--radius-full);
   border: 1px solid var(--color-border);
   background: var(--color-surface);
   color: var(--color-accent);
-  font-size: var(--font-size-sm);
+  font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
   cursor: pointer;
   transition: background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), transform var(--transition-fast);
@@ -353,8 +362,8 @@
   justify-content: center;
   gap: 6px;
   max-width: 100%;
-  min-height: 28px;
-  padding: 4px 10px;
+  min-height: 24px;
+  padding: 3px 9px;
   border-radius: var(--radius-full);
   font-size: 0.72rem;
   font-weight: var(--font-weight-medium);
@@ -365,7 +374,6 @@
 .status-badge--open     { background: var(--color-accent-light); color: var(--color-accent); }
 .status-badge--paid     { background: var(--color-success-light); color: var(--color-success); }
 .status-badge--partial  { background: var(--color-warning-light); color: var(--color-warning); }
-.status-badge--overpaid { background: rgba(175, 82, 222, 0.10); color: #AF52DE; }
 .status-badge--error    { background: var(--color-danger-light); color: var(--color-danger); }
 
 .status-dot {
@@ -378,7 +386,6 @@
 .status-badge--open .status-dot     { background: var(--color-accent); }
 .status-badge--paid .status-dot     { background: var(--color-success); }
 .status-badge--partial .status-dot  { background: var(--color-warning); }
-.status-badge--overpaid .status-dot { background: #AF52DE; }
 .status-badge--error .status-dot    { background: var(--color-danger); }
 
 /* ── Quality Flag ── */
@@ -602,6 +609,10 @@
 
 .table-modal__stat-value--negative {
   color: var(--color-danger);
+}
+
+.table-modal__stat-value--overpaid {
+  color: #AF52DE;
 }
 
 .table-modal__body {

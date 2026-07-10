@@ -10,7 +10,7 @@ const KPICards = (() => {
   // ── SVG Icons ──
   const ICONS = {
     clipboard: `<svg xmlns="http://www.w3.org/2000/svg" height="22" viewBox="0 -960 960 960" width="22" fill="#5985E1"><path d="M320-240h320v-80H320v80Zm0-160h320v-80H320v80ZM240-80q-33 0-56.5-23.5T160-160v-640q0-33 23.5-56.5T240-880h320l240 240v480q0 33-23.5 56.5T720-80H240Zm280-520v-200H240v640h480v-440H520ZM240-800v200-200 640-640Z"/></svg>`,
-    money: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
+    money: `<svg width="22" height="22" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M200-200v-560 560Zm0 80q-33 0-56.5-23.5T120-200v-560q0-33 23.5-56.5T200-840h560q33 0 56.5 23.5T840-760v100h-80v-100H200v560h560v-100h80v100q0 33-23.5 56.5T760-120H200Zm320-160q-33 0-56.5-23.5T440-360v-240q0-33 23.5-56.5T520-680h280q33 0 56.5 23.5T880-600v240q0 33-23.5 56.5T800-280H520Zm280-80v-240H520v240h280Zm-117.5-77.5Q700-455 700-480t-17.5-42.5Q665-540 640-540t-42.5 17.5Q580-505 580-480t17.5 42.5Q615-420 640-420t42.5-17.5Z"/></svg>`,
     checkCircle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
     clock: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     trendUp: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
@@ -72,48 +72,39 @@ const KPICards = (() => {
 
   const cardConfigs = [
     {
-      id: 'fine-count',
-      label: 'จำนวนรายการปรับ',
-      icon: ICONS.clipboard,
-      iconClass: 'kpi-card__icon--blue',
-      getValue: (agg) => agg.count,
-      format: formatNumber,
-      getDetail: (agg) => `${Object.keys(agg.customerBreakdown).length} ลูกค้า`
-    },
-    {
       id: 'total-fine',
       label: 'ยอดปรับรวม',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.totalFine,
       format: formatCurrency,
-      getDetail: (agg) => {
-        const days = Object.keys(agg.dailyTrend).length;
-        return `จาก ${formatNumber(agg.count)} รายการปรับ (สะสม ${days} วัน)`;
-      }
+      getDetail: (agg) => `จาก ${formatNumber(agg.count)} รายการปรับ`
     },
     {
       id: 'paid-amount',
-      label: 'ยอดปรับแล้ว',
+      label: 'ชำระค่าปรับแล้ว',
       icon: ICONS.checkCircle,
       iconClass: 'kpi-card__icon--green',
-      getValue: (agg) => agg.totalPaid,
+      getValue: (agg) => agg.paidCompletedAmount,
       format: formatCurrency,
-      getDetail: (agg) => `${agg.paymentStatusCounts['paid'] || 0} รายการที่ชำระค่าปรับแล้ว`
+      getDetail: (agg) => {
+        const paidCount = (agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0;
+        return `${paidCount} รายการที่ปรับได้`;
+      }
     },
     {
       id: 'remaining-amount',
       label: 'ยอดคงเหลือ',
-      icon: ICONS.clock,
+      icon: ICONS.alertTriangle,
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.totalRemaining,
       format: formatCurrency,
       getDetail: (agg) => {
-        const openCount = agg.paymentStatusCounts['open'] || 0;
-        const installmentCount = agg.paymentStatusCounts['partial'] || 0;
+        const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
+        const errorCount = agg.paymentStatusCounts['data_error'] || 0;
         const parts = [];
-        if (openCount > 0) parts.push(`${openCount} รายการค้างชำระ`);
-        if (installmentCount > 0) parts.push(`${installmentCount} รายการผ่อนชำระ`);
+        if (pendingCount > 0) parts.push(`${pendingCount} รายการรอปรับ`);
+        if (errorCount > 0) parts.push(`${errorCount} รายการต้องตรวจสอบ`);
         return parts.join(' • ') || 'ไม่มีรายการที่ต้องติดตาม';
       }
     },
@@ -124,7 +115,7 @@ const KPICards = (() => {
       iconClass: 'kpi-card__icon--teal',
       getValue: (agg) => agg.collectionRate,
       format: formatPercent,
-      getDetail: (agg) => `${formatCurrency(agg.totalPaid)} จาก ${formatCurrency(agg.totalFine)}`
+      getDetail: (agg) => `${formatCurrency(agg.paidCompletedAmount)} จาก ${formatCurrency(agg.totalFine)}`
     }
   ];
 

@@ -186,6 +186,35 @@
   color: var(--color-text-muted);
 }
 
+.ranking-scroll-list {
+  max-height: 318px;
+  overflow-y: auto;
+  padding-right: var(--space-2);
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-divider) transparent;
+}
+
+.ranking-scroll-list::-webkit-scrollbar,
+.route-detail-list::-webkit-scrollbar {
+  width: 6px;
+}
+
+.ranking-scroll-list::-webkit-scrollbar-track,
+.route-detail-list::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.ranking-scroll-list::-webkit-scrollbar-thumb,
+.route-detail-list::-webkit-scrollbar-thumb {
+  background: var(--color-divider);
+  border-radius: var(--radius-full);
+}
+
+.ranking-scroll-list::-webkit-scrollbar-thumb:hover,
+.route-detail-list::-webkit-scrollbar-thumb:hover {
+  background: var(--color-text-muted);
+}
+
 /* ══════════════════════════════════════════════════════════════
    ROUTE STATUS BARS (replaces plain bar chart)
    ══════════════════════════════════════════════════════════════ */
@@ -264,26 +293,11 @@
    ══════════════════════════════════════════════════════════════ */
 
 .route-detail-list {
-  max-height: 480px;
+  max-height: 318px;
   overflow-y: auto;
   padding-right: var(--space-2);
   scrollbar-width: thin;
   scrollbar-color: var(--color-divider) transparent;
-}
-
-/* Custom scrollbar for Webkit inside this card */
-.route-detail-list::-webkit-scrollbar {
-  width: 6px;
-}
-.route-detail-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-.route-detail-list::-webkit-scrollbar-thumb {
-  background: var(--color-divider);
-  border-radius: var(--radius-full);
-}
-.route-detail-list::-webkit-scrollbar-thumb:hover {
-  background: var(--color-text-muted);
 }
 
 .route-detail-row {

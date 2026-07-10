@@ -23,10 +23,10 @@
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/components.css">
-  <link rel="stylesheet" href="css/charts.css">
-  <link rel="stylesheet" href="css/comparison.css">
-  <link rel="stylesheet" href="css/tables.css">
+  <link rel="stylesheet" href="css/components.css?v=20260709-02">
+  <link rel="stylesheet" href="css/charts.css?v=20260709-02">
+  <link rel="stylesheet" href="css/comparison.css?v=20260709-02">
+  <link rel="stylesheet" href="css/tables.css?v=20260709-02">
 </head>
 
 <body>
@@ -63,6 +63,16 @@
         </div>
       </div>
 
+      <!-- Module Switch -->
+      <div class="sidebar__module-switch">
+        <button class="comparison-switch" id="driver-module-toggle" type="button" aria-pressed="false">
+          <span class="comparison-switch__label">ยอดค้างปรับ พขร.</span>
+          <span class="comparison-switch__track" aria-hidden="true">
+            <span class="comparison-switch__thumb"></span>
+          </span>
+        </button>
+      </div>
+
       <!-- Filters -->
       <div class="sidebar__filters" id="sidebar-filters">
         <!-- Rendered by Filters.render() -->
@@ -95,6 +105,11 @@
           </div>
         </div>
       </header>
+
+      <!-- ── Driver Debt Module (external Apps Script web app, iframe) ── -->
+      <div class="main__module-frame" id="driver-module-frame" hidden>
+        <iframe id="driver-module-iframe" title="ยอดค้างปรับ พขร." loading="lazy"></iframe>
+      </div>
 
       <!-- ── Content ── -->
       <div class="main__content">
@@ -192,7 +207,7 @@
                   </div>
                 </div>
                 <div class="chart-card__body">
-                  <div id="chart-top-drivers-list">
+                  <div class="ranking-scroll-list" id="chart-top-drivers-list">
                     <!-- Rendered by Charts.renderTopDrivers() -->
                   </div>
                 </div>
@@ -242,14 +257,14 @@
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 
   <!-- App Modules (order matters: data → kpi → filters → charts → tables → app) -->
-  <script src="js/api-config.js"></script>
-  <script src="js/data.js"></script>
-  <script src="js/kpi.js"></script>
-  <script src="js/filters.js"></script>
-  <script src="js/charts.js?v=20260702-1"></script>
-  <script src="js/comparison.js"></script>
-  <script src="js/tables.js"></script>
-  <script src="js/app.js"></script>
+  <script src="js/api-config.js?v=20260709-02"></script>
+  <script src="js/data.js?v=20260709-02"></script>
+  <script src="js/kpi.js?v=20260709-02"></script>
+  <script src="js/filters.js?v=20260709-02"></script>
+  <script src="js/charts.js?v=20260709-02"></script>
+  <script src="js/comparison.js?v=20260709-02"></script>
+  <script src="js/tables.js?v=20260709-02"></script>
+  <script src="js/app.js?v=20260709-02"></script>
 </body>
 
 </html>

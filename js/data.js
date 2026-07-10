@@ -25,7 +25,9 @@ const FineData = (() => {
 
   let config = { ...DEFAULT_CONFIG, ...(window.FINE_DASHBOARD_CONFIG || {}) };
   let allData = [];
+  let dataByMonth = new Map();
   let lastPayload = null;
+  let statusData = { 'ปรับได้': [], 'รอปรับ': [], 'ปรับไม่ได้': [] };
   let isLoaded = false;
 
   function configure(nextConfig) {
@@ -36,13 +38,7 @@ const FineData = (() => {
     configure(nextConfig);
     const endpoint = String(config.gasEndpoint || '').trim();
 
-    if (!endpoint) {
-      throw new Error('ยังไม่ได้ตั้งค่า GAS Web App URL ใน js/api-config.js');
-    }
-
-    if (/\/home\/projects\//.test(endpoint) || /\/edit(?:\?|$)/.test(endpoint)) {
-      throw new Error('gasEndpoint ต้องเป็น Apps Script Web App /exec URL ไม่ใช่ลิงก์หน้า editor');
-    }
+    assertEndpointReady(endpoint);
 
     const payload = config.useJsonp
       ? await fetchJsonp(endpoint, { action: 'data' }, config.requestTimeoutMs)
@@ -54,8 +50,53 @@ const FineData = (() => {
 
     lastPayload = payload;
     allData = normalizePayload(payload);
+    statusData = normalizeStatusRows(payload.status_rows);
+    applyStatusClassification(allData);
     isLoaded = true;
     return getAll();
+  }
+
+  function normalizeStatusRows(statusRows) {
+    const result = {};
+    Object.keys(statusRows || {}).forEach(type => {
+      const rows = Array.isArray(statusRows[type]) ? statusRows[type] : [];
+      result[type] = rows.map((row, index) => normalizeRow(row, index + 2)).filter(Boolean);
+    });
+    return result;
+  }
+
+  function buildStatusRowKey(row) {
+    if (!row.barcode || !row.fine_date) return null;
+    return [row.barcode, row.fine_date, row.fine_amount, row.route_raw].join('|');
+  }
+
+  function buildStatusLookup() {
+    const lookup = new Map();
+    Object.keys(statusData).forEach(type => {
+      (statusData[type] || []).forEach(row => {
+        const key = buildStatusRowKey(row);
+        if (key) lookup.set(key, type);
+      });
+    });
+    return lookup;
+  }
+
+  function applyStatusClassification(rows) {
+    const lookup = buildStatusLookup();
+    rows.forEach(row => {
+      const key = buildStatusRowKey(row);
+      row.record_status_type = key ? (lookup.get(key) || null) : null;
+    });
+  }
+
+  function assertEndpointReady(endpoint) {
+    if (!endpoint) {
+      throw new Error('ยังไม่ได้ตั้งค่า GAS Web App URL ใน js/api-config.js');
+    }
+
+    if (/\/home\/projects\//.test(endpoint) || /\/edit(?:\?|$)/.test(endpoint)) {
+      throw new Error('gasEndpoint ต้องเป็น Apps Script Web App /exec URL ไม่ใช่ลิงก์หน้า editor');
+    }
   }
 
   async function fetchJson(endpoint, params, timeoutMs) {
@@ -121,6 +162,7 @@ const FineData = (() => {
       .filter(Boolean);
 
     applyQualityFlags(normalized);
+    rebuildIndexes(normalized);
     return normalized;
   }
 
@@ -159,14 +201,16 @@ const FineData = (() => {
     row.paid_amount = toNullableNumber(row.paid_amount);
     row.remaining_amount = toNullableNumber(row.remaining_amount);
     row.computed_remaining_amount = toNullableNumber(row.computed_remaining_amount);
-    if (row.computed_remaining_amount === null) {
+    if (row.fine_amount !== null) {
       row.computed_remaining_amount = (row.fine_amount || 0) - (row.paid_amount || 0);
+    } else if (row.computed_remaining_amount === null) {
+      row.computed_remaining_amount = row.remaining_amount;
     }
     row.computed_remaining = row.computed_remaining_amount;
 
     row.has_amount_mismatch = Boolean(
       row.has_amount_mismatch ||
-      (row.remaining_amount !== null && row.remaining_amount !== row.computed_remaining_amount)
+      (row.remaining_amount !== null && row.remaining_amount !== -row.computed_remaining_amount)
     );
     row.is_driver_blank = !row.driver_name;
     row.is_receiver_blank = !row.transfer_receiver_name;
@@ -184,6 +228,7 @@ const FineData = (() => {
       row.remaining_amount
     ]);
     row.payment_status = paymentStatus(row);
+    enrichRowSearchFields(row);
     return isMeaningfulSourceRow(row) ? row : null;
   }
 
@@ -232,7 +277,38 @@ const FineData = (() => {
     };
 
     row.payment_status = paymentStatus(row);
+    enrichRowSearchFields(row);
     return isMeaningfulSourceRow(row) ? row : null;
+  }
+
+  function buildSearchText(values) {
+    return values
+      .map(value => cleanText(value).toLowerCase())
+      .filter(Boolean)
+      .join(' ');
+  }
+
+  function enrichRowSearchFields(row) {
+    row.driver_name_normalized = cleanText(row.driver_name).toLowerCase();
+    row.search_index = buildSearchText([
+      row.barcode,
+      row.route_raw,
+      row.driver_name,
+      row.customer,
+      row.fine_date,
+      row.fine_amount,
+      row.transfer_receiver_name
+    ]);
+  }
+
+  function rebuildIndexes(rows) {
+    dataByMonth = new Map();
+    rows.forEach(row => {
+      const monthKey = row.fine_date ? String(row.fine_date).slice(0, 7) : '';
+      if (!monthKey) return;
+      if (!dataByMonth.has(monthKey)) dataByMonth.set(monthKey, []);
+      dataByMonth.get(monthKey).push(row);
+    });
   }
 
   function applyQualityFlags(rows) {
@@ -320,21 +396,17 @@ const FineData = (() => {
     const explicitStatus = cleanText(row.payment_status).toLowerCase();
     const fine = row.fine_amount || 0;
     const paid = row.paid_amount || 0;
-    const isInstallment = row.source_type === 'LOAN' || row.installment_flag === true;
+    const remaining = row.computed_remaining_amount;
 
     if (explicitStatus === 'paid' || explicitStatus === 'open') {
       return explicitStatus;
     }
-    if (explicitStatus === 'partial') return isInstallment ? 'partial' : 'open';
+    if (explicitStatus === 'partial') return 'open';
+    if (explicitStatus === 'overpaid') return 'paid';
+    if (explicitStatus === 'data_error') return 'data_error';
 
-    if (explicitStatus === 'data_error') {
-      if (row.paid_amount !== null && fine > 0 && paid >= fine) return 'paid';
-      if (isInstallment) return 'partial';
-      return 'open';
-    }
-
-    if (row.paid_amount !== null && fine > 0 && paid >= fine) return 'paid';
-    if (isInstallment) return 'partial';
+    if (row.has_amount_mismatch || fine < 0 || paid < 0) return 'data_error';
+    if (row.paid_amount !== null && fine > 0 && paid >= fine && (remaining === null || remaining <= 0)) return 'paid';
     return 'open';
   }
 
@@ -343,7 +415,11 @@ const FineData = (() => {
   }
 
   function getFiltered(filters) {
-    return allData.filter(row => {
+    const baseRows = filters.selectedMonth && dataByMonth.has(filters.selectedMonth)
+      ? dataByMonth.get(filters.selectedMonth)
+      : allData;
+
+    return baseRows.filter(row => {
       if (filters.selectedMonth && row.fine_date) {
         if (!row.fine_date.startsWith(filters.selectedMonth)) return false;
       }
@@ -351,25 +427,17 @@ const FineData = (() => {
       if (filters.customers && filters.customers.length > 0 && !filters.customers.includes(row.customer)) return false;
       if (filters.driver && filters.driver.trim() !== '') {
         const driverQuery = filters.driver.trim().toLowerCase();
-        const driverName = cleanText(row.driver_name).toLowerCase();
+        const driverName = row.driver_name_normalized || '';
         if (!driverName.includes(driverQuery)) return false;
       }
       if (filters.routeGroups && filters.routeGroups.length > 0 && !filters.routeGroups.includes(row.route_group)) return false;
       if (filters.vehicleType && filters.vehicleType !== '' && row.vehicle_type !== filters.vehicleType) return false;
       if (filters.routeStatuses && filters.routeStatuses.length > 0 && !filters.routeStatuses.includes(row.route_status)) return false;
-      if (filters.paymentStatuses && filters.paymentStatuses.length > 0 && !filters.paymentStatuses.includes(row.payment_status)) return false;
+      if (filters.paymentStatuses && filters.paymentStatuses.length > 0 && !filters.paymentStatuses.includes(row.record_status_type || 'unclassified')) return false;
 
       if (filters.searchText && filters.searchText.trim() !== '') {
         const q = filters.searchText.toLowerCase();
-        const searchable = [
-          row.barcode,
-          row.route_raw,
-          row.driver_name || '',
-          row.customer,
-          row.fine_date,
-          String(row.fine_amount)
-        ].join(' ').toLowerCase();
-        if (!searchable.includes(q)) return false;
+        if (!(row.search_index || '').includes(q)) return false;
       }
 
       return true;
@@ -432,11 +500,33 @@ const FineData = (() => {
     return months[primaryIndex + 1] || months[0];
   }
 
-  function getAggregates(data) {
+  function filterStatusRowsByMonth(rows, selectedMonth) {
+    if (!selectedMonth) return rows;
+    return rows.filter(row => row.fine_date && row.fine_date.startsWith(selectedMonth));
+  }
+
+  function getStatusAggregates(selectedMonth) {
+    const paidRows = filterStatusRowsByMonth(statusData['ปรับได้'] || [], selectedMonth);
+    const pendingRows = filterStatusRowsByMonth(statusData['รอปรับ'] || [], selectedMonth);
+    const uncollectibleRows = filterStatusRowsByMonth(statusData['ปรับไม่ได้'] || [], selectedMonth);
+    const sumFine = rows => rows.reduce((sum, row) => sum + (row.fine_amount || 0), 0);
+
+    return {
+      paidAmount: sumFine(paidRows),
+      paidCount: paidRows.length,
+      pendingAmount: sumFine(pendingRows),
+      pendingCount: pendingRows.length,
+      uncollectibleAmount: sumFine(uncollectibleRows),
+      uncollectibleCount: uncollectibleRows.length
+    };
+  }
+
+  function getAggregates(data, selectedMonth) {
     const result = {
       count: data.length,
       totalFine: 0,
       totalPaid: 0,
+      paidCompletedAmount: 0,
       totalRemaining: 0,
       collectionRate: 0,
       dataIssues: 0,
@@ -446,13 +536,14 @@ const FineData = (() => {
       routeGroupCounts: {},
       routeStatusCounts: {},
       paymentStatusCounts: {},
-      fineAmountDistribution: {}
+      statusTypeCounts: {},
+      fineAmountDistribution: {},
+      statusBreakdown: null
     };
 
     data.forEach(row => {
       result.totalFine += row.fine_amount || 0;
       result.totalPaid += row.paid_amount || 0;
-      result.totalRemaining += row.computed_remaining_amount || 0;
 
       if (row.is_full_duplicate || row.is_barcode_duplicate || row.has_amount_mismatch || row.is_driver_blank) {
         result.dataIssues++;
@@ -478,10 +569,16 @@ const FineData = (() => {
       result.routeGroupCounts[row.route_group] = (result.routeGroupCounts[row.route_group] || 0) + 1;
       result.routeStatusCounts[row.route_status] = (result.routeStatusCounts[row.route_status] || 0) + 1;
       result.paymentStatusCounts[row.payment_status] = (result.paymentStatusCounts[row.payment_status] || 0) + 1;
+      const statusTypeKey = row.record_status_type || 'unclassified';
+      result.statusTypeCounts[statusTypeKey] = (result.statusTypeCounts[statusTypeKey] || 0) + 1;
       result.fineAmountDistribution[row.fine_amount] = (result.fineAmountDistribution[row.fine_amount] || 0) + 1;
     });
 
-    result.collectionRate = result.totalFine > 0 ? (result.totalPaid / result.totalFine) * 100 : 0;
+    const statusAgg = getStatusAggregates(selectedMonth);
+    result.statusBreakdown = statusAgg;
+    result.paidCompletedAmount = statusAgg.paidAmount;
+    result.totalRemaining = result.totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
+    result.collectionRate = result.totalFine > 0 ? (statusAgg.paidAmount / result.totalFine) * 100 : 0;
     return result;
   }
 
@@ -509,8 +606,8 @@ const FineData = (() => {
 
     const primaryRows = getFiltered({ ...filters, selectedMonth: primaryMonth });
     const comparisonRows = getFiltered({ ...filters, selectedMonth: comparisonMonth });
-    const primary = getAggregates(primaryRows);
-    const comparison = getAggregates(comparisonRows);
+    const primary = getAggregates(primaryRows, primaryMonth);
+    const comparison = getAggregates(comparisonRows, comparisonMonth);
     const metrics = {
       totalFine: compareMetric(primary.totalFine, comparison.totalFine),
       count: compareMetric(primary.count, comparison.count),

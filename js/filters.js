@@ -202,13 +202,12 @@ const Filters = (() => {
       if (onChangeCallback) onChangeCallback(state);
     }
 
-    const paymentStatusLabels = {
-      'open': 'ค้างชำระ',
-      'partial': 'ผ่อนชำระ',
-      'paid': 'ชำระค่าปรับแล้ว'
-    };
-    const paymentStatusItems = Object.entries(aggregates.paymentStatusCounts)
-      .map(([name, count]) => ({ value: name, label: paymentStatusLabels[name] || name, count }))
+    const paymentStatusItems = Object.entries(aggregates.statusTypeCounts || {})
+      .map(([name, count]) => ({
+        value: name,
+        label: name === 'unclassified' ? 'ยังไม่จัดประเภท' : name,
+        count
+      }))
       .filter(item => item.label)
       .sort((a, b) => b.count - a.count);
 

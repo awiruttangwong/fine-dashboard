@@ -8,3 +8,5 @@ node_modules/
 Thumbs.db
 *.log
 Data *.xlsx
+backend/live-gas/Code.js
+backend/live-gas/config.js

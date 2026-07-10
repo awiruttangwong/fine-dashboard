@@ -338,6 +338,13 @@ const Charts = (() => {
     legendEl.dataset.renderedHtml = html;
   }
 
+  function setContainerHtml(container, html) {
+    if (!container) return;
+    if (container.dataset.renderedHtml === html) return;
+    container.innerHTML = html;
+    container.dataset.renderedHtml = html;
+  }
+
   function escapeHtml(value) {
     return String(value ?? '')
       .replace(/&/g, '&amp;')
@@ -569,7 +576,7 @@ const Charts = (() => {
 
     const maxCount = sorted.length > 0 ? sorted[0][1] : 1;
 
-    container.innerHTML = sorted.map(([name, count], i) => {
+    const html = sorted.map(([name, count], i) => {
       const pct = (count / maxCount) * 100;
       const rank = i + 1;
       const color = i === 0
@@ -599,6 +606,8 @@ const Charts = (() => {
         </div>
       `;
     }).join('');
+
+    setContainerHtml(container, html);
   }
 
   // ── 4. Route Group Distribution (Doughnut) ──
@@ -702,21 +711,20 @@ const Charts = (() => {
     const canvas = document.getElementById('chart-payment-status');
     if (!canvas) return;
 
-    const statusLabels = {
-      'open': 'ค้างชำระ',
-      'partial': 'ผ่อนชำระ',
-      'paid': 'ชำระค่าปรับแล้ว'
-    };
     const statusColors = {
-      'open': COLORS.blue,
-      'partial': COLORS.orange,
-      'paid': COLORS.green
+      'ปรับได้': COLORS.green,
+      'รอปรับ': COLORS.blue,
+      'ปรับไม่ได้': COLORS.red
+    };
+    const breakdown = aggregates.statusBreakdown || {};
+    const counts = {
+      'ปรับได้': breakdown.paidCount || 0,
+      'รอปรับ': breakdown.pendingCount || 0,
+      'ปรับไม่ได้': breakdown.uncollectibleCount || 0
     };
 
-    const entries = Object.entries(aggregates.paymentStatusCounts)
-      .filter(([key]) => statusLabels[key] && statusColors[key])
-      .sort((a, b) => b[1] - a[1]);
-    const labels = entries.map(([k]) => statusLabels[k] || k);
+    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const labels = entries.map(([k]) => k);
     const data = entries.map(([, v]) => v);
     const colors = entries.map(([k]) => statusColors[k] || COLORS.gray);
 
@@ -763,7 +771,7 @@ const Charts = (() => {
       const legendHtml = entries.map(([k, count], i) => `
         <div class="chart-legend__item">
           <span class="chart-legend__color" style="background:${colors[i]}"></span>
-          ${escapeHtml(statusLabels[k] || k)}
+          ${escapeHtml(k)}
           <span class="chart-legend__value">${count}</span>
         </div>
       `).join('');
@@ -795,7 +803,7 @@ const Charts = (() => {
     });
 
     const sorted = Object.values(routeCounts).sort((a, b) => b.count - a.count);
-    container.innerHTML = sorted.map(r => {
+    const html = sorted.map(r => {
       return `
         <div class="route-detail-row">
           <div class="route-detail-row__route">
@@ -812,6 +820,8 @@ const Charts = (() => {
         </div>
       `;
     }).join('');
+
+    setContainerHtml(container, html);
   }
 
   // ── Public API ──

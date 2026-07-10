@@ -213,7 +213,7 @@ button {
   border-radius: var(--radius-xl);
   padding: var(--space-5);
   border: 1px solid var(--color-border-light);
-  min-height: 154px;
+  min-height: 166px;
   display: flex;
   flex-direction: column;
   justify-content: space-between;

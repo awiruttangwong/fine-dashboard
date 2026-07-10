@@ -20,17 +20,15 @@ const Tables = (() => {
   const RECEIVER_FALLBACK_KEY = '__blank_receiver__';
   const RECEIVER_FALLBACK_LABEL = 'ไม่ระบุผู้รับโอน';
   const SUMMARY_TAB = 'receiver-summary';
-  const INSTALLMENT_TAB = 'receiver-installment';
-  const STATUS_WEIGHT = { paid: 1, partial: 2, open: 3 };
+  const STATUS_TYPE_PRIORITY = ['รอปรับ', 'ปรับไม่ได้', 'ปรับได้'];
+  const STATUS_WEIGHT = { 'รอปรับ': 1, 'ปรับไม่ได้': 2, 'ปรับได้': 3, unclassified: 4 };
 
   let tableState = {
-    [SUMMARY_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' },
-    [INSTALLMENT_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' }
+    [SUMMARY_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' }
   };
 
   let currentData = [];
   let currentSummaryGroups = [];
-  let currentInstallmentGroups = [];
   let currentGroups = [];
   let detailState = { receiverKey: null };
 
@@ -52,6 +50,26 @@ const Tables = (() => {
     return new Intl.NumberFormat('th-TH').format(val) + ' ฿';
   }
 
+  function isSettledOffset(fineAmount, remainingAmount) {
+    const fine = Number(fineAmount) || 0;
+    const remaining = Number(remainingAmount) || 0;
+    return fine > 0 && remaining < 0 && Math.abs(Math.abs(remaining) - fine) < 0.001;
+  }
+
+  function getRemainingAmountClass(fineAmount, remainingAmount) {
+    const remaining = Number(remainingAmount) || 0;
+    if (remaining > 0) return 'cell-amount--negative';
+    if (remaining < 0 && !isSettledOffset(fineAmount, remaining)) return 'cell-amount--overpaid';
+    return '';
+  }
+
+  function getRemainingStatClass(fineAmount, remainingAmount) {
+    const remaining = Number(remainingAmount) || 0;
+    if (remaining > 0) return 'table-modal__stat-value--negative';
+    if (remaining < 0 && !isSettledOffset(fineAmount, remaining)) return 'table-modal__stat-value--overpaid';
+    return '';
+  }
+
   function formatDate(dateValue) {
     if (!dateValue) return '-';
     const parts = String(dateValue).split('-');
@@ -64,13 +82,19 @@ const Tables = (() => {
     return `<span class="sort-icon">${state.sortDir === 'asc' ? ICONS.sortAsc : ICONS.sortDesc}</span>`;
   }
 
-  function getStatusMeta(status) {
-    const map = {
-      open: { label: 'ค้างชำระ', class: 'status-badge--open' },
-      partial: { label: 'ผ่อนชำระ', class: 'status-badge--partial' },
-      paid: { label: 'ชำระค่าปรับแล้ว', class: 'status-badge--paid' }
+  function getStatusMeta(statusType) {
+    const classMap = {
+      'รอปรับ': 'status-badge--open',
+      'ปรับไม่ได้': 'status-badge--error',
+      'ปรับได้': 'status-badge--paid'
     };
-    return map[status] || map.open;
+    if (!statusType) {
+      return { label: 'ยังไม่จัดประเภท', class: 'status-badge--partial' };
+    }
+    return {
+      label: statusType,
+      class: classMap[statusType] || 'status-badge--partial'
+    };
   }
 
   function getStatusBadge(status) {
@@ -106,8 +130,8 @@ const Tables = (() => {
     };
   }
 
-  function isInstallmentRow(row) {
-    return row.source_type === 'LOAN' || row.installment_flag === true || row.payment_status === 'partial';
+  function isSummaryRow(row) {
+    return row.source_type === 'SUM';
   }
 
   function sortRowsForDetail(rows) {
@@ -119,34 +143,34 @@ const Tables = (() => {
     });
   }
 
-  function deriveGroupPaymentStatus(group, mode = 'standard') {
-    const fine = group.total_fine || 0;
-    const paid = group.total_paid || 0;
-    const remaining = group.total_remaining || 0;
-
-    if (fine > 0 && paid >= fine && remaining <= 0) return 'paid';
-    if (mode === 'installment') return 'partial';
-    return 'open';
+  function deriveGroupStatusType(group) {
+    const counts = group.status_type_counts || {};
+    for (let i = 0; i < STATUS_TYPE_PRIORITY.length; i++) {
+      const type = STATUS_TYPE_PRIORITY[i];
+      if (counts[type] > 0) return type;
+    }
+    return null;
   }
 
-  function buildReceiverGroups(data, mode = 'standard') {
+  function buildReceiverGroups(data) {
     const groups = new Map();
 
     data.forEach(row => {
       const receiver = normalizeReceiverInfo(row);
-      const groupKey = `${mode}::${receiver.key}`;
+      const groupKey = receiver.key;
       if (!groups.has(groupKey)) {
         groups.set(groupKey, {
           receiver_key: groupKey,
           receiver_raw_key: receiver.key,
           receiver_label: receiver.label,
           receiver_missing: receiver.isFallback,
-          view_mode: mode,
           total_fine: 0,
           total_paid: 0,
           total_remaining: 0,
           item_count: 0,
           customer_names: new Set(),
+          status_type_counts: {},
+          search_terms: [],
           rows: []
         });
       }
@@ -157,12 +181,28 @@ const Tables = (() => {
       group.total_remaining += row.computed_remaining_amount || 0;
       group.item_count += 1;
       if (row.customer) group.customer_names.add(row.customer);
+      const statusKey = row.record_status_type || 'unclassified';
+      group.status_type_counts[statusKey] = (group.status_type_counts[statusKey] || 0) + 1;
+      group.search_terms.push(
+        row.search_index || [
+          row.customer,
+          row.barcode,
+          row.route_raw,
+          row.driver_name,
+          row.transfer_receiver_name
+        ].join(' ')
+      );
       group.rows.push(row);
     });
 
     return Array.from(groups.values()).map(group => {
       const rows = sortRowsForDetail(group.rows);
       const customerNames = Array.from(group.customer_names).sort();
+      const searchIndex = [
+        group.receiver_label,
+        customerNames.join(' '),
+        group.search_terms.join(' ')
+      ].join(' ').toLowerCase();
 
       return {
         ...group,
@@ -170,16 +210,17 @@ const Tables = (() => {
         customer_names: customerNames,
         customer_count: customerNames.length,
         latest_fine_date: rows[0]?.fine_date || null,
-        payment_status: deriveGroupPaymentStatus(group, mode)
+        status_type: deriveGroupStatusType(group),
+        search_index: searchIndex
       };
     });
   }
 
   function sortGroups(data, field, dir) {
     return [...data].sort((a, b) => {
-      if (field === 'payment_status') {
-        const weightA = STATUS_WEIGHT[a.payment_status] || 99;
-        const weightB = STATUS_WEIGHT[b.payment_status] || 99;
+      if (field === 'status_type') {
+        const weightA = STATUS_WEIGHT[a.status_type || 'unclassified'] || 99;
+        const weightB = STATUS_WEIGHT[b.status_type || 'unclassified'] || 99;
         if (weightA !== weightB) return dir === 'asc' ? weightA - weightB : weightB - weightA;
       }
 
@@ -207,21 +248,7 @@ const Tables = (() => {
     if (!search.trim()) return groups;
     const query = search.trim().toLowerCase();
 
-    return groups.filter(group => {
-      const haystack = [
-        group.receiver_label,
-        group.customer_names.join(' '),
-        ...group.rows.flatMap(row => [
-          row.customer,
-          row.barcode,
-          row.route_raw,
-          row.driver_name,
-          row.transfer_receiver_name
-        ])
-      ].join(' ').toLowerCase();
-
-      return haystack.includes(query);
-    });
+    return groups.filter(group => (group.search_index || '').includes(query));
   }
 
   function renderPagination(total, state, tabId) {
@@ -253,12 +280,12 @@ const Tables = (() => {
   }
 
   function renderSummaryReceiverCell(group) {
+    const itemLabel = 'รายการปรับ';
     return `
       <div class="receiver-cell">
         <div class="receiver-cell__main">
           <div class="receiver-cell__title-wrap">
             <div class="receiver-cell__name">${escapeHtml(group.receiver_label)}</div>
-            <div class="receiver-cell__hint">${group.receiver_missing ? 'กลุ่มรายการที่ยังไม่ระบุผู้รับโอน' : 'คลิกเพื่อดูรายละเอียดรายการทั้งหมด'}</div>
           </div>
           <button type="button" class="receiver-cell__action" data-detail-trigger="${escapeHtml(group.receiver_key)}" aria-label="ดูรายละเอียด ${escapeHtml(group.receiver_label)}">
             ดูรายละเอียด
@@ -266,9 +293,9 @@ const Tables = (() => {
           </button>
         </div>
         <div class="receiver-cell__meta">
-          <span class="receiver-chip">${group.item_count} รายการ</span>
+          <span class="receiver-chip">${group.item_count} ${itemLabel}</span>
           <span class="receiver-chip">${group.customer_count} ลูกค้า</span>
-          ${getStatusBadge(group.payment_status)}
+          ${getStatusBadge(group.status_type)}
         </div>
       </div>
     `;
@@ -279,13 +306,15 @@ const Tables = (() => {
       tabId = SUMMARY_TAB,
       title = 'สรุปตามผู้รับโอน',
       rowCountLabel = 'ผู้รับโอน',
-      summaryNote = 'รวมยอดตามผู้รับโอนก่อน และกดดูรายละเอียดเพื่อเปิดรายการย่อยทั้งหมดของแต่ละกลุ่ม',
+      rowCountValue = null,
+      summaryNote = '',
       searchPlaceholder = 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
     } = options;
     const state = tableState[tabId];
     const searchedGroups = filterGroupsBySearch(data, state.search);
     const sortedGroups = sortGroups(searchedGroups, state.sortField, state.sortDir);
     const totalGroups = sortedGroups.length;
+    const resolvedRowCountValue = rowCountValue === null ? totalGroups : rowCountValue;
     const paginatedGroups = sortedGroups.slice((state.page - 1) * state.perPage, state.page * state.perPage);
 
     const columns = [
@@ -300,7 +329,7 @@ const Tables = (() => {
         field: 'total_fine',
         label: 'ยอดปรับ',
         width: '19%',
-        align: 'right',
+        align: 'center',
         className: 'column-financial',
         render: (group) => `<span class="cell-amount">${formatCurrency(group.total_fine)}</span>`
       },
@@ -308,7 +337,7 @@ const Tables = (() => {
         field: 'total_paid',
         label: 'ชำระค่าปรับแล้ว',
         width: '19%',
-        align: 'right',
+        align: 'center',
         className: 'column-financial column-paid',
         render: (group) => `<span class="cell-amount ${group.total_paid > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(group.total_paid)}</span>`
       },
@@ -316,9 +345,9 @@ const Tables = (() => {
         field: 'total_remaining',
         label: 'คงเหลือ',
         width: '19%',
-        align: 'right',
+        align: 'center',
         className: 'column-financial',
-        render: (group) => `<span class="cell-amount ${group.total_remaining > 0 ? 'cell-amount--negative' : ''}">${formatCurrency(group.total_remaining)}</span>`
+        render: (group) => `<span class="cell-amount ${getRemainingAmountClass(group.total_fine, group.total_remaining)}">${formatCurrency(group.total_remaining)}</span>`
       }
     ];
 
@@ -328,11 +357,9 @@ const Tables = (() => {
           <div class="table-card__title-area">
             ${ICONS.userStack}
             <span class="table-card__title">${title}</span>
-            <span class="table-card__row-count">${totalGroups} ${rowCountLabel}</span>
+            <span class="table-card__row-count">${resolvedRowCountValue} ${rowCountLabel}</span>
           </div>
-          <div class="table-card__summary-note">
-            ${summaryNote}
-          </div>
+          ${summaryNote ? `<div class="table-card__summary-note">${summaryNote}</div>` : ''}
         </div>
         <div class="table-card__actions">
           <div class="table-search">
@@ -379,8 +406,8 @@ const Tables = (() => {
       { field: 'driver_name', label: 'ชื่อ พขร', width: '180px', align: 'left', render: row => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
       { field: 'fine_amount', label: 'ยอดปรับ', width: '110px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
       { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '150px', align: 'right', className: 'column-financial column-paid', render: row => `<span class="cell-amount ${row.paid_amount > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(row.paid_amount || 0)}</span>` },
-      { field: 'computed_remaining', label: 'คงเหลือ', width: '120px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount ${row.computed_remaining > 0 ? 'cell-amount--negative' : ''}">${formatCurrency(row.computed_remaining)}</span>` },
-      { field: 'payment_status', label: 'สถานะ', width: '136px', align: 'center', className: 'cell-status column-status column-status-detail', render: row => getStatusBadge(row.payment_status) }
+      { field: 'computed_remaining', label: 'คงเหลือ', width: '120px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount ${getRemainingAmountClass(row.fine_amount, row.computed_remaining)}">${formatCurrency(row.computed_remaining)}</span>` },
+      { field: 'record_status_type', label: 'สถานะ', width: '136px', align: 'center', className: 'cell-status column-status column-status-detail', render: row => getStatusBadge(row.record_status_type) }
     ];
 
     return `
@@ -415,20 +442,15 @@ const Tables = (() => {
     }
 
     document.body.classList.add('modal-open');
-    const isInstallmentView = activeGroup.view_mode === 'installment';
+    const itemLabel = 'รายการปรับ';
     modalRoot.innerHTML = `
       <div class="table-modal" role="dialog" aria-modal="true" aria-labelledby="receiver-detail-title">
         <div class="table-modal__backdrop" data-modal-close></div>
-        <div class="table-modal__dialog">
+          <div class="table-modal__dialog">
           <div class="table-modal__header">
             <div class="table-modal__title-wrap">
-              <div class="table-modal__eyebrow">${isInstallmentView ? 'รายละเอียดผ่อนชำระ' : 'รายละเอียดผู้รับโอน'}</div>
+              <div class="table-modal__eyebrow">รายละเอียดผู้รับโอน</div>
               <h3 class="table-modal__title" id="receiver-detail-title">${escapeHtml(activeGroup.receiver_label)}</h3>
-              <div class="table-modal__subtitle">
-                ${isInstallmentView
-                  ? 'แสดงเฉพาะรายการจากชีท LOAN ของผู้รับโอนนี้ โดยยอดรวมด้านล่างต้องสอดคล้องกับยอดสรุปในตารางผ่อนชำระ'
-                  : 'แสดงรายละเอียดรายการทั้งหมดในกลุ่มนี้ โดยยอดรวมด้านล่างต้องสอดคล้องกับยอดสรุปในตารางหลัก'}
-              </div>
             </div>
             <button type="button" class="table-modal__close" data-modal-close aria-label="ปิดหน้าต่างรายละเอียด">
               ${ICONS.close}
@@ -437,7 +459,7 @@ const Tables = (() => {
 
           <div class="table-modal__summary">
             <div class="table-modal__stat">
-              <div class="table-modal__stat-label">รายการทั้งหมด</div>
+              <div class="table-modal__stat-label">${itemLabel}</div>
               <div class="table-modal__stat-value">${activeGroup.item_count}</div>
             </div>
             <div class="table-modal__stat">
@@ -450,7 +472,7 @@ const Tables = (() => {
             </div>
             <div class="table-modal__stat">
               <div class="table-modal__stat-label">คงเหลือ</div>
-              <div class="table-modal__stat-value ${activeGroup.total_remaining > 0 ? 'table-modal__stat-value--negative' : ''}">${formatCurrency(activeGroup.total_remaining)}</div>
+              <div class="table-modal__stat-value ${getRemainingStatClass(activeGroup.total_fine, activeGroup.total_remaining)}">${formatCurrency(activeGroup.total_remaining)}</div>
             </div>
           </div>
 
@@ -499,11 +521,10 @@ const Tables = (() => {
 
   function render(data) {
     currentData = data;
-    const summaryRows = data.filter(row => !isInstallmentRow(row));
-    const installmentRows = data.filter(isInstallmentRow);
-    currentSummaryGroups = buildReceiverGroups(summaryRows, 'standard');
-    currentInstallmentGroups = buildReceiverGroups(installmentRows, 'installment');
-    currentGroups = [...currentSummaryGroups, ...currentInstallmentGroups];
+    const summaryRows = data.filter(isSummaryRow);
+    const summaryItemCount = summaryRows.length;
+    currentSummaryGroups = buildReceiverGroups(summaryRows);
+    currentGroups = currentSummaryGroups;
 
     if (detailState.receiverKey && !currentGroups.some(group => group.receiver_key === detailState.receiverKey)) {
       detailState.receiverKey = null;
@@ -516,23 +537,12 @@ const Tables = (() => {
       <div class="table-card" id="table-card-content">
         ${renderReceiverSummary(currentSummaryGroups, {
           tabId: SUMMARY_TAB,
-          title: 'สรุปตามผู้รับโอน',
-          rowCountLabel: 'ผู้รับโอน',
-          summaryNote: 'รวมยอดจากรายการปกติตามผู้รับโอนก่อน และกดดูรายละเอียดเพื่อเปิดรายการย่อยทั้งหมดของแต่ละกลุ่ม',
+          title: 'รายการปรับ',
+          rowCountLabel: 'รายการปรับ',
+          rowCountValue: summaryItemCount,
           searchPlaceholder: 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
         })}
       </div>
-      ${currentInstallmentGroups.length > 0 ? `
-        <div class="table-card">
-          ${renderReceiverSummary(currentInstallmentGroups, {
-            tabId: INSTALLMENT_TAB,
-            title: 'สรุปผ่อนชำระ',
-            rowCountLabel: 'ผู้รับโอน',
-            summaryNote: 'แสดงเฉพาะรายการจากชีท LOAN เพื่อแยกการติดตามผ่อนชำระออกจากตารางหลัก โดยยอดยังสัมพันธ์กับข้อมูลรวมของเดือนเดียวกัน',
-            searchPlaceholder: 'ค้นหาผู้รับโอนผ่อนชำระ, ลูกค้า, บาร์โค้ด...'
-          })}
-        </div>
-      ` : ''}
     `;
 
     bindEvents();

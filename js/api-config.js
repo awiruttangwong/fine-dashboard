@@ -1,5 +1,5 @@
 window.FINE_DASHBOARD_CONFIG = {
-  spreadsheetId: '1XTMe3z8FZ9i4XSyX_N632ZxM8otd3eeQvhTsI6kZWJc',
+  spreadsheetId: '1sF_ZHOwDGV55jA3WV_vqCh0aII_su2hFYaNmHh5xtLk',
   sheetName: 'data',
 
   // Live backend for the current fine database workflow.

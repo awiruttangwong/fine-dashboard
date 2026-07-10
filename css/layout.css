@@ -90,6 +90,37 @@
   overflow-y: auto;
 }
 
+.sidebar__module-switch {
+  padding: var(--space-4) var(--space-5) 0;
+  flex-shrink: 0;
+}
+
+.sidebar__module-switch .comparison-switch {
+  width: 100%;
+  justify-content: space-between;
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--color-border-light);
+  border-radius: var(--radius-md);
+  background: var(--color-surface);
+}
+
+.main__module-frame {
+  flex: 1;
+  display: flex;
+  padding: var(--space-6) var(--space-8);
+}
+
+.main__module-frame iframe {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 70vh;
+  border: none;
+  border-radius: var(--radius-lg);
+  background: var(--color-surface);
+  box-shadow: var(--shadow-sm);
+}
+
 .sidebar__footer {
   padding: var(--space-4) var(--space-5);
   border-top: 1px solid var(--color-border-light);
@@ -226,7 +257,7 @@
 /* ── Grid Systems ── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
@@ -287,14 +318,88 @@
   }
 
   .kpi-grid {
-    grid-template-columns: repeat(3, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-4);
+  }
+}
+
+/* ── Sidebar Hover-Expand (desktop only — mobile keeps the slide-in drawer above) ──
+   Collapsed state is a fully invisible 8px hot-zone flush against the left edge of
+   the screen — no visible rail, no icon, no background. Only once the pointer
+   actually enters that edge zone (or the sidebar, once open) does everything fade
+   /slide in, and .main's margin-left grows in the exact same transition at the same
+   time (via the ~ sibling selector), so both animate together in lockstep. Inner
+   sidebar content is kept at full expanded width + clipped via the sidebar's own
+   overflow-x: hidden, so text never reflows/wraps mid-transition — only opacity +
+   width/margin animate. */
+@media (min-width: 1025px) {
+  .main {
+    margin-left: var(--sidebar-width-collapsed);
+    transition: margin-left var(--transition-fast);
+  }
+
+  .sidebar:hover ~ .main,
+  .sidebar:focus-within ~ .main {
+    margin-left: var(--sidebar-width);
+  }
+
+  .sidebar {
+    width: var(--sidebar-width-collapsed);
+    background: transparent;
+    border-right-color: transparent;
+    backdrop-filter: none;
+    -webkit-backdrop-filter: none;
+    transition: width var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+    will-change: width;
+  }
+
+  .sidebar:hover,
+  .sidebar:focus-within {
+    width: var(--sidebar-width);
+    background: var(--glass-bg-heavy);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    border-right-color: var(--color-border-light);
+    box-shadow: var(--shadow-lg);
+  }
+
+  .sidebar__header,
+  .sidebar__module-switch,
+  .sidebar__filters,
+  .sidebar__footer {
+    width: var(--sidebar-width);
+    flex-shrink: 0;
+  }
+
+  .sidebar__logo-icon,
+  .sidebar__logo-text,
+  .sidebar__module-switch,
+  .sidebar__filters,
+  .sidebar__footer {
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 120ms ease;
+  }
+
+  .sidebar:hover .sidebar__logo-icon,
+  .sidebar:hover .sidebar__logo-text,
+  .sidebar:hover .sidebar__module-switch,
+  .sidebar:hover .sidebar__filters,
+  .sidebar:hover .sidebar__footer,
+  .sidebar:focus-within .sidebar__logo-icon,
+  .sidebar:focus-within .sidebar__logo-text,
+  .sidebar:focus-within .sidebar__module-switch,
+  .sidebar:focus-within .sidebar__filters,
+  .sidebar:focus-within .sidebar__footer {
+    opacity: 1;
+    pointer-events: auto;
+    transition-delay: 80ms;
   }
 }
 
 @media (max-width: 640px) {
   .kpi-grid {
-    grid-template-columns: repeat(2, 1fr);
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: var(--space-3);
   }
 
