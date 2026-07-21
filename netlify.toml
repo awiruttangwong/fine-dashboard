@@ -55,6 +55,41 @@
   status = 404
   force = true
 
+# Apps Script source and project manifests live at the repo root, so the
+# /backend/* rule above does not cover them. Netlify only matches exact
+# paths and trailing /* splats — an extension glob such as "/*.gs" silently
+# matches nothing — so each root file is listed by name. The app only loads
+# icons/, css/ and js/ at runtime, so none of this is needed to serve it.
+[[redirects]]
+  from = "/Code.gs"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/appsscript.json"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/.clasp.json"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/README.md"
+  to = "/index.html"
+  status = 404
+  force = true
+
+[[redirects]]
+  from = "/references/*"
+  to = "/index.html"
+  status = 404
+  force = true
+
 [[redirects]]
   from = "/*.xlsx"
   to = "/index.html"
