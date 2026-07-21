@@ -22,93 +22,26 @@
   gap: var(--space-4);
 }
 
-/* Left gradient accent bar */
-.kpi-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  width: 5px;
-  height: 100%;
-  border-radius: 3px 0 0 3px;
-}
-
-/* Decorative background glow circle */
+/* Neutral flat theme — no gradient accent bar, no decorative glow circle */
+.kpi-card::before,
 .kpi-card::after {
-  content: '';
-  position: absolute;
-  bottom: -36px;
-  right: -36px;
-  width: 130px;
-  height: 130px;
-  border-radius: 50%;
-  pointer-events: none;
-  transition: transform var(--transition-slow), opacity var(--transition-base);
+  content: none;
 }
 
-.kpi-card:hover::after {
-  transform: scale(1.18);
-}
-
-/* ── Per-card colour themes ── */
-#kpi-total-fine {
-  background: linear-gradient(135deg, rgba(255, 59, 48, 0.045) 0%, #ffffff 52%);
-  border-color: rgba(255, 59, 48, 0.13);
-}
-#kpi-total-fine::before {
-  background: linear-gradient(180deg, #FF3B30 0%, #FF7066 100%);
-}
-#kpi-total-fine::after {
-  background: radial-gradient(circle at center, rgba(255, 59, 48, 0.13) 0%, transparent 70%);
-}
-#kpi-total-fine:hover {
-  border-color: rgba(255, 59, 48, 0.28);
-  box-shadow: 0 10px 32px rgba(255, 59, 48, 0.12);
-}
-
-#kpi-paid-amount {
-  background: linear-gradient(135deg, rgba(52, 199, 89, 0.045) 0%, #ffffff 52%);
-  border-color: rgba(52, 199, 89, 0.13);
-}
-#kpi-paid-amount::before {
-  background: linear-gradient(180deg, #34C759 0%, #00C7BE 100%);
-}
-#kpi-paid-amount::after {
-  background: radial-gradient(circle at center, rgba(52, 199, 89, 0.13) 0%, transparent 70%);
-}
-#kpi-paid-amount:hover {
-  border-color: rgba(52, 199, 89, 0.28);
-  box-shadow: 0 10px 32px rgba(52, 199, 89, 0.12);
-}
-
-#kpi-remaining-amount {
-  background: linear-gradient(135deg, rgba(255, 100, 0, 0.05) 0%, #ffffff 52%);
-  border-color: rgba(255, 100, 0, 0.14);
-}
-#kpi-remaining-amount::before {
-  background: linear-gradient(180deg, #FF9500 0%, #FF3B30 100%);
-}
-#kpi-remaining-amount::after {
-  background: radial-gradient(circle at center, rgba(255, 100, 0, 0.14) 0%, transparent 70%);
-}
-#kpi-remaining-amount:hover {
-  border-color: rgba(255, 100, 0, 0.28);
-  box-shadow: 0 10px 32px rgba(255, 100, 0, 0.12);
-}
-
+/* ── Card fill: neutral Apple white/grey, matches system theme ── */
+#kpi-total-fine,
+#kpi-paid-amount,
+#kpi-remaining-amount,
 #kpi-collection-rate {
-  background: linear-gradient(135deg, rgba(74, 159, 219, 0.045) 0%, #ffffff 52%);
-  border-color: rgba(74, 159, 219, 0.13);
+  background: var(--color-surface-alt);
+  border-color: var(--color-border);
 }
-#kpi-collection-rate::before {
-  background: linear-gradient(180deg, #4A9FDB 0%, #5856D6 100%);
-}
-#kpi-collection-rate::after {
-  background: radial-gradient(circle at center, rgba(74, 159, 219, 0.13) 0%, transparent 70%);
-}
+#kpi-total-fine:hover,
+#kpi-paid-amount:hover,
+#kpi-remaining-amount:hover,
 #kpi-collection-rate:hover {
-  border-color: rgba(74, 159, 219, 0.28);
-  box-shadow: 0 10px 32px rgba(74, 159, 219, 0.12);
+  border-color: var(--color-border);
+  box-shadow: var(--shadow-card-hover);
 }
 
 /* ── Animation delays ── */
