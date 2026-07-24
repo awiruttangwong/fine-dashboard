@@ -49,6 +49,21 @@
 
 .chart-card__action {
   flex-shrink: 0;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-accent, #4A9FDB);
+  text-decoration: none;
+  padding: 4px 10px;
+  border: 1px solid var(--color-border, #E8E8ED);
+  border-radius: var(--radius-full, 9999px);
+  transition: background .15s ease, border-color .15s ease, color .15s ease;
+  white-space: nowrap;
+}
+
+.chart-card__action:hover {
+  background: var(--color-accent, #4A9FDB);
+  border-color: var(--color-accent, #4A9FDB);
+  color: #fff;
 }
 
 .chart-card__body {
@@ -60,6 +75,12 @@
 .chart-card--full .chart-card__body {
   padding: var(--space-3) var(--space-4) var(--space-4);
 }
+
+/* Flush body: inline module iframe fills the card edge-to-edge with no inner padding */
+.chart-card__body--flush {
+  padding: 0;
+}
+
 
 /* ── Chart Canvas Container ── */
 .chart-container {

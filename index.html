@@ -23,10 +23,11 @@
   <link rel="stylesheet" href="css/variables.css">
   <link rel="stylesheet" href="css/base.css">
   <link rel="stylesheet" href="css/layout.css">
-  <link rel="stylesheet" href="css/components.css?v=20260709-02">
-  <link rel="stylesheet" href="css/charts.css?v=20260709-02">
-  <link rel="stylesheet" href="css/comparison.css?v=20260709-02">
-  <link rel="stylesheet" href="css/tables.css?v=20260709-02">
+  <link rel="stylesheet" href="css/components.css?v=20260724-03">
+  <link rel="stylesheet" href="css/charts.css?v=20260724-03">
+  <link rel="stylesheet" href="css/comparison.css?v=20260724-03">
+  <link rel="stylesheet" href="css/tables.css?v=20260724-03">
+  <link rel="stylesheet" href="css/debt.css?v=20260724-03">
 </head>
 
 <body>
@@ -103,13 +104,20 @@
             <h1 class="main__title" id="main-title">รายงานสรุปและติดตามข้อมูลค่าปรับ</h1>
             <p class="main__subtitle" id="main-subtitle" hidden></p>
           </div>
+          <div class="data-quality-notification">
+            <button type="button" class="data-quality-bell" id="data-quality-bell" aria-haspopup="true" aria-expanded="false" hidden>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8a6 6 0 0 1 12 0c0 7 3 9 3 9H3s3-2 3-9"/><path d="M10.3 21a1.94 1.94 0 0 0 3.4 0"/></svg>
+              <span class="data-quality-bell__badge" id="data-quality-badge" hidden>0</span>
+            </button>
+            <div class="data-quality-panel" id="data-quality-panel" hidden>
+              <div class="data-quality-panel__header">
+                พบปัญหาคุณภาพข้อมูล — รบกวนแจ้งฝ่ายบัญชีตรวจสอบต้นทาง
+              </div>
+              <ul class="data-quality-panel__list" id="data-quality-list"></ul>
+            </div>
+          </div>
         </div>
       </header>
-
-      <!-- ── Driver Debt Module (external Apps Script web app, iframe) ── -->
-      <div class="main__module-frame" id="driver-module-frame" hidden>
-        <iframe id="driver-module-iframe" title="ยอดค้างปรับ พขร." loading="lazy"></iframe>
-      </div>
 
       <!-- ── Content ── -->
       <div class="main__content">
@@ -184,7 +192,7 @@
                 <div class="chart-card__header">
                   <div>
                     <div class="chart-card__title">สถานะการชำระเงิน</div>
-                    <div class="chart-card__subtitle">สัดส่วนสถานะการชำระทั้งหมด</div>
+                    <div class="chart-card__subtitle">สัดส่วนสถานะการชำระทั้งหมด (รวมค่าปรับรถไม่เข้ารับงาน)</div>
                   </div>
                 </div>
                 <div class="chart-card__body">
@@ -230,6 +238,17 @@
             </div>
           </section>
 
+          <!-- ── ค่าปรับรถไม่เข้ารับงาน (native debt module — inline) ── -->
+          <section class="section" id="section-debt">
+            <div class="section__title">
+              <svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+                <path d="M240-200h120v-240h240v240h120v-360L480-740 240-560v360Zm-80 80v-480l320-240 320 240v480H520v-240h-80v240H160Zm320-350Z"/>
+              </svg>
+              ค่าปรับรถไม่เข้ารับงาน
+            </div>
+            <div id="debt-view"></div>
+          </section>
+
           <!-- ── Data Tables Section ── -->
           <section class="section" id="section-tables">
             <div class="section__title">
@@ -255,16 +274,20 @@
   <!-- ══════════════════════════════════════════════════════════ -->
   <!-- Chart.js 4 (CDN) -->
   <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
+  <!-- xlsx (read uploaded import files) + ExcelJS (write template with dropdown) — debt module -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/exceljs@4.4.0/dist/exceljs.min.js"></script>
 
-  <!-- App Modules (order matters: data → kpi → filters → charts → tables → app) -->
-  <script src="js/api-config.js?v=20260709-02"></script>
-  <script src="js/data.js?v=20260709-02"></script>
-  <script src="js/kpi.js?v=20260709-02"></script>
-  <script src="js/filters.js?v=20260709-02"></script>
-  <script src="js/charts.js?v=20260709-02"></script>
-  <script src="js/comparison.js?v=20260709-02"></script>
-  <script src="js/tables.js?v=20260709-02"></script>
-  <script src="js/app.js?v=20260709-02"></script>
+  <!-- App Modules (order matters: data → kpi → filters → charts → tables → debt → app) -->
+  <script src="js/api-config.js?v=20260724-03"></script>
+  <script src="js/data.js?v=20260724-03"></script>
+  <script src="js/kpi.js?v=20260724-03"></script>
+  <script src="js/filters.js?v=20260724-03"></script>
+  <script src="js/charts.js?v=20260724-03"></script>
+  <script src="js/comparison.js?v=20260724-03"></script>
+  <script src="js/tables.js?v=20260724-03"></script>
+  <script src="js/debt.js?v=20260724-03"></script>
+  <script src="js/app.js?v=20260724-03"></script>
 </body>
 
 </html>

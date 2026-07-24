@@ -711,22 +711,34 @@ const Charts = (() => {
     const canvas = document.getElementById('chart-payment-status');
     if (!canvas) return;
 
+    // "(รถไม่เข้ารับงาน)" คือคนละหน่วยนับกับ fine data (จำนวนคน พขร. ไม่ใช่จำนวน
+    // รายการค่าปรับ) — ผสานอยู่ในวงเดียวกันตามที่ตกลง แต่แยก slice + สีชัดเจน
+    // ไม่ให้ปนกับของเดิม
     const statusColors = {
       'ปรับได้': COLORS.green,
       'รอปรับ': COLORS.blue,
-      'ปรับไม่ได้': COLORS.red
+      'ปรับไม่ได้': COLORS.red,
+      'กำลังผ่อน (รถไม่เข้ารับงาน)': COLORS.indigo,
+      'ชำระครบแล้ว (รถไม่เข้ารับงาน)': COLORS.mint,
+      'ปรับไม่ได้ (รถไม่เข้ารับงาน)': COLORS.pink
     };
     const breakdown = aggregates.statusBreakdown || {};
+    const driverCounts = aggregates.driverStatusCounts || {};
     const counts = {
       'ปรับได้': breakdown.paidCount || 0,
       'รอปรับ': breakdown.pendingCount || 0,
-      'ปรับไม่ได้': breakdown.uncollectibleCount || 0
+      'ปรับไม่ได้': breakdown.uncollectibleCount || 0,
+      'กำลังผ่อน (รถไม่เข้ารับงาน)': driverCounts.active || 0,
+      'ชำระครบแล้ว (รถไม่เข้ารับงาน)': driverCounts.done || 0,
+      'ปรับไม่ได้ (รถไม่เข้ารับงาน)': driverCounts.nonCollectible || 0
     };
 
-    const entries = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+    const entries = Object.entries(counts).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
     const labels = entries.map(([k]) => k);
     const data = entries.map(([, v]) => v);
     const colors = entries.map(([k]) => statusColors[k] || COLORS.gray);
+
+    const labelUnit = (key) => key.endsWith('(รถไม่เข้ารับงาน)') ? 'คน' : 'รายการ';
 
     const existingChart = chartInstances['paymentStatus'];
     if (existingChart) {
@@ -734,7 +746,7 @@ const Charts = (() => {
       existingChart.data.datasets[0].data = data;
       existingChart.data.datasets[0].backgroundColor = colors;
       existingChart.options.plugins.tooltip.callbacks = {
-        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ`
+        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} ${labelUnit(tooltipCtx.label)}`
       };
       existingChart.update('none');
     } else {
@@ -758,7 +770,7 @@ const Charts = (() => {
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
-              label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} รายการ`
+              label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} ${labelUnit(tooltipCtx.label)}`
             }
           }
         }

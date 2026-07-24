@@ -47,6 +47,8 @@ const App = (() => {
     }
 
     function renderCurrentState(filterState, { fullRender = false } = {}) {
+      updateDataQualityNotification();
+
       if (filterState.isComparisonMode) {
         setViewMode(filterState);
         ComparisonView.render(filterState);
@@ -67,6 +69,73 @@ const App = (() => {
       KPICards.update(aggregates);
       Charts.updateAll(aggregates, filteredData, filterState);
       Tables.update(filteredData);
+    }
+
+    // ── Data-quality notification bell ──
+    // Surfaces backend-detected month/file mismatches (a row's real date doesn't
+    // match the "Mx" file it lives in) so a human goes fixes the accounting
+    // source, instead of the dashboard silently showing a slightly-wrong number.
+    const dataQualityBell = document.getElementById('data-quality-bell');
+    const dataQualityBadge = document.getElementById('data-quality-badge');
+    const dataQualityPanel = document.getElementById('data-quality-panel');
+    const dataQualityList = document.getElementById('data-quality-list');
+
+    function closeDataQualityPanel() {
+      if (!dataQualityPanel) return;
+      dataQualityPanel.hidden = true;
+      if (dataQualityBell) dataQualityBell.setAttribute('aria-expanded', 'false');
+    }
+
+    function updateDataQualityNotification() {
+      if (!dataQualityBell || !dataQualityBadge || !dataQualityList) return;
+
+      const alerts = (FineData.getLastPayload() && FineData.getLastPayload().data_quality_alerts) || { count: 0, items: [] };
+
+      if (!alerts.count) {
+        dataQualityBell.hidden = true;
+        closeDataQualityPanel();
+        return;
+      }
+
+      dataQualityBell.hidden = false;
+      dataQualityBadge.hidden = false;
+      dataQualityBadge.textContent = alerts.count > 99 ? '99+' : String(alerts.count);
+
+      const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ({
+        '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
+      })[ch]);
+
+      dataQualityList.innerHTML = alerts.items.map(item => {
+        const hasMonths = item.expected_month !== null && item.expected_month !== undefined;
+        const headline = hasMonths
+          ? `คาดว่าเป็นเดือน ${escapeHtml(item.expected_month)} แต่พบวันที่จริงเดือน ${escapeHtml(item.actual_month)}`
+          : 'พบรหัสซ้ำข้ามไฟล์เดือน';
+        return `
+          <li>
+            <strong>${escapeHtml(item.source)}</strong> — ${headline}<br>
+            ${escapeHtml(item.detail)}
+          </li>
+        `;
+      }).join('');
+    }
+
+    if (dataQualityBell) {
+      dataQualityBell.addEventListener('click', (event) => {
+        event.stopPropagation();
+        const isOpen = !dataQualityPanel.hidden;
+        if (isOpen) {
+          closeDataQualityPanel();
+        } else {
+          dataQualityPanel.hidden = false;
+          dataQualityBell.setAttribute('aria-expanded', 'true');
+        }
+      });
+
+      document.addEventListener('click', (event) => {
+        if (dataQualityPanel && !dataQualityPanel.hidden && !dataQualityPanel.contains(event.target) && event.target !== dataQualityBell) {
+          closeDataQualityPanel();
+        }
+      });
     }
 
     async function refreshFromSource(reason) {
@@ -103,15 +172,14 @@ const App = (() => {
       refreshFromSource(reason);
     }
 
-    // ── Driver debt module switch (external Apps Script app, embedded via iframe) ──
-    // Wired up unconditionally, before the data load, so the toggle still works
-    // even if the main fine-data fetch fails or times out.
-    const DRIVER_MODULE_URL = 'https://script.google.com/a/macros/2klogistics.co.th/s/AKfycbyuwAXedxKCm0r2jQjtED0pW2AuUfk2bwceze74WVlPxkhjTmPZfyFvWEE1CFdjb3B6mg/exec';
+    // ── Driver debt module (NATIVE, inline) ──
+    // "ค่าปรับรถไม่เข้ารับงาน" เป็น section ที่แสดงอยู่ในหน้าเสมอ (เรนเดอร์ครั้งเดียว
+    // ตอนโหลด) — ปุ่ม toggle เป็นแค่ "focus mode" ซ่อน section อื่นด้วย CSS แล้ว
+    // scroll มาที่ section นี้ ไม่มีการ re-render/สลับ DOM ใหญ่ จึงไม่กระพริบ
     const driverModuleToggle = document.getElementById('driver-module-toggle');
-    const driverModuleFrame = document.getElementById('driver-module-frame');
-    const driverModuleIframe = document.getElementById('driver-module-iframe');
-    const mainContentEl = document.querySelector('.main__content');
-    const sidebarFiltersEl = document.getElementById('sidebar-filters');
+    const debtViewEl = document.getElementById('debt-view');
+    const contentInnerEl = document.querySelector('.main__content-inner');
+    const sectionDebtEl = document.getElementById('section-debt');
     const mainTitleEl = document.getElementById('main-title');
     let driverModuleActive = false;
 
@@ -121,20 +189,9 @@ const App = (() => {
         driverModuleToggle.classList.toggle('active', active);
         driverModuleToggle.setAttribute('aria-pressed', String(active));
       }
-
-      if (active) {
-        if (driverModuleIframe && !driverModuleIframe.src) driverModuleIframe.src = DRIVER_MODULE_URL;
-        if (mainContentEl) mainContentEl.hidden = true;
-        if (sidebarFiltersEl) sidebarFiltersEl.hidden = true;
-        if (driverModuleFrame) driverModuleFrame.hidden = false;
-        if (mainTitleEl) mainTitleEl.textContent = 'ยอดค้างปรับ พขร.';
-      } else {
-        if (driverModuleFrame) driverModuleFrame.hidden = true;
-        if (sidebarFiltersEl) sidebarFiltersEl.hidden = false;
-        if (mainContentEl) mainContentEl.hidden = false;
-        if (mainTitleEl) mainTitleEl.textContent = 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
-        if (isLoaded) renderCurrentState(Filters.getState(), { fullRender: true });
-      }
+      if (contentInnerEl) contentInnerEl.classList.toggle('main__content-inner--debt-focus', active);
+      if (mainTitleEl) mainTitleEl.textContent = active ? 'ค่าปรับรถไม่เข้ารับงาน' : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
+      if (active && sectionDebtEl) window.scrollTo({ top: 0, behavior: 'auto' });
     }
 
     if (driverModuleToggle) {
@@ -142,6 +199,9 @@ const App = (() => {
         setDriverModuleActive(!driverModuleActive);
       });
     }
+
+    // render the inline debt section once (always visible; independent of fine-data)
+    if (debtViewEl && typeof DebtTracker !== 'undefined') DebtTracker.show(debtViewEl);
 
     // ── Mobile sidebar toggle ──
     const sidebar = document.querySelector('.sidebar');
@@ -176,9 +236,29 @@ const App = (() => {
       });
     }
 
+    // Google Apps Script cold-starts intermittently (the endpoint sleeps
+    // after inactivity), which can make the very first JSONP request time
+    // out even though the data is fine. Without a retry, that single
+    // transient failure used to leave the dashboard stuck on the error
+    // screen forever (init() returned before wiring up auto-refresh), so a
+    // real visitor saw permanently blank KPI cards until they reloaded
+    // manually. Retrying a few times with backoff lets it self-heal.
+    async function loadInitialData() {
+      const retryDelaysMs = [2000, 5000, 10000];
+      for (let attempt = 0; ; attempt++) {
+        try {
+          return await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+        } catch (err) {
+          if (attempt >= retryDelaysMs.length) throw err;
+          console.warn(`[Fine Dashboard] Initial load attempt ${attempt + 1} failed, retrying...`, err);
+          await new Promise(resolve => setTimeout(resolve, retryDelaysMs[attempt]));
+        }
+      }
+    }
+
     try {
       renderLoadingState();
-      allData = await FineData.load(window.FINE_DASHBOARD_CONFIG || {});
+      allData = await loadInitialData();
       lastDataSignature = buildDataSignature(allData);
       lastRefreshAt = Date.now();
       aggregates = FineData.getAggregates(allData);
@@ -284,7 +364,7 @@ const App = (() => {
     // ── KPI Cards Skeleton ──
     const kpiGrid = document.getElementById('kpi-grid');
     if (kpiGrid) {
-      const skeletonCards = Array.from({ length: 4 }, () => `
+      const skeletonCards = Array.from({ length: 5 }, () => `
         <div class="skeleton-kpi">
           <div>
             <div class="skeleton skeleton-icon"></div>
@@ -338,6 +418,7 @@ const App = (() => {
           <div class="kpi-card__content">
             <div class="kpi-card__value kpi-card__value--small">เชื่อมต่อ Google Sheet ไม่สำเร็จ</div>
             <div class="kpi-card__detail">${safeMessage}</div>
+            <button type="button" onclick="location.reload()" style="margin-top: 12px; padding: 8px 16px; border-radius: var(--radius-md); border: 1px solid var(--color-border); background: var(--color-surface); cursor: pointer; font-family: inherit; font-size: var(--font-size-sm);">ลองโหลดใหม่</button>
           </div>
         </div>
       `;

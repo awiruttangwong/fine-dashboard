@@ -1,0 +1,490 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <link href="https://fonts.googleapis.com/css2?family=Sarabun:wght@300;400;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg: #f6f8fb;
+      --card: #ffffff;
+      --line: #eef1f5;
+      --ink: #1f2937;
+      --muted: #8a94a6;
+      --ring: 0 1px 2px rgba(16,24,40,.04), 0 1px 3px rgba(16,24,40,.06);
+      --ring-hover: 0 6px 20px rgba(16,24,40,.08);
+    }
+    body { background: var(--bg); font-family: 'Sarabun', sans-serif; color: var(--ink); -webkit-font-smoothing: antialiased; }
+    h3, h4, h5, h6 { letter-spacing: -.01em; }
+
+    .stat-card, .content-box { border: 1px solid var(--line); background: var(--card); border-radius: 16px; box-shadow: var(--ring); transition: box-shadow .2s ease, transform .2s ease; }
+    .stat-card { padding: 1.25rem 1.4rem; }
+    .content-box { padding: 22px 24px; }
+    .stat-card:hover { box-shadow: var(--ring-hover); transform: translateY(-2px); }
+
+    .chart-container { position: relative; height: 260px; width: 100%; }
+
+    /* ปุ่มในตาราง: กะทัดรัด อ่านง่าย */
+    .btn-action { font-size: .78rem; border-radius: 9px; padding: .28rem .6rem; font-weight: 600; }
+    .type-badge { font-size: .68rem; padding: 3px 10px; border-radius: 999px; font-weight: 600; letter-spacing: .01em; }
+
+    /* Tabs สะอาด */
+    .nav-pills .nav-link { color: var(--muted); font-weight: 600; border-radius: 999px; padding: .35rem 1rem; font-size: .9rem; }
+    .nav-pills .nav-link.active { background: var(--ink); box-shadow: var(--ring); }
+
+    /* ตาราง: เบา ๆ ไม่มีเส้นหนัก */
+    .table > :not(caption) > * > * { border-bottom-color: var(--line); }
+    .table thead th { color: var(--muted); font-weight: 600; font-size: .78rem; text-transform: uppercase; letter-spacing: .03em; border-bottom: 1px solid var(--line); }
+    .table-hover > tbody > tr:hover > * { background: #f9fafc; }
+
+    /* ฟอร์ม & ปุ่มหลัก */
+    .form-control, .form-select { border-radius: 10px; border-color: #e4e8ee; }
+    .form-control:focus, .form-select:focus { border-color: #b9c2d0; box-shadow: 0 0 0 3px rgba(59,130,246,.12); }
+    .btn { border-radius: 10px; font-weight: 600; }
+    .modal-content { border: none; border-radius: 18px; overflow: hidden; box-shadow: 0 20px 60px rgba(16,24,40,.2); }
+    .stat-card .badge { font-weight: 600; border-radius: 999px; }
+  </style>
+</head>
+<body>
+
+<div class="container-fluid px-4 py-4">
+  <div class="d-flex justify-content-between align-items-center mb-4">
+    <div>
+      <h3 class="fw-bold m-0 text-dark">Executive Fine Dashboard</h3>
+      <small class="text-muted">ระบบติดตามค่าค้างจ่ายพนักงานขับรถ</small>
+    </div>
+    <div class="d-flex gap-2">
+      <button class="btn btn-outline-dark" onclick="mImport.show()">+ Import ข้อมูล</button>
+      <button class="btn btn-dark shadow-sm" onclick="openAddModal()">+ เพิ่ม พขร. ใหม่</button>
+    </div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-md-6"><div class="stat-card border-start border-success border-4">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-bold text-success m-0">✅ ปรับได้</h6><span id="cnt-yes" class="badge bg-success">0 คน</span></div>
+      <div class="row text-center">
+        <div class="col-6"><small class="text-muted">ยอดคงเหลือ</small><h4 id="bal-yes" class="text-danger fw-bold mb-0">0</h4></div>
+        <div class="col-6"><small class="text-muted">ชำระแล้ว</small><h4 id="paid-yes" class="text-success fw-bold mb-0">0</h4></div>
+      </div>
+    </div></div>
+    <div class="col-md-6"><div class="stat-card border-start border-secondary border-4">
+      <div class="d-flex justify-content-between align-items-center mb-2"><h6 class="fw-bold text-secondary m-0">🚫 ปรับไม่ได้</h6><span id="cnt-no" class="badge bg-secondary">0 คน</span></div>
+      <div class="row text-center">
+        <div class="col-6"><small class="text-muted">ยอดคงเหลือ</small><h4 id="bal-no" class="text-danger fw-bold mb-0">0</h4></div>
+        <div class="col-6"><small class="text-muted">ชำระแล้ว</small><h4 id="paid-no" class="text-success fw-bold mb-0">0</h4></div>
+      </div>
+    </div></div>
+  </div>
+
+  <div class="row g-3 mb-4">
+    <div class="col-lg-4">
+      <div class="content-box text-center">
+        <h6 class="fw-bold mb-3">สัดส่วนการชำระเงิน</h6>
+        <div class="chart-container"><canvas id="chartPie"></canvas></div>
+      </div>
+    </div>
+    <div class="col-lg-8">
+      <div class="content-box">
+        <h6 class="fw-bold mb-3">5 อันดับ พขร. ที่มียอดค้างสูงสุด</h6>
+        <div class="chart-container"><canvas id="chartBar"></canvas></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="content-box">
+    <ul class="nav nav-pills mb-3" id="status-tabs">
+      <li class="nav-item"><button class="nav-link active" data-status="active" onclick="setStatusTab(this)">กำลังผ่อน</button></li>
+      <li class="nav-item"><button class="nav-link" data-status="done" onclick="setStatusTab(this)">ผ่อนเสร็จแล้ว</button></li>
+      <li class="nav-item"><button class="nav-link" data-status="" onclick="setStatusTab(this)">ทั้งหมด</button></li>
+    </ul>
+    <div class="d-flex flex-wrap justify-content-between align-items-end gap-2 mb-3">
+      <h6 class="fw-bold m-0">รายละเอียดรายบุคคล</h6>
+      <div class="d-flex flex-wrap align-items-center gap-2">
+        <input type="text" id="filter-name" class="form-control form-control-sm" style="width:160px" placeholder="ค้นหาชื่อ..." oninput="applyFilter()">
+        <select id="filter-type" class="form-select form-select-sm" style="width:160px" onchange="applyFilter()">
+          <option value="">ทุกประเภท</option>
+        </select>
+        <input type="month" id="filter-month" class="form-control form-control-sm" style="width:160px" onchange="applyFilter()">
+        <button class="btn btn-sm btn-outline-secondary" onclick="clearFilters()">ล้างตัวกรอง</button>
+      </div>
+    </div>
+    <div class="row g-3">
+      <div class="col-lg-6">
+        <h6 class="fw-bold text-success mb-2">✅ ปรับได้</h6>
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead><tr><th>ชื่อ / เส้นทาง</th><th>ประเภท</th><th>คงเหลือ</th><th>คืบหน้า</th><th class="text-center">จัดการ</th></tr></thead>
+            <tbody id="table-yes"></tbody>
+          </table>
+        </div>
+      </div>
+      <div class="col-lg-6">
+        <h6 class="fw-bold text-secondary mb-2">🚫 ปรับไม่ได้</h6>
+        <div class="table-responsive">
+          <table class="table table-hover table-sm align-middle">
+            <thead><tr><th>ชื่อ / เส้นทาง</th><th>ประเภท</th><th>คงเหลือ</th><th>คืบหน้า</th><th class="text-center">จัดการ</th></tr></thead>
+            <tbody id="table-no"></tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal: บันทึกชำระเงิน -->
+<div class="modal fade" id="modalPay" tabindex="-1"><div class="modal-dialog modal-dialog-centered"><div class="modal-content"><div class="modal-header bg-primary text-white"><h5>บันทึกชำระเงิน</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4 text-center"><h4 id="txt-inst" class="text-primary fw-bold mb-3">งวดที่ -</h4><div class="bg-light p-3 border rounded mb-3"><small>ยอดแนะนำ</small><h3 id="txt-suggest" class="mb-0 fw-bold">0</h3></div><input type="hidden" id="hid-id"><input type="hidden" id="hid-next"><input type="hidden" id="hid-max"><div class="text-start"><label class="fw-bold">จำนวนเงินที่จ่ายจริง</label><input type="number" id="inp-amount" class="form-control form-control-lg border-primary"></div><button class="btn btn-primary w-100 btn-lg mt-3" onclick="btnSubmitPay(this)">ยืนยันบันทึก</button></div></div></div></div>
+
+<!-- Modal: เพิ่มรายชื่อ พขร. ใหม่ -->
+<div class="modal fade" id="modalAdd" tabindex="-1"><div class="modal-dialog"><div class="modal-content"><div class="modal-header bg-dark text-white"><h5>เพิ่มรายชื่อ พขร. ใหม่</h5><button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button></div><div class="modal-body p-4">
+  <div class="mb-2"><label>ชื่อ-นามสกุล</label><input type="text" id="add-name" class="form-control" list="driver-names" autocomplete="off"><datalist id="driver-names"></datalist></div>
+  <div class="mb-2"><label>ประเภทค่าค้างจ่าย</label>
+    <select id="add-finetype" class="form-select">
+      <option value="">-- เลือกประเภท --</option>
+    </select>
+  </div>
+  <div class="mb-2"><label>สถานะการปรับ</label><br>
+    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="add-collectible" id="col-yes" value="ปรับได้" checked onchange="toggleInst()"><label class="form-check-label" for="col-yes">ปรับได้</label></div>
+    <div class="form-check form-check-inline"><input class="form-check-input" type="radio" name="add-collectible" id="col-no" value="ปรับไม่ได้" onchange="toggleInst()"><label class="form-check-label" for="col-no">ปรับไม่ได้</label></div>
+  </div>
+  <div class="mb-2"><label>เส้นทาง</label><input type="text" id="add-route" class="form-control"></div>
+  <div class="mb-2"><label>วันที่เริ่ม</label><input type="date" id="add-date" class="form-control"></div>
+  <div class="row"><div class="col-6"><label>ยอดรวม (บาท)</label><input type="number" id="add-total" class="form-control"></div><div class="col-6" id="add-inst-col"><label>งวด (1-12)</label><input type="number" id="add-inst" class="form-control" value="12"></div></div>
+  <div class="mt-3 p-2 bg-light rounded small text-muted">
+    <strong>หมายเหตุ:</strong> คนเดียวกันแต่ต่างประเภท → เพิ่มได้เลย ระบบจะแยกติดตามอิสระกัน
+  </div>
+</div><div class="modal-footer"><button class="btn btn-dark w-100" onclick="btnSubmitAdd(this)">บันทึกข้อมูล</button></div></div></div></div>
+
+<!-- Modal: Import -->
+<div class="modal fade" id="modalImport" tabindex="-1"><div class="modal-dialog modal-lg"><div class="modal-content"><div class="modal-header"><h5>Import ข้อมูลหลายรายการ</h5><button type="button" class="btn-close" data-bs-dismiss="modal"></button></div><div class="modal-body p-4">
+  <p class="small text-muted">โหลด Template → กรอกในชีต <strong>Import</strong> (ดูรูปแบบได้ที่ชีต <strong>ตัวอย่าง</strong>) → อัปโหลดกลับ<br>คอลัมน์: ชื่อ-นามสกุล, เส้นทาง, วันที่เริ่ม (YYYY-MM-DD), ยอดรวม, งวด, ประเภท, ปรับได้/ปรับไม่ได้</p>
+  <button class="btn btn-outline-primary mb-3" onclick="downloadTemplate()">⬇️ โหลด Template Excel</button>
+  <input type="file" id="import-file" class="form-control" accept=".xlsx,.xls">
+</div><div class="modal-footer"><button class="btn btn-primary w-100" onclick="btnSubmitImport(this)">เริ่มการนำเข้า</button></div></div></div></div>
+
+<script>
+  let cPie, cBar, mAdd, mPay, mImport;
+  let allDriversData = [];
+  let statusFilter = 'active';
+  const TYPE_COLORS = ['primary','success','warning','danger','info','secondary','dark'];
+
+  window.onload = () => {
+    mAdd = new bootstrap.Modal(document.getElementById('modalAdd'));
+    mPay = new bootstrap.Modal(document.getElementById('modalPay'));
+    mImport = new bootstrap.Modal(document.getElementById('modalImport'));
+    loadFineTypes(() => loadData());
+  };
+
+  function loadFineTypes(callback) {
+    google.script.run.withSuccessHandler(types => {
+      const addSel = document.getElementById('add-finetype');
+      const filterSel = document.getElementById('filter-type');
+
+      types.forEach((t, i) => {
+        addSel.innerHTML += `<option value="${t}">${t}</option>`;
+        filterSel.innerHTML += `<option value="${t}">${t}</option>`;
+      });
+      if (callback) callback();
+    }).getFineTypes();
+  }
+
+  function getTypeBadgeColor(type) {
+    const types = Array.from(document.getElementById('filter-type').options)
+      .map(o => o.value).filter(v => v !== '');
+    const idx = types.indexOf(type);
+    return TYPE_COLORS[idx % TYPE_COLORS.length] || 'secondary';
+  }
+
+  function openAddModal() {
+    const names = [...new Set(allDriversData.map(d => d.name))];
+    document.getElementById('driver-names').innerHTML = names.map(n => `<option value="${n}">`).join('');
+    document.getElementById('col-yes').checked = true;
+    toggleInst();
+    mAdd.show();
+  }
+
+  // ปรับไม่ได้ = ไม่มีแผนผ่อน ซ่อนช่องงวด แล้วบังคับงวด = 1
+  function toggleInst() {
+    const non = document.getElementById('col-no').checked;
+    document.getElementById('add-inst-col').style.display = non ? 'none' : '';
+    document.getElementById('add-inst').value = non ? 1 : 12;
+  }
+
+  function loadData() {
+    google.script.run.withSuccessHandler(res => {
+      allDriversData = res.drivers;
+      applyFilter();
+      drawCharts(res);
+    }).getDashboardData();
+  }
+
+  // การ์ดสรุปแยกฝั่งปรับได้/ปรับไม่ได้ คิดยอดตามเดือนที่เลือก (ว่าง = ทั้งหมด)
+  function summarySide(arr, suffix) {
+    document.getElementById('bal-' + suffix).innerText = arr.reduce((s, d) => s + d.balance, 0).toLocaleString() + ' ฿';
+    document.getElementById('paid-' + suffix).innerText = arr.reduce((s, d) => s + d.paid, 0).toLocaleString() + ' ฿';
+    document.getElementById('cnt-' + suffix).innerText = arr.length + ' คน';
+  }
+  function updateSummary() {
+    const month = document.getElementById('filter-month').value;
+    const set = month ? allDriversData.filter(d => (d.startDate || '').slice(0, 7) === month) : allDriversData;
+    summarySide(set.filter(d => d.collectible !== 'ปรับไม่ได้'), 'yes');
+    summarySide(set.filter(d => d.collectible === 'ปรับไม่ได้'), 'no');
+  }
+
+  function renderTable(drivers, tbodyId) {
+    let html = '';
+    drivers.forEach(d => {
+      const color = d.fineType ? getTypeBadgeColor(d.fineType) : 'secondary';
+      const typeBadge = d.fineType
+        ? `<span class="type-badge bg-${color} text-white">${d.fineType}</span>`
+        : `<span class="type-badge bg-light text-muted border">ไม่ระบุ</span>`;
+      const edit = `<button class="btn btn-outline-dark btn-action me-1" onclick="btnEdit('${d.id}')">✏️</button>`;
+      let action;
+      if (d.collectible === 'ปรับไม่ได้') {
+        action = edit + `<button class="btn btn-outline-success btn-action" onclick="btnMoveBack('${d.id}')">ดึงกลับปรับได้</button>`;
+      } else {
+        const pay = d.balance > 0
+          ? `<button class="btn btn-primary btn-action me-1" onclick="btnOpenPay('${d.id}', ${d.nextInst}, ${d.suggestedAmount}, ${d.balance})">จ่ายเงิน</button>`
+          : '<span class="text-success small fw-bold me-1">ครบ</span>';
+        const move = d.balance > 0
+          ? `<button class="btn btn-outline-secondary btn-action" onclick="btnMoveNon('${d.id}', ${d.balance})">ย้ายไปปรับไม่ได้</button>`
+          : '';
+        action = edit + pay + move;
+      }
+      html += `<tr>
+        <td><div class="fw-bold">${d.name}</div><small class="text-muted">${d.route} · ${d.startDate}</small></td>
+        <td>${typeBadge}</td>
+        <td class="text-danger fw-bold">${d.balance.toLocaleString()}</td>
+        <td><small>${d.nextInst-1}/${d.totalInst}</small></td>
+        <td class="text-center">${action}</td>
+      </tr>`;
+    });
+    document.getElementById(tbodyId).innerHTML = html;
+  }
+
+  function setStatusTab(btn) {
+    statusFilter = btn.dataset.status;
+    document.querySelectorAll('#status-tabs .nav-link').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    applyFilter();
+  }
+
+  function applyFilter() {
+    const name = document.getElementById('filter-name').value.trim().toLowerCase();
+    const type = document.getElementById('filter-type').value;
+    const month = document.getElementById('filter-month').value;
+
+    const filtered = allDriversData.filter(d => {
+      if (statusFilter === 'active' && d.balance <= 0) return false;
+      if (statusFilter === 'done' && d.balance > 0) return false;
+      if (name && !d.name.toLowerCase().includes(name)) return false;
+      if (type && d.fineType !== type) return false;
+      if (month && (d.startDate || '').slice(0, 7) !== month) return false;
+      return true;
+    });
+    renderTable(filtered.filter(d => d.collectible !== 'ปรับไม่ได้'), 'table-yes');
+    renderTable(filtered.filter(d => d.collectible === 'ปรับไม่ได้'), 'table-no');
+    updateSummary();
+  }
+
+  function clearFilters() {
+    document.getElementById('filter-name').value = '';
+    document.getElementById('filter-type').value = '';
+    document.getElementById('filter-month').value = '';
+    applyFilter();
+  }
+
+  function drawCharts(res) {
+    if(cPie) cPie.destroy(); if(cBar) cBar.destroy();
+    cPie = new Chart(document.getElementById('chartPie'), {
+      type: 'doughnut', data: { labels: ['จ่ายแล้ว', 'ค้าง'], datasets: [{ data: [res.summary.totalPaid, res.summary.totalBalance], backgroundColor: ['#10b981', '#ef4444'], borderWidth: 0 }] },
+      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom' } } }
+    });
+    cBar = new Chart(document.getElementById('chartBar'), {
+      type: 'bar', data: { labels: res.topDebtors.map(d => d.name + (d.fineType ? ' ('+d.fineType+')' : '')), datasets: [{ label: 'ยอดค้าง (฿)', data: res.topDebtors.map(d => d.balance), backgroundColor: '#3b82f6', borderRadius: 8 }] },
+      options: { indexAxis: 'y', responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } } }
+    });
+  }
+
+  function btnOpenPay(id, next, suggest, max) {
+    document.getElementById('hid-id').value = id;
+    document.getElementById('hid-next').value = next;
+    document.getElementById('hid-max').value = max;
+    document.getElementById('txt-inst').innerText = "งวดที่ " + next;
+    document.getElementById('txt-suggest').innerText = suggest.toLocaleString() + " ฿";
+    document.getElementById('inp-amount').value = suggest;
+    mPay.show();
+  }
+
+  function btnEdit(id) {
+    const d = allDriversData.find(x => x.id === id);
+    if (!d) return;
+    // ponytail: ไม่ escape ค่าใน value — ชื่อ/เส้นทางที่มีเครื่องหมาย " จะทำ markup เพี้ยน เพิ่ม escape ถ้าเจอเคสนั้น
+    const typeOpts = Array.from(document.getElementById('filter-type').options)
+      .filter(o => o.value !== '')
+      .map(o => `<option ${o.value === d.fineType ? 'selected' : ''}>${o.value}</option>`).join('');
+    Swal.fire({
+      title: 'แก้ไขข้อมูล',
+      html: `
+        <input id="e-name" class="swal2-input" value="${d.name}" placeholder="ชื่อ-นามสกุล">
+        <input id="e-route" class="swal2-input" value="${d.route}" placeholder="เส้นทาง">
+        <select id="e-type" class="swal2-select">${typeOpts}</select>
+        <input id="e-total" type="number" class="swal2-input" value="${d.total}" placeholder="ยอดรวม (บาท)">
+        <input id="e-inst" type="number" min="1" max="12" class="swal2-input" value="${d.totalInst}" placeholder="งวด (1-12)">`,
+      showCancelButton: true, showDenyButton: true,
+      confirmButtonText: 'บันทึก', denyButtonText: 'ลบ', cancelButtonText: 'ยกเลิก',
+      preConfirm: () => {
+        const name = document.getElementById('e-name').value.trim();
+        const total = parseFloat(document.getElementById('e-total').value);
+        const inst = parseInt(document.getElementById('e-inst').value);
+        if (!name) { Swal.showValidationMessage('กรุณากรอกชื่อ'); return false; }
+        if (!(total >= 0)) { Swal.showValidationMessage('ยอดรวมไม่ถูกต้อง'); return false; }
+        if (!(inst >= 1 && inst <= 12)) { Swal.showValidationMessage('งวดต้องอยู่ระหว่าง 1-12'); return false; }
+        return { driverId: id, name, route: document.getElementById('e-route').value, fineType: document.getElementById('e-type').value, total, installments: inst };
+      }
+    }).then(r => {
+      if (r.isDenied) return confirmDelete(id, d.name);
+      if (!r.isConfirmed) return;
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire({ icon: 'success', title: 'แก้ไขแล้ว', timer: 1200, showConfirmButton: false });
+        loadData();
+      }).updateDriver(r.value);
+    });
+  }
+
+  function confirmDelete(id, name) {
+    Swal.fire({
+      icon: 'warning', title: 'ลบรายการนี้?',
+      html: `<b>${name}</b><br>ลบแล้วกู้คืนไม่ได้`,
+      showCancelButton: true, confirmButtonText: 'ลบ', cancelButtonText: 'ยกเลิก',
+      confirmButtonColor: '#dc3545'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire({ icon: 'success', title: 'ลบแล้ว', timer: 1200, showConfirmButton: false });
+        loadData();
+      }).deleteDriver(id);
+    });
+  }
+
+  function btnMoveNon(id, balance) {
+    Swal.fire({
+      icon: 'warning', title: 'ย้ายไปปรับไม่ได้',
+      html: `ยอดคงเหลือ <b>${balance.toLocaleString()} ฿</b> จะถูกย้ายไปกลุ่มปรับไม่ได้`,
+      showCancelButton: true, confirmButtonText: 'ย้าย', cancelButtonText: 'ยกเลิก'
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      const today = new Date().toISOString().slice(0, 10);
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire({ icon: 'success', title: 'ย้ายแล้ว', timer: 1200, showConfirmButton: false });
+        loadData();
+      }).setCollectible({ driverId: id, collectible: 'ปรับไม่ได้', date: today, note: '' });
+    });
+  }
+
+  function btnMoveBack(id) {
+    Swal.fire({
+      title: 'ดึงกลับมาปรับได้',
+      html: `<input type="date" id="sw-date" class="swal2-input">
+             <input type="number" id="sw-inst" class="swal2-input" min="1" max="12" value="12" placeholder="จำนวนงวด (1-12)">
+             <textarea id="sw-note" class="swal2-textarea" placeholder="หมายเหตุ (เช่น เจอตัวแล้ว/เริ่มหักย้อนหลัง)"></textarea>`,
+      showCancelButton: true, confirmButtonText: 'ยืนยัน', cancelButtonText: 'ยกเลิก',
+      preConfirm: () => {
+        const date = document.getElementById('sw-date').value;
+        const inst = parseInt(document.getElementById('sw-inst').value);
+        if (!date) { Swal.showValidationMessage('กรุณาเลือกวันที่ย้อนหลัง'); return false; }
+        if (!(inst >= 1 && inst <= 12)) { Swal.showValidationMessage('จำนวนงวดต้องอยู่ระหว่าง 1-12'); return false; }
+        return { date, inst, note: document.getElementById('sw-note').value };
+      }
+    }).then(r => {
+      if (!r.isConfirmed) return;
+      google.script.run.withSuccessHandler(() => {
+        Swal.fire({ icon: 'success', title: 'ดึงกลับแล้ว', timer: 1200, showConfirmButton: false });
+        loadData();
+      }).setCollectible({ driverId: id, collectible: 'ปรับได้', date: r.value.date, note: r.value.note, installments: r.value.inst });
+    });
+  }
+
+  // ponytail: disable the clicked button until the server replies — stops double-submit dupes.
+  function run(btn) {
+    btn.disabled = true;
+    return google.script.run
+      .withFailureHandler(e => { btn.disabled = false; Swal.fire('ผิดพลาด', e.message, 'error'); });
+  }
+
+  function btnSubmitPay(btn) {
+    const val = document.getElementById('inp-amount').value;
+    run(btn).withSuccessHandler(msg => {
+      btn.disabled = false;
+      Swal.fire({ icon: 'success', title: 'สำเร็จ', showConfirmButton: false, timer: 1500 });
+      mPay.hide(); loadData();
+    }).processPayment({ driverId: document.getElementById('hid-id').value, amount: val, nextInst: document.getElementById('hid-next').value });
+  }
+
+  function btnSubmitAdd(btn) {
+    const data = {
+      name: document.getElementById('add-name').value,
+      fineType: document.getElementById('add-finetype').value,
+      route: document.getElementById('add-route').value,
+      date: document.getElementById('add-date').value,
+      total: document.getElementById('add-total').value,
+      installments: document.getElementById('add-inst').value,
+      collectible: document.querySelector('input[name=add-collectible]:checked').value
+    };
+    if (!data.name || !data.fineType) {
+      Swal.fire({ icon: 'warning', title: 'กรุณากรอกข้อมูล', text: 'ชื่อและประเภทค่าค้างจ่ายจำเป็นต้องระบุ' });
+      return;
+    }
+    run(btn).withSuccessHandler(msg => {
+      btn.disabled = false;
+      Swal.fire({ icon: 'success', title: 'เพิ่มข้อมูลแล้ว', showConfirmButton: false, timer: 1500 });
+      mAdd.hide(); loadData();
+    }).addDriver(data);
+  }
+
+  function downloadTemplate() {
+    const header = ['ชื่อ-นามสกุล', 'เส้นทาง', 'วันที่เริ่ม (YYYY-MM-DD)', 'ยอดรวม', 'งวด', 'ประเภท', 'ปรับได้/ปรับไม่ได้'];
+    const wb = XLSX.utils.book_new();
+    // ชีต Import = หัวคอลัมน์เปล่าไว้กรอก (ระบบอ่านชีตแรกนี้เท่านั้น)
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([header]), 'Import');
+    // ชีตตัวอย่าง = ดูรูปแบบการกรอก ไม่ถูกนำเข้า
+    XLSX.utils.book_append_sheet(wb, XLSX.utils.aoa_to_sheet([
+      header,
+      ['สมชาย ใจดี', 'สาย1', '2026-04-21', 5000, 12, 'ค่าปรับจราจร', 'ปรับได้'],
+      ['สมหญิง รักงาน', 'สาย2', '2026-05-01', 3600, 6, 'ค่าเสียหายรถ', 'ปรับไม่ได้']
+    ]), 'ตัวอย่าง');
+    XLSX.writeFile(wb, 'import-template.xlsx');
+  }
+
+  function btnSubmitImport(btn) {
+    const file = document.getElementById('import-file').files[0];
+    if (!file) { Swal.fire('กรุณาเลือกไฟล์', '', 'warning'); return; }
+    btn.disabled = true;
+    const reader = new FileReader();
+    reader.onload = e => {
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+      const data = rows.slice(1)
+        .filter(r => r[0] && String(r[0]).trim() !== '')
+        .map(r => ({
+          name: String(r[0]).trim(), route: String(r[1] || '').trim(), date: String(r[2] || '').trim(),
+          total: String(r[3] || '').trim(), inst: String(r[4] || '').trim(), fineType: String(r[5] || '').trim(),
+          collectible: String(r[6] || '').trim() || 'ปรับได้'
+        }));
+      if (!data.length) { btn.disabled = false; Swal.fire('ไม่พบข้อมูลในไฟล์', '', 'warning'); return; }
+      google.script.run
+        .withSuccessHandler(() => {
+          btn.disabled = false;
+          Swal.fire('สำเร็จ', 'นำเข้า ' + data.length + ' รายการแล้ว', 'success');
+          mImport.hide(); document.getElementById('import-file').value = ''; loadData();
+        })
+        .withFailureHandler(err => { btn.disabled = false; Swal.fire('ผิดพลาด', err.message, 'error'); })
+        .importBulkData(data);
+    };
+    reader.readAsArrayBuffer(file);
+  }
+</script>
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+</body>
+</html>

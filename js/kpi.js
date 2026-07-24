@@ -109,13 +109,40 @@ const KPICards = (() => {
       }
     },
     {
-      id: 'collection-rate',
-      label: 'อัตราการเรียกเก็บเงิน',
-      icon: ICONS.trendUp,
-      iconClass: 'kpi-card__icon--teal',
-      getValue: (agg) => agg.collectionRate,
-      format: formatPercent,
-      getDetail: (agg) => `${formatCurrency(agg.paidCompletedAmount)} จาก ${formatCurrency(agg.totalFine)}`
+      id: 'installment-plan',
+      label: 'ผ่อนชำระ',
+      icon: ICONS.clock,
+      iconClass: 'kpi-card__icon--blue',
+      getValue: (agg) => agg.installment.totalRemainingAmount,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const cases = agg.installment.totalCases;
+        return cases > 0
+          ? `${formatNumber(cases)} เคสผ่อนชำระ`
+          : 'ยังไม่มีเคสผ่อนชำระ';
+      }
+    },
+    {
+      // "ปรับไม่ได้" รวม 2 แหล่งที่เป็นความหมายเดียวกัน (ยอดเก็บไม่ได้) เข้าด้วยกัน:
+      // (1) ค่าปรับลูกค้าที่เก็บไม่ได้ จากชีต ปรับไม่ได้(Mx) และ (2) หนี้ พขร.
+      // ที่ตัดเป็นปรับไม่ได้ จาก Drivers(Mx) — ทั้งสองกรองตามตัวกรองเดือนเดียวกัน
+      // (month_label ของ Drivers/Payments ยืนยันแล้วว่าคือเดือนปฏิทินจริง เหมือน
+      // fine_date) รายละเอียดแยกแสดง 2 บรรทัดย่อยไว้ให้เห็นที่มาชัดเจน ไม่ปนกัน
+      // แบบมองไม่ออก
+      id: 'non-collectible',
+      label: 'ปรับไม่ได้',
+      icon: ICONS.alertTriangle,
+      iconClass: 'kpi-card__icon--red',
+      getValue: (agg) => (agg.statusBreakdown.uncollectibleAmount || 0) + (agg.nonCollectibleDebt.totalAmount || 0),
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const fineCount = agg.statusBreakdown.uncollectibleCount || 0;
+        const driverCount = agg.nonCollectibleDebt.totalCases || 0;
+        const parts = [];
+        if (fineCount > 0) parts.push(`${formatNumber(fineCount)} รายการปรับ`);
+        if (driverCount > 0) parts.push(`${formatNumber(driverCount)} คน พขร.`);
+        return parts.join(' + ') || 'ไม่มีรายการปรับไม่ได้';
+      }
     }
   ];
 

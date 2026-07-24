@@ -1,0 +1,246 @@
+function doGet() {
+  return HtmlService.createTemplateFromFile("index")
+    .evaluate()
+    .setTitle("Fine Tracking System Pro v4")
+    .addMetaTag("viewport", "width=device-width, initial-scale=1")
+    .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+function getFineTypes() {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName("FineTypes");
+  if (!sheet) {
+    sheet = ss.insertSheet("FineTypes");
+    sheet.appendRow(["ประเภทค่าค้างจ่าย"]);
+    sheet.appendRow(["ค่าปรับจราจร"]);
+    sheet.appendRow(["ค่าเสียหายรถ"]);
+    sheet.appendRow(["ค่าใช้จ่ายอื่นๆ"]);
+    sheet.appendRow(["ค่าเชื้อเพลิง"]);
+    sheet.appendRow(["ค่าทางด่วน"]);
+    sheet.getRange(1, 1).setFontWeight("bold");
+    sheet.setColumnWidth(1, 200);
+  }
+  const data = sheet.getDataRange().getValues();
+  return data.slice(1).map(r => r[0]).filter(v => v !== '');
+}
+
+// สร้างชีต+หัวข้อถ้ายังไม่มี เติมเฉพาะคอลัมน์ที่ขาด (ไม่ทับหัวเดิมที่ผู้ใช้ตั้งไว้) ลำดับคอลัมน์ต้องตรงกับที่โค้ดอ่านด้วย index
+function ensureSheet(name, headers) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  let sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  headers.forEach((h, i) => {
+    const cell = sheet.getRange(1, i + 1);
+    if (!cell.getValue()) cell.setValue(h);
+  });
+  sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+  return sheet;
+}
+
+function ensureSheets() {
+  ensureSheet("Drivers", ["รหัส", "ชื่อ-นามสกุล", "เส้นทาง", "วันที่เริ่ม", "ยอดรวม", "จำนวนงวด", "ชำระแล้ว", "คงเหลือ", "สถานะ", "ประเภท", "ปรับได้/ปรับไม่ได้", "ประวัติการย้าย"]);
+  ensureSheet("Payments", ["รหัสการจ่าย", "รหัส พขร.", "งวดที่", "จำนวนเงิน", "วันที่", "ที่มา"]);
+  getFineTypes(); // FineTypes สร้างตัวเองอยู่แล้ว
+}
+
+function getDashboardData() {
+  ensureSheets();
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const driverSheet = ss.getSheetByName("Drivers");
+  const paymentSheet = ss.getSheetByName("Payments");
+  const drivers = driverSheet.getDataRange().getDisplayValues();
+  const payments = paymentSheet.getDataRange().getValues();
+
+  const data = drivers.slice(1).map((row) => {
+    const driverId = row[0];
+    const totalInst = parseInt(row[5]) || 12;
+    const balance = parseFloat(row[7]) || 0;
+    const dPayments = payments.filter((p) => p[1] == driverId);
+
+    let suggestedAmount = 0;
+    const remainingInst = totalInst - dPayments.length;
+    if (remainingInst > 0 && balance > 0)
+      suggestedAmount = Math.ceil(balance / remainingInst);
+
+    return {
+      id: driverId,
+      name: row[1],
+      route: row[2],
+      startDate: row[3],
+      total: parseFloat(row[4]),
+      paid: parseFloat(row[6]),
+      balance: balance,
+      totalInst: totalInst,
+      nextInst: dPayments.length + 1,
+      suggestedAmount: suggestedAmount,
+      status: row[8],
+      fineType: row[9] || "",
+      collectible: row[10] || "ปรับได้",
+      log: row[11] || "",
+    };
+  });
+
+  return {
+    drivers: data,
+    topDebtors: [...data]
+      .filter((d) => d.balance > 0)
+      .sort((a, b) => b.balance - a.balance)
+      .slice(0, 5),
+    summary: {
+      totalPaid: data.reduce((sum, d) => sum + d.paid, 0),
+      totalBalance: data.reduce((sum, d) => sum + d.balance, 0),
+      countActive: data.filter((d) => d.balance > 0).length,
+      countDone: data.filter((d) => d.balance <= 0).length,
+    },
+  };
+}
+
+function processPayment(p) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const driverSheet = ss.getSheetByName("Drivers");
+  const paymentSheet = ss.getSheetByName("Payments");
+  const driversData = driverSheet.getDataRange().getValues();
+  const payAmt = parseFloat(p.amount);
+
+  for (let i = 1; i < driversData.length; i++) {
+    if (driversData[i][0] == p.driverId) {
+      const totalFine = parseFloat(driversData[i][4]);
+      const currentPaid = parseFloat(driversData[i][6]) || 0;
+      const newPaid = currentPaid + payAmt;
+      const newBalance = Math.max(0, totalFine - newPaid);
+
+      paymentSheet.appendRow([
+        "P-" + new Date().getTime(),
+        p.driverId,
+        p.nextInst,
+        payAmt,
+        new Date(),
+        "WebApp",
+      ]);
+      driverSheet.getRange(i + 1, 7).setValue(newPaid);
+      driverSheet.getRange(i + 1, 8).setValue(newBalance);
+      driverSheet
+        .getRange(i + 1, 9)
+        .setValue(newBalance <= 0 ? "ชำระครบแล้ว" : "กำลังผ่อน");
+      return "Success: บันทึกงวดที่ " + p.nextInst + " เรียบร้อย";
+    }
+  }
+}
+
+function addDriver(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Drivers");
+  const id = "D-" + (sheet.getLastRow() + 100);
+  sheet.appendRow([
+    id,
+    d.name,
+    d.route,
+    d.date,
+    d.total,
+    d.installments,
+    0,
+    d.total,
+    "กำลังผ่อน",
+    d.fineType || "",
+    d.collectible || "ปรับได้",
+    "",
+  ]);
+  return "Success: เพิ่ม " + d.name + " เรียบร้อย";
+}
+
+function addMoreFine(p) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Drivers");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == p.driverId) {
+      const oldTotal = parseFloat(data[i][4]) || 0;
+      const oldBalance = parseFloat(data[i][7]) || 0;
+      sheet.getRange(i + 1, 5).setValue(oldTotal + parseFloat(p.amount));
+      sheet.getRange(i + 1, 8).setValue(oldBalance + parseFloat(p.amount));
+      sheet.getRange(i + 1, 9).setValue("กำลังผ่อน");
+      return "Success";
+    }
+  }
+}
+
+// ย้ายระหว่างปรับได้/ปรับไม่ได้ ยอดคงเหลือคงเดิม (ไม่แตะตัวเลข) แค่พลิกธง + บันทึก log
+function setCollectible(p) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Drivers");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == p.driverId) {
+      const balance = parseFloat(data[i][7]) || 0;
+      const line =
+        "[" + (p.date || "") + "] → " + p.collectible +
+        " (คงเหลือ " + balance + ")" + (p.note ? " " + p.note : "");
+      const old = data[i][11] || "";
+      sheet.getRange(i + 1, 11).setValue(p.collectible);
+      sheet.getRange(i + 1, 12).setValue(old ? old + "\n" + line : line);
+      if (p.installments) sheet.getRange(i + 1, 6).setValue(p.installments); // ตั้งแผนงวดใหม่ตอนดึงกลับ
+      return "Success";
+    }
+  }
+}
+
+// แก้ไขข้อมูลคนเดิม ยอดเปลี่ยน → คงเหลือ = ยอดใหม่ - ที่จ่ายไปแล้ว
+function updateDriver(d) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Drivers");
+  const data = sheet.getDataRange().getValues();
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][0] == d.driverId) {
+      const paid = parseFloat(data[i][6]) || 0;
+      const total = parseFloat(d.total) || 0;
+      const balance = Math.max(0, total - paid);
+      sheet.getRange(i + 1, 2).setValue(d.name);
+      sheet.getRange(i + 1, 3).setValue(d.route);
+      sheet.getRange(i + 1, 5).setValue(total);
+      sheet.getRange(i + 1, 6).setValue(d.installments);
+      sheet.getRange(i + 1, 8).setValue(balance);
+      sheet.getRange(i + 1, 9).setValue(balance <= 0 ? "ชำระครบแล้ว" : "กำลังผ่อน");
+      sheet.getRange(i + 1, 10).setValue(d.fineType);
+      return "Success";
+    }
+  }
+}
+
+// ลบ พขร. + ประวัติการจ่ายที่เกี่ยวข้องทั้งหมด (ไล่ลบจากล่างขึ้นบนกัน index เลื่อน)
+function deleteDriver(id) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const driverSheet = ss.getSheetByName("Drivers");
+  const drivers = driverSheet.getDataRange().getValues();
+  for (let i = drivers.length - 1; i >= 1; i--) {
+    if (drivers[i][0] == id) driverSheet.deleteRow(i + 1);
+  }
+  const paySheet = ss.getSheetByName("Payments");
+  const pays = paySheet.getDataRange().getValues();
+  for (let i = pays.length - 1; i >= 1; i--) {
+    if (pays[i][1] == id) paySheet.deleteRow(i + 1);
+  }
+  return "Success";
+}
+
+function importBulkData(rows) {
+  const ss = SpreadsheetApp.getActiveSpreadsheet();
+  const sheet = ss.getSheetByName("Drivers");
+  let startId = sheet.getLastRow() + 100;
+  rows.forEach((r) => {
+    sheet.appendRow([
+      "D-" + startId++,
+      r.name,
+      r.route,
+      r.date,
+      r.total,
+      r.inst,
+      0,
+      r.total,
+      "กำลังผ่อน",
+      r.fineType || "",
+      r.collectible || "ปรับได้",
+      "",
+    ]);
+  });
+  return "Success";
+}

@@ -34,6 +34,8 @@ function runCentralDataSync_() {
       var sourceSs = SpreadsheetApp.openById(cleanText_(source.id));
       var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')');
       var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label);
+      // ไม่ sync Drivers/Payments อีกต่อไป — คลังกลางเป็นแหล่งข้อมูลหลักแล้ว native UI
+      // เขียนตรงเข้าคลัง ถ้ายัง copy จากไฟล์รายเดือนจะทับข้อมูลที่เพิ่งเขียนหาย
 
       if (sumStatus) {
         processLog.push(source.label + ': สำเร็จ' + buildStatusSyncLog_(statusResults));
@@ -226,6 +228,39 @@ function doGet(e) {
       return output_(buildSyncPayload_(), callback);
     }
 
+    // ── ระบบผ่อนชำระ พขร. (Drivers/Payments) แบบ aggregate อ่านอย่างเดียว (คงไว้) ──
+    if (action === 'drivers') {
+      return output_(buildDriversPayload_(params), callback);
+    }
+
+    if (action === 'payments') {
+      return output_(buildPaymentsPayload_(params), callback);
+    }
+
+    // ── native debt UI: อ่าน+เขียน Drivers/Payments ตรงเข้าคลังกลาง (source of truth) ──
+    // ทุก action เขียนใช้ JSONP GET ได้ (พิสูจน์แล้วว่าเขียนข้าม origin ได้จริง)
+    if (action === 'debt_dashboard') {
+      return output_(buildDebtDashboardPayload_(params), callback);
+    }
+    if (action === 'debt_add') {
+      return output_(debtWrite_('add', params), callback);
+    }
+    if (action === 'debt_update') {
+      return output_(debtWrite_('update', params), callback);
+    }
+    if (action === 'debt_pay') {
+      return output_(debtWrite_('pay', params), callback);
+    }
+    if (action === 'debt_setcollectible') {
+      return output_(debtWrite_('setcollectible', params), callback);
+    }
+    if (action === 'debt_addmore') {
+      return output_(debtWrite_('addmore', params), callback);
+    }
+    if (action === 'debt_delete') {
+      return output_(debtWrite_('delete', params), callback);
+    }
+
     return output_(buildDataPayload_(params), callback);
   } catch (err) {
     return output_({
@@ -300,6 +335,13 @@ function buildDataPayload_(params) {
 
   var filteredRows = filterRowsByParams_(rows, params || {});
   var statusRows = collectStatusBreakdownRows_(spreadsheet, discovery.catalog, params || {});
+  var rawDriverRows = collectRawDebtRows_(spreadsheet, 'Drivers');
+  var driverRows = dedupeDriverRowsById_(rawDriverRows);
+  var paymentRows = collectDebtRows_(spreadsheet, 'Payments');
+
+  var alertItems = []
+    .concat(detectMonthMismatches_(rows, rawDriverRows, paymentRows))
+    .concat(detectDuplicateDriverIds_(rawDriverRows));
 
   return {
     ok: true,
@@ -308,11 +350,99 @@ function buildDataPayload_(params) {
     source: buildSourceMeta_(spreadsheet, discovery.catalog, filteredRows.length),
     rows: filteredRows,
     status_rows: statusRows,
+    debt_rows: buildDebtRowsForDashboard_(driverRows),
     metrics: summarize_(filteredRows),
     available_months: getAvailableMonthsFromRows_(rows),
     available_sheet_months: getAvailableSheetMonths_(discovery.catalog),
-    warnings: discovery.warnings
+    warnings: discovery.warnings,
+    data_quality_alerts: {
+      count: alertItems.length,
+      items: alertItems.slice(0, 50)
+    }
   };
+}
+
+// ── Driver rows แบบย่อสำหรับการ์ด KPI บน dashboard หลัก ──
+// ส่ง raw rows (พร้อม month_label) แทนยอดสรุปสำเร็จรูป เพื่อให้ frontend กรองตาม
+// ตัวกรองเดือน (selectedMonth) แบบเดียวกับข้อมูลค่าปรับทุกอย่างในระบบ — ใช้ได้เพราะ
+// ยืนยันแล้วว่า month_label ของ Drivers/Payments คือเดือนปฏิทินจริงของข้อมูลข้างใน
+// เหมือน SUM(Mx)/รอปรับ(Mx)/ปรับได้(Mx)/ปรับไม่ได้(Mx) ทุกประการ (ถ้าไม่ตรง จะโดน
+// ตรวจจับและแจ้งเตือนโดย detectMonthMismatches_ ด้านล่าง ไม่ใช่ปล่อยผ่านเงียบๆ)
+function buildDebtRowsForDashboard_(driverRows) {
+  return driverRows.map(function(row) {
+    return {
+      month_label: row.month_label,
+      total: row.total || 0,
+      paid: row.paid || 0,
+      balance: row.balance || 0,
+      collectible: row.collectible,
+      status: row.status,
+      customer: row.customer
+    };
+  });
+}
+
+function extractMonthNumberFromLabel_(label) {
+  var match = cleanText_(label).match(/M(\d{1,2})/i);
+  return match ? Number(match[1]) : null;
+}
+
+// ไม่ปิดท้ายด้วย $ เพราะ Payments คอลัมน์ "วันที่" ใช้ฟอร์แมต 'dd/mm/yyyy hh:mm'
+// (มีเวลาต่อท้าย) ต่างจาก Drivers "วันที่เริ่ม" ที่เป็น 'dd/mm/yyyy' ล้วน (ดู
+// applyDebtColumnFormats_ ใน Code.merged.gs.txt) — ถ้า anchor ท้ายไว้ จะจับ
+// Payments ไม่ได้เลยสักแถว ทำให้ตรวจ mismatch ฝั่ง Payments ไม่ทำงานจริง
+function extractMonthFromDmyText_(text) {
+  var match = cleanText_(text).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  return match ? Number(match[2]) : null;
+}
+
+// ── ตรวจจับความไม่ตรงกันระหว่าง "ชื่อไฟล์เดือน" (M6/M7/...) กับ "วันที่จริงข้างใน" ──
+// ทั้ง 3 ชุดข้อมูล (ค่าปรับ, Drivers, Payments) ควรมีวันที่จริงตรงกับเดือนของไฟล์
+// เสมอตามที่ยืนยันไว้ ถ้าไม่ตรง มักมาจาก human error ฝั่งบัญชีตอนกรอก/ย้ายชีต —
+// ไม่ silent-fix ให้ แต่ส่งกลับมาเป็น alert ให้ frontend แจ้งเตือนผู้ใช้ไปตรวจสอบ
+// ต้นทางแทน
+function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
+  var items = [];
+
+  fineRows.forEach(function(row) {
+    if (!row.fine_month || !row.source_sheet_month) return;
+    if (row.fine_month !== row.source_sheet_month) {
+      items.push({
+        source: row.source_sheet,
+        expected_month: row.source_sheet_month,
+        actual_month: row.fine_month,
+        detail: 'แถวที่ ' + row.source_row + ' (' + (row.customer || '-') + ', ' + (row.barcode || '-') + ') วันที่จริง ' + (row.fine_date_raw || '-')
+      });
+    }
+  });
+
+  driverRows.forEach(function(row) {
+    var expected = extractMonthNumberFromLabel_(row.month_label);
+    var actual = extractMonthFromDmyText_(row.start_date);
+    if (expected && actual && expected !== actual) {
+      items.push({
+        source: 'Drivers(' + row.month_label + ')',
+        expected_month: expected,
+        actual_month: actual,
+        detail: 'พขร. รหัส ' + row.id + ' วันที่เริ่ม ' + (row.start_date || '-')
+      });
+    }
+  });
+
+  paymentRows.forEach(function(row) {
+    var expected = extractMonthNumberFromLabel_(row.month_label);
+    var actual = extractMonthFromDmyText_(row.payment_date);
+    if (expected && actual && expected !== actual) {
+      items.push({
+        source: 'Payments(' + row.month_label + ')',
+        expected_month: expected,
+        actual_month: actual,
+        detail: 'รหัสจ่าย ' + row.payment_id + ' วันที่ ' + (row.payment_date || '-')
+      });
+    }
+  });
+
+  return items;
 }
 
 function collectStatusBreakdownRows_(spreadsheet, catalog, params) {
@@ -337,6 +467,504 @@ function buildSyncPayload_() {
     active_sync_count: result.active_sync_count,
     process_log: result.process_log
   };
+}
+
+/* ── ระบบผ่อนชำระ พขร. (Drivers/Payments): aggregate อ่านทุกเดือนรวมกัน ──
+   ใช้สำหรับการ์ด KPI/โดนัทบน dashboard หลัก (รวมทุกเดือน) — อ่าน Drivers(Mx)/
+   Payments(Mx) ในคลังกลางซึ่งตอนนี้ native UI เขียนตรงเข้ามาเป็น source of truth
+   (ดู NATIVE DEBT MODULE ด้านล่าง) ชุดฟังก์ชันนี้อ่านอย่างเดียว */
+
+function buildDriversPayload_(params) {
+  var spreadsheet = openBackendSpreadsheet_();
+  var rows = collectDebtRows_(spreadsheet, 'Drivers');
+  var filteredRows = filterDebtRowsByParams_(rows, params || {});
+
+  return {
+    ok: true,
+    action: 'drivers',
+    generated_at: new Date().toISOString(),
+    rows: filteredRows,
+    metrics: summarizeDrivers_(filteredRows)
+  };
+}
+
+function buildPaymentsPayload_(params) {
+  var spreadsheet = openBackendSpreadsheet_();
+  var rows = collectDebtRows_(spreadsheet, 'Payments');
+  var filteredRows = filterDebtRowsByParams_(rows, params || {});
+
+  return {
+    ok: true,
+    action: 'payments',
+    generated_at: new Date().toISOString(),
+    rows: filteredRows
+  };
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   NATIVE DEBT MODULE — อ่าน+เขียน Drivers(Mx)/Payments(Mx) ตรงเข้าคลังกลาง
+   (source of truth) ผ่าน JSONP GET actions พอร์ตตรรกะจาก Code.merged.gs.txt
+   ทุกฟังก์ชันเขียนใช้ LockService กัน race และคำนวณยอด/งวดแบบเดียวกับของเดิม
+   ══════════════════════════════════════════════════════════════════════════ */
+
+// ── month param → 'M7' (รับ '7', 'M7', 'M07', 7) ──
+function resolveDebtMonthLabel_(params) {
+  var raw = cleanText_((params && (params.month || params.month_label)) || '');
+  if (!raw) throw new Error('ต้องระบุพารามิเตอร์ month (เช่น M7)');
+  var m = raw.match(/M?0*(\d{1,2})/i);
+  if (!m) throw new Error('month ไม่ถูกต้อง: ' + raw);
+  var n = Number(m[1]);
+  if (n < 1 || n > 12) throw new Error('month ต้องอยู่ 1-12: ' + raw);
+  return 'M' + n;
+}
+
+function debtMonthNumber_(monthLabel) {
+  return Number(String(monthLabel).replace(/[^0-9]/g, ''));
+}
+
+// ── get/create ชีต Drivers(Mx)/Payments(Mx) ในคลังกลาง พร้อมหัวคอลัมน์ ──
+function getOrCreateDebtSheet_(ss, baseName, monthLabel, headers) {
+  var name = baseName + '(' + monthLabel + ')';
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+  // บังคับหัวคอลัมน์ให้ตรง schema เสมอ (row 1) — สำคัญ เพราะชีตที่เคยถูกสร้างโดย
+  // sync รุ่นเก่าอาจมีหัวคอลัมน์เก่าที่ยังไม่มี "ลูกค้า" ทำให้ path ที่อ่านด้วยชื่อ
+  // หัวคอลัมน์ (collectDebtRows_/aggregate) แม็ปคอลัมน์เพี้ยน ข้อมูล/data เขียนด้วย
+  // ตำแหน่ง index ตายตัวอยู่แล้ว การเขียนหัวให้ตรง schema จึงปลอดภัยและทำให้ทั้งสอง
+  // path (positional debt_dashboard + header-based aggregate) ตรงกันเสมอ
+  var existingHeader = sheet.getLastColumn() > 0 ? sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0] : [];
+  var needsHeader = existingHeader.length < headers.length ||
+    headers.some(function(h, i) { return cleanText_(existingHeader[i]) !== h; });
+  if (needsHeader) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+function getDebtDriversSheet_(ss, monthLabel) {
+  return getOrCreateDebtSheet_(ss, 'Drivers', monthLabel, BACKEND_CONFIG.debtSchema.drivers.headers);
+}
+
+function getDebtPaymentsSheet_(ss, monthLabel) {
+  return getOrCreateDebtSheet_(ss, 'Payments', monthLabel, BACKEND_CONFIG.debtSchema.payments.headers);
+}
+
+// อ่าน Drivers/Payments ของเดือนหนึ่งเข้า array (ไม่สร้างชีตถ้า readOnly = สำหรับ view
+// รวมทุกเดือน จะได้ไม่สร้างชีตเปล่า 12 ใบ) — คืน [] ถ้าไม่มีชีต/ว่าง
+function readDebtMonthDrivers_(ss, monthLabel, createIfMissing) {
+  var driverSheet = createIfMissing ? getDebtDriversSheet_(ss, monthLabel) : ss.getSheetByName('Drivers(' + monthLabel + ')');
+  if (!driverSheet) return [];
+  var paymentSheet = createIfMissing ? getDebtPaymentsSheet_(ss, monthLabel) : ss.getSheetByName('Payments(' + monthLabel + ')');
+
+  var driversDisplay = driverSheet.getDataRange().getDisplayValues();
+  var driversRaw = driverSheet.getDataRange().getValues();
+  var payments = paymentSheet ? paymentSheet.getDataRange().getValues() : [];
+
+  var data = [];
+  for (var i = 1; i < driversDisplay.length; i++) {
+    var row = driversDisplay[i];
+    var rawRow = driversRaw[i];
+    var driverId = cleanText_(row[0]);
+    if (!driverId) continue;
+
+    var totalInst = parseInt(row[6], 10) || 12;
+    var balance = Number(rawRow[8]) || 0;
+    var dPayments = payments.filter(function(p) { return String(p[1]) === String(driverId); });
+    var remainingInst = totalInst - dPayments.length;
+    var suggestedAmount = 0;
+    if (remainingInst > 0 && balance > 0) suggestedAmount = Math.ceil(balance / remainingInst);
+
+    data.push({
+      id: driverId, month_label: monthLabel, name: row[1], driverName: row[2] || '', route: row[3],
+      startDate: row[4], total: Number(rawRow[5]) || 0, paid: Number(rawRow[7]) || 0, balance: balance,
+      totalInst: totalInst, nextInst: dPayments.length + 1, suggestedAmount: suggestedAmount,
+      status: row[9], fineType: row[10] || '', collectible: row[11] || 'ปรับได้', log: row[12] || '', customer: row[13] || ''
+    });
+  }
+  return data;
+}
+
+// ── READ: dashboard — month = 'M7' (เดือนเดียว) หรือ 'all'/ว่าง (รวมทุกเดือน) ──
+function buildDebtDashboardPayload_(params) {
+  var monthRaw = cleanText_((params && (params.month || params.month_label)) || '');
+  var isAll = !monthRaw || monthRaw.toLowerCase() === 'all';
+  var ss = openBackendSpreadsheet_();
+
+  var data;
+  if (isAll) {
+    data = [];
+    BACKEND_CONFIG.monthlySources.forEach(function(src) {
+      Array.prototype.push.apply(data, readDebtMonthDrivers_(ss, src.label, false));
+    });
+  } else {
+    data = readDebtMonthDrivers_(ss, resolveDebtMonthLabel_(params), true);
+  }
+
+  return {
+    ok: true,
+    action: 'debt_dashboard',
+    month: isAll ? 'all' : resolveDebtMonthLabel_(params),
+    generated_at: new Date().toISOString(),
+    drivers: data,
+    customers: BACKEND_CONFIG.debtCustomers,
+    fine_types: BACKEND_CONFIG.debtFineTypes,
+    status_options: BACKEND_CONFIG.debtStatusOptions,
+    collectible_options: BACKEND_CONFIG.debtCollectibleOptions,
+    topDebtors: data.filter(function(d) { return d.balance > 0; })
+      .sort(function(a, b) { return b.balance - a.balance; }).slice(0, 5),
+    summary: {
+      totalPaid: data.reduce(function(s, d) { return s + d.paid; }, 0),
+      totalBalance: data.reduce(function(s, d) { return s + d.balance; }, 0),
+      countActive: data.filter(function(d) { return d.balance > 0; }).length,
+      countDone: data.filter(function(d) { return d.balance <= 0; }).length
+    }
+  };
+}
+
+function debtNum_(v) {
+  if (typeof v === 'number') return isFinite(v) ? v : 0;
+  var n = parseFloat(cleanText_(v).replace(/,/g, ''));
+  return isFinite(n) ? n : 0;
+}
+
+// ── WRITE dispatcher (LockService กัน race ทุก op) ──
+function debtWrite_(op, params) {
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    var monthLabel = resolveDebtMonthLabel_(params);
+    var ss = openBackendSpreadsheet_();
+    var driverSheet = getDebtDriversSheet_(ss, monthLabel);
+
+    if (op === 'add') return debtAddDriver_(driverSheet, monthLabel, params);
+    if (op === 'update') return debtUpdateDriver_(driverSheet, params);
+    if (op === 'addmore') return debtAddMore_(driverSheet, params);
+    if (op === 'setcollectible') return debtSetCollectible_(driverSheet, params);
+    if (op === 'pay') return debtPay_(ss, driverSheet, monthLabel, params);
+    if (op === 'delete') return debtDeleteDriver_(ss, driverSheet, monthLabel, params);
+    throw new Error('unknown debt op: ' + op);
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+// id ไม่ซ้ำข้ามเดือน: D-<เดือน>-<ลำดับ> เช่น D-7-101 (Payments อ้าง id นี้)
+// ห้ามใช้ getLastRow()+offset เพราะหลังลบแถว lastRow จะหด → id ซ้ำกับที่ยังอยู่
+// (ทำให้จ่าย/แก้/ลบไปโดนคนผิด) จึงหา "เลขลำดับสูงสุดที่เคยใช้ในเดือนนี้" แล้ว +1
+// ให้เป็น monotonic ไม่ย้อนกลับแม้จะลบแถวไปแล้ว
+function debtNewDriverId_(driverSheet, monthLabel) {
+  var prefix = 'D-' + debtMonthNumber_(monthLabel) + '-';
+  var lastRow = driverSheet.getLastRow();
+  var maxSeq = 100; // floor: first id becomes prefix + 101
+  if (lastRow > 1) {
+    var ids = driverSheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+    for (var i = 0; i < ids.length; i++) {
+      var id = cleanText_(ids[i][0]);
+      if (id.indexOf(prefix) === 0) {
+        var seq = parseInt(id.slice(prefix.length), 10);
+        if (isFinite(seq) && seq > maxSeq) maxSeq = seq;
+      }
+    }
+  }
+  return prefix + (maxSeq + 1);
+}
+
+function debtAddDriver_(driverSheet, monthLabel, p) {
+  var name = cleanText_(p.name);
+  var customer = cleanText_(p.customer);
+  var fineType = cleanText_(p.fineType);
+  if (!name) throw new Error('ต้องระบุชื่อผู้รับโอน');
+  if (!customer) throw new Error('ต้องระบุลูกค้า');
+  if (BACKEND_CONFIG.debtCustomers.indexOf(customer) === -1) throw new Error('ลูกค้าไม่อยู่ในรายการ: ' + customer);
+  if (!fineType) throw new Error('ต้องระบุสาเหตุ');
+
+  var total = debtNum_(p.total);
+  var collectible = cleanText_(p.collectible) || 'ปรับได้';
+  var installments = cleanText_(p.collectible) === 'ปรับไม่ได้' ? 1 : (parseInt(cleanText_(p.installments).replace(/,/g, ''), 10) || 12);
+  var id = debtNewDriverId_(driverSheet, monthLabel);
+
+  driverSheet.appendRow([
+    id, name, cleanText_(p.driverName), cleanText_(p.route), cleanText_(p.date),
+    total, installments, 0, total, 'กำลังผ่อน', fineType, collectible, '', customer
+  ]);
+  return { ok: true, action: 'debt_add', month: monthLabel, id: id, message: 'เพิ่ม ' + name + ' เรียบร้อย' };
+}
+
+function debtFindRowById_(driverSheet, driverId) {
+  var data = driverSheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === String(driverId)) return { rowIndex: i + 1, values: data[i] };
+  }
+  return null;
+}
+
+function debtUpdateDriver_(driverSheet, p) {
+  var found = debtFindRowById_(driverSheet, cleanText_(p.driverId));
+  if (!found) throw new Error('ไม่พบรหัส ' + cleanText_(p.driverId));
+  var customer = cleanText_(p.customer);
+  if (!customer) throw new Error('ต้องระบุลูกค้า');
+  if (BACKEND_CONFIG.debtCustomers.indexOf(customer) === -1) throw new Error('ลูกค้าไม่อยู่ในรายการ: ' + customer);
+
+  var paid = Number(found.values[7]) || 0;
+  var total = debtNum_(p.total);
+  var balance = Math.max(0, total - paid);
+  var r = found.rowIndex;
+  driverSheet.getRange(r, 2).setValue(cleanText_(p.name));
+  driverSheet.getRange(r, 3).setValue(cleanText_(p.driverName));
+  driverSheet.getRange(r, 4).setValue(cleanText_(p.route));
+  driverSheet.getRange(r, 6).setValue(total);
+  driverSheet.getRange(r, 7).setValue(parseInt(cleanText_(p.installments), 10) || 12);
+  driverSheet.getRange(r, 9).setValue(balance);
+  driverSheet.getRange(r, 10).setValue(balance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
+  driverSheet.getRange(r, 11).setValue(cleanText_(p.fineType));
+  driverSheet.getRange(r, 14).setValue(customer);
+  return { ok: true, action: 'debt_update', id: cleanText_(p.driverId) };
+}
+
+function debtAddMore_(driverSheet, p) {
+  var found = debtFindRowById_(driverSheet, cleanText_(p.driverId));
+  if (!found) throw new Error('ไม่พบรหัส ' + cleanText_(p.driverId));
+  var amount = debtNum_(p.amount);
+  var r = found.rowIndex;
+  var oldTotal = Number(found.values[5]) || 0;
+  var oldBalance = Number(found.values[8]) || 0;
+  driverSheet.getRange(r, 6).setValue(oldTotal + amount);
+  driverSheet.getRange(r, 9).setValue(oldBalance + amount);
+  driverSheet.getRange(r, 10).setValue('กำลังผ่อน');
+  return { ok: true, action: 'debt_addmore', id: cleanText_(p.driverId) };
+}
+
+function debtSetCollectible_(driverSheet, p) {
+  var found = debtFindRowById_(driverSheet, cleanText_(p.driverId));
+  if (!found) throw new Error('ไม่พบรหัส ' + cleanText_(p.driverId));
+  var collectible = cleanText_(p.collectible);
+  if (BACKEND_CONFIG.debtCollectibleOptions.indexOf(collectible) === -1) throw new Error('สถานะปรับไม่ถูกต้อง');
+  var r = found.rowIndex;
+  var balance = Number(found.values[8]) || 0;
+  var line = '[' + cleanText_(p.date) + '] → ' + collectible + ' (คงเหลือ ' + balance + ')' + (cleanText_(p.note) ? ' ' + cleanText_(p.note) : '');
+  var old = cleanText_(found.values[12]);
+  driverSheet.getRange(r, 12).setValue(collectible);
+  driverSheet.getRange(r, 13).setValue(old ? old + '\n' + line : line);
+  if (cleanText_(p.installments)) driverSheet.getRange(r, 7).setValue(parseInt(cleanText_(p.installments), 10));
+  return { ok: true, action: 'debt_setcollectible', id: cleanText_(p.driverId), collectible: collectible };
+}
+
+function debtPay_(ss, driverSheet, monthLabel, p) {
+  var found = debtFindRowById_(driverSheet, cleanText_(p.driverId));
+  if (!found) throw new Error('ไม่พบรหัส ' + cleanText_(p.driverId));
+  var payAmt = debtNum_(p.amount);
+  if (!(payAmt > 0)) throw new Error('จำนวนเงินไม่ถูกต้อง');
+
+  var totalFine = Number(found.values[5]) || 0;
+  var currentPaid = Number(found.values[7]) || 0;
+  var newPaid = currentPaid + payAmt;
+  var newBalance = Math.max(0, totalFine - newPaid);
+  var r = found.rowIndex;
+
+  var paymentSheet = getDebtPaymentsSheet_(ss, monthLabel);
+  paymentSheet.appendRow(['P-' + new Date().getTime(), cleanText_(p.driverId), cleanText_(p.nextInst), payAmt, new Date(), 'WebApp']);
+  driverSheet.getRange(r, 8).setValue(newPaid);
+  driverSheet.getRange(r, 9).setValue(newBalance);
+  driverSheet.getRange(r, 10).setValue(newBalance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
+  return { ok: true, action: 'debt_pay', id: cleanText_(p.driverId), new_balance: newBalance };
+}
+
+function debtDeleteDriver_(ss, driverSheet, monthLabel, p) {
+  var driverId = cleanText_(p.driverId);
+  var found = debtFindRowById_(driverSheet, driverId);
+  if (!found) throw new Error('ไม่พบรหัส ' + driverId);
+  driverSheet.deleteRow(found.rowIndex);
+
+  // ลบประวัติการจ่ายของคนนี้ด้วย (ไล่จากล่างขึ้นบนกัน index เลื่อน)
+  var paymentSheet = getDebtPaymentsSheet_(ss, monthLabel);
+  var pays = paymentSheet.getDataRange().getValues();
+  for (var i = pays.length - 1; i >= 1; i--) {
+    if (String(pays[i][1]) === String(driverId)) paymentSheet.deleteRow(i + 1);
+  }
+  return { ok: true, action: 'debt_delete', id: driverId };
+}
+
+// รหัส พขร. ควรมีแถวเดียวในทั้งระบบเสมอ (คนละความหมายกับ Payments ที่มีได้หลายแถว
+// ต่อคนตามงวด, และไม่มีฟีเจอร์ "ยกยอด/คัดลอก" ข้ามเดือนใน Code.merged.gs.txt เลย —
+// การมี id ซ้ำข้ามไฟล์เดือนจึงเป็น human error เท่านั้น) ถ้าเจอซ้ำ dedupe ที่นี่กัน
+// ไม่ให้ยอดถูกนับซ้ำในทุกจุดที่ใช้ collectDebtRows_ (dashboard, action=drivers)
+// โดยอัตโนมัติ — ส่วนการแจ้งเตือนให้ไปตรวจ/ลบที่ต้นทาง ดู detectDuplicateDriverIds_
+function collectDebtRows_(centralSpreadsheet, sheetName) {
+  var rows = collectRawDebtRows_(centralSpreadsheet, sheetName);
+  return sheetName === 'Drivers' ? dedupeDriverRowsById_(rows) : rows;
+}
+
+function collectRawDebtRows_(centralSpreadsheet, sheetName) {
+  var rows = [];
+
+  BACKEND_CONFIG.monthlySources.forEach(function(source) {
+    var sheet = centralSpreadsheet.getSheetByName(sheetName + '(' + source.label + ')');
+    if (!sheet) return;
+
+    var lastRow = sheet.getLastRow();
+    var lastColumn = sheet.getLastColumn();
+    if (lastRow <= BACKEND_CONFIG.headerRow || lastColumn === 0) return;
+
+    var rangeRowCount = lastRow - BACKEND_CONFIG.headerRow;
+    var values = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getValues();
+    var displayValues = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getDisplayValues();
+    var headerMap = resolveDebtHeaderMap_(getHeaderRow_(sheet));
+
+    for (var i = 0; i < values.length; i++) {
+      var row = normalizeDebtRow_(sheetName, values[i], displayValues[i], headerMap, source.label);
+      if (row) rows.push(row);
+    }
+  });
+
+  return rows;
+}
+
+// เลือกแถวจากไฟล์เดือนล่าสุดไว้เมื่อ id ซ้ำกัน (heuristic เดียวที่สมเหตุสมผลที่สุด:
+// ไฟล์เดือนล่าสุดมักเป็นสำเนาที่อัปเดตล่าสุด) — ไม่ได้แปลว่าถูกเสมอ จึงต้องมี alert
+// คู่กันเพื่อให้มนุษย์ไปตรวจสอบ/ลบแถวเก่าที่ต้นทางจริงด้วย
+function dedupeDriverRowsById_(rows) {
+  var latestById = {};
+
+  rows.forEach(function(row) {
+    var existing = latestById[row.id];
+    var rowMonth = extractMonthNumberFromLabel_(row.month_label) || 0;
+    var existingMonth = existing ? (extractMonthNumberFromLabel_(existing.month_label) || 0) : -1;
+    if (!existing || rowMonth > existingMonth) {
+      latestById[row.id] = row;
+    }
+  });
+
+  return Object.keys(latestById).map(function(id) {
+    return latestById[id];
+  });
+}
+
+// ── ตรวจจับรหัส พขร. ที่ปรากฏซ้ำมากกว่า 1 ไฟล์เดือน ──
+// ต้องรับ "raw" rows (ก่อน dedupe) เข้ามา ไม่งั้นจะไม่มีอะไรให้ตรวจเจอเลย เพราะ
+// collectDebtRows_ ปกติ dedupe ให้แล้วโดยอัตโนมัติ (เห็นแค่ 1 แถวต่อ id เสมอ)
+function detectDuplicateDriverIds_(rawDriverRows) {
+  var byId = {};
+  rawDriverRows.forEach(function(row) {
+    if (!byId[row.id]) byId[row.id] = [];
+    byId[row.id].push(row);
+  });
+
+  var items = [];
+  Object.keys(byId).forEach(function(id) {
+    var entries = byId[id];
+    if (entries.length < 2) return;
+
+    var months = entries.map(function(row) { return row.month_label; });
+    var kept = dedupeDriverRowsById_(entries)[0];
+
+    items.push({
+      source: 'Drivers',
+      expected_month: null,
+      actual_month: null,
+      detail: 'รหัส ' + id + ' ซ้ำกันใน ' + months.join(', ') + ' — dashboard ใช้ยอดจาก ' + kept.month_label + ' เท่านั้น รบกวนตรวจสอบและลบแถวซ้ำที่ต้นทาง'
+    });
+  });
+
+  return items;
+}
+
+function resolveDebtHeaderMap_(headers) {
+  var normalizedHeaders = headers.map(normalizeHeader_);
+  var map = {};
+
+  Object.keys(BACKEND_CONFIG.debtFieldAliases).forEach(function(field) {
+    var aliases = BACKEND_CONFIG.debtFieldAliases[field];
+    for (var i = 0; i < aliases.length; i++) {
+      var normalizedAlias = normalizeHeader_(aliases[i]);
+      var index = normalizedHeaders.indexOf(normalizedAlias);
+      if (index !== -1) {
+        map[field] = index;
+        break;
+      }
+    }
+  });
+
+  return map;
+}
+
+function normalizeDebtRow_(sheetName, values, displayValues, headerMap, monthLabel) {
+  if (sheetName === 'Drivers') {
+    var id = cleanText_(getCellByField_(values, displayValues, headerMap, 'id'));
+    if (!id) return null;
+
+    return {
+      source_type: 'Drivers',
+      month_label: monthLabel,
+      id: id,
+      receiver_name: blankToNull_(getCellByField_(values, displayValues, headerMap, 'receiver_name')),
+      driver_name: blankToNull_(getCellByField_(values, displayValues, headerMap, 'driver_name')),
+      route: blankToNull_(getCellByField_(values, displayValues, headerMap, 'route')),
+      start_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'start_date')),
+      total: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'total')),
+      installments: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'installments')),
+      paid: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'paid')),
+      balance: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'balance')),
+      status: blankToNull_(getCellByField_(values, displayValues, headerMap, 'status')),
+      reason: blankToNull_(getCellByField_(values, displayValues, headerMap, 'reason')),
+      collectible: blankToNull_(getCellByField_(values, displayValues, headerMap, 'collectible')),
+      move_log: blankToNull_(getCellByField_(values, displayValues, headerMap, 'move_log')),
+      customer: blankToNull_(getCellByField_(values, displayValues, headerMap, 'customer'))
+    };
+  }
+
+  var paymentId = cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_id'));
+  if (!paymentId) return null;
+
+  return {
+    source_type: 'Payments',
+    month_label: monthLabel,
+    payment_id: paymentId,
+    driver_id: blankToNull_(getCellByField_(values, displayValues, headerMap, 'driver_id')),
+    installment_no: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'installment_no')),
+    amount: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'amount')),
+    payment_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date')),
+    source: blankToNull_(getCellByField_(values, displayValues, headerMap, 'source'))
+  };
+}
+
+function filterDebtRowsByParams_(rows, params) {
+  var month = cleanText_(params.month);
+  var collectible = cleanText_(params.collectible);
+  var status = cleanText_(params.status);
+  var driverId = cleanText_(params.driver_id);
+
+  return rows.filter(function(row) {
+    if (month && row.month_label !== month) return false;
+    if (collectible && row.collectible !== collectible) return false;
+    if (status && row.status !== status) return false;
+    if (driverId && row.driver_id !== driverId && row.id !== driverId) return false;
+    return true;
+  });
+}
+
+function summarizeDrivers_(rows) {
+  return rows.reduce(function(summary, row) {
+    summary.count += 1;
+    summary.total_balance += row.balance || 0;
+    summary.total_paid += row.paid || 0;
+    if (row.collectible === 'ปรับได้') summary.count_collectible += 1;
+    if (row.collectible === 'ปรับไม่ได้') summary.count_non_collectible += 1;
+    if (row.status === 'ชำระครบแล้ว') {
+      summary.count_done += 1;
+    } else {
+      summary.count_active += 1;
+    }
+    return summary;
+  }, {
+    count: 0,
+    total_balance: 0,
+    total_paid: 0,
+    count_active: 0,
+    count_done: 0,
+    count_collectible: 0,
+    count_non_collectible: 0
+  });
 }
 
 function openBackendSpreadsheet_() {

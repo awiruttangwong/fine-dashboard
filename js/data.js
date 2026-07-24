@@ -579,7 +579,71 @@ const FineData = (() => {
     result.paidCompletedAmount = statusAgg.paidAmount;
     result.totalRemaining = result.totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
     result.collectionRate = result.totalFine > 0 ? (statusAgg.paidAmount / result.totalFine) * 100 : 0;
+    result.installment = getInstallmentSummary(selectedMonth);
+    result.nonCollectibleDebt = getNonCollectibleDebtSummary(selectedMonth);
+    result.driverStatusCounts = getDriverStatusCounts(selectedMonth);
     return result;
+  }
+
+  // "M7" จาก selectedMonth ("YYYY-MM") เพื่อกรอง debt_rows (month_label ของ
+  // Drivers/Payments คือเดือนปฏิทินจริงเหมือน fine_date ยืนยันแล้ว จึงกรองแบบ
+  // เดียวกับข้อมูลค่าปรับได้)
+  function monthLabelFromSelectedMonth(selectedMonth) {
+    if (!selectedMonth) return null;
+    const parts = selectedMonth.split('-');
+    if (parts.length !== 2) return null;
+    const monthNumber = parseInt(parts[1], 10);
+    if (!monthNumber) return null;
+    return 'M' + monthNumber;
+  }
+
+  function getFilteredDebtRows(selectedMonth) {
+    const rows = (lastPayload && lastPayload.debt_rows) || [];
+    const monthLabel = monthLabelFromSelectedMonth(selectedMonth);
+    if (!monthLabel) return rows;
+    return rows.filter(row => row.month_label === monthLabel);
+  }
+
+  // ยอดผ่อนชำระของ พขร. กลุ่ม "ปรับได้" (ตามตัวกรองเดือนของ dashboard หลัก
+  // เหมือนข้อมูลค่าปรับทุกอย่างในระบบ) — ไม่นับกลุ่ม "ปรับไม่ได้" เพราะเป็นคนละ
+  // ความหมาย (ดู getNonCollectibleDebtSummary ด้านล่าง)
+  function getInstallmentSummary(selectedMonth) {
+    const rows = getFilteredDebtRows(selectedMonth).filter(row => row.collectible !== 'ปรับไม่ได้');
+    return rows.reduce((summary, row) => {
+      summary.totalCases += 1;
+      summary.totalPlanAmount += row.total || 0;
+      summary.totalPaidAmount += row.paid || 0;
+      summary.totalRemainingAmount += row.balance || 0;
+      return summary;
+    }, { totalCases: 0, totalPlanAmount: 0, totalPaidAmount: 0, totalRemainingAmount: 0 });
+  }
+
+  // ยอด พขร. กลุ่ม "ปรับไม่ได้" (ตัดหนี้สูญ) — แยกจากยอดผ่อนชำระข้างบนเสมอ
+  // ตามตัวกรองเดือนเดียวกัน
+  function getNonCollectibleDebtSummary(selectedMonth) {
+    const rows = getFilteredDebtRows(selectedMonth).filter(row => row.collectible === 'ปรับไม่ได้');
+    return rows.reduce((summary, row) => {
+      summary.totalCases += 1;
+      summary.totalAmount += row.balance || 0;
+      return summary;
+    }, { totalCases: 0, totalAmount: 0 });
+  }
+
+  // จำนวนคน พขร. แยกตามสถานะ สำหรับผสานเข้าวง "สถานะการชำระเงิน" เดียวกับ
+  // fine data โดยแยก slice ชัดเจน (ไม่ปนหน่วยนับ: อันนี้คือ "จำนวนคน พขร."
+  // ไม่ใช่ "จำนวนรายการค่าปรับ" แต่ label ระบุ "(รถไม่เข้ารับงาน)" ต่อท้ายเสมอกันสับสน)
+  function getDriverStatusCounts(selectedMonth) {
+    const rows = getFilteredDebtRows(selectedMonth);
+    return rows.reduce((counts, row) => {
+      if (row.collectible === 'ปรับไม่ได้') {
+        counts.nonCollectible += 1;
+      } else if (row.status === 'ชำระครบแล้ว') {
+        counts.done += 1;
+      } else {
+        counts.active += 1;
+      }
+      return counts;
+    }, { active: 0, done: 0, nonCollectible: 0 });
   }
 
   function compareMetric(currentValue, comparisonValue) {
