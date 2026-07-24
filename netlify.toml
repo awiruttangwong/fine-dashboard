@@ -38,13 +38,7 @@
   force = true
 
 [[redirects]]
-  from = "/backup_fine_P'BOY/*"
-  to = "/index.html"
-  status = 404
-  force = true
-
-[[redirects]]
-  from = "/Dashboard*"
+  from = "/_archive/*"
   to = "/index.html"
   status = 404
   force = true
