@@ -5,6 +5,13 @@
    ============================================================ */
 
 /* ── Chart Card ── */
+/* เข้าแบบ fade "เฉพาะ opacity" (ไม่ใช้ transform: translateY เหมือน keyframe fadeIn กลาง)
+   โดยตั้งใจ — การ์ดนี้ครอบ scroll list (.ranking-scroll-list / #route-detail-list) ที่
+   เนื้อหาถูก inject ด้วย JS หลัง fetch เสร็จ (หลาย วิ หลัง animation จบ). keyframe ที่มี
+   transform + animation-fill-mode: forwards จะทิ้ง transform: translateY(0) ค้างไว้บนการ์ด
+   ซึ่งเป็น non-none transform → สร้าง compositing layer ถาวรคร่อม scroll list ทำให้ Chromium
+   บางครั้ง "ไม่ paint" แถวที่ inject เข้าไปทีหลัง (การ์ดว่างขาวทั้งที่มีข้อมูล/มี scrollbar).
+   fade แบบ opacity-only จบที่ opacity:1 ไม่เหลือ transform ค้าง → scroll list paint ปกติเสมอ */
 .chart-card {
   background: var(--color-surface);
   border-radius: var(--radius-xl);
@@ -12,8 +19,13 @@
   border: 1px solid var(--color-border-light);
   overflow: hidden;
   transition: all var(--transition-base);
-  animation: fadeIn 0.6s ease forwards;
+  animation: cardFadeIn 0.6s ease forwards;
   opacity: 0;
+}
+
+@keyframes cardFadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
 }
 
 .chart-card:nth-child(1) { animation-delay: 0.1s; }
@@ -213,6 +225,10 @@
   padding-right: var(--space-2);
   scrollbar-width: thin;
   scrollbar-color: var(--color-divider) transparent;
+  /* กัน paint bug ซ้ำ (belt-and-suspenders): promote scroller เป็น layer ของตัวเอง
+     เนื้อหาที่ inject ทีหลังจะอยู่ใน layer นี้และถูก invalidate+repaint เมื่อ innerHTML
+     เปลี่ยนเสมอ ไม่พึ่ง compositing ของ ancestor */
+  transform: translateZ(0);
 }
 
 .ranking-scroll-list::-webkit-scrollbar,
@@ -319,6 +335,8 @@
   padding-right: var(--space-2);
   scrollbar-width: thin;
   scrollbar-color: var(--color-divider) transparent;
+  /* promote scroller เป็น layer ของตัวเอง — ดู .ranking-scroll-list */
+  transform: translateZ(0);
 }
 
 .route-detail-row {
