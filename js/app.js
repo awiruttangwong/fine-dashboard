@@ -364,7 +364,7 @@ const App = (() => {
     // ── KPI Cards Skeleton ──
     const kpiGrid = document.getElementById('kpi-grid');
     if (kpiGrid) {
-      const skeletonCards = Array.from({ length: 5 }, () => `
+      const skeletonCards = Array.from({ length: 6 }, () => `
         <div class="skeleton-kpi">
           <div>
             <div class="skeleton skeleton-icon"></div>
@@ -379,7 +379,65 @@ const App = (() => {
       kpiGrid.innerHTML = skeletonCards;
     }
 
-    // ── Charts: subtitle texts are already correct in HTML, no need to overwrite ──
+    // ── Chart list-cards Skeleton ──
+    // canvas-based charts (bar/doughnut) already start as an empty, correctly-
+    // sized <canvas> via CSS, so they don't look "broken" pre-render — but these
+    // 3 list-rendered cards start with a truly empty container (no size of their
+    // own) until JS fills them, which reads as a blank/broken card while loading
+    // or during a slow/cold-start fetch. Skeleton rows reuse the exact same
+    // structural classes as the real rows (driver-rank-item / route-detail-row /
+    // status-bar-item) so their height matches the real content pixel-for-pixel
+    // — no layout shift when real data swaps in.
+    const topDriversList = document.getElementById('chart-top-drivers-list');
+    if (topDriversList) {
+      topDriversList.innerHTML = Array.from({ length: 6 }, () => `
+        <div class="driver-rank-item">
+          <div class="driver-rank-item__rank skeleton"></div>
+          <div class="driver-rank-item__info">
+            <div class="skeleton" style="width:60%;height:12px;margin-bottom:8px;"></div>
+            <div class="driver-rank-item__bar-track"><div class="skeleton" style="width:100%;height:100%;"></div></div>
+          </div>
+          <div class="skeleton" style="width:36px;height:16px;flex-shrink:0;"></div>
+        </div>
+      `).join('');
+    }
+
+    const routeDetailList = document.getElementById('route-detail-list');
+    if (routeDetailList) {
+      routeDetailList.innerHTML = Array.from({ length: 6 }, () => `
+        <div class="route-detail-row">
+          <div class="route-detail-row__route">
+            <div class="skeleton" style="width:65%;height:13px;margin-bottom:6px;"></div>
+            <div style="display:flex;gap:4px;">
+              <div class="skeleton" style="width:32px;height:14px;"></div>
+              <div class="skeleton" style="width:32px;height:14px;"></div>
+            </div>
+          </div>
+          <div class="route-detail-row__stats">
+            <div class="skeleton" style="width:44px;height:14px;margin-bottom:4px;"></div>
+            <div class="skeleton" style="width:56px;height:14px;"></div>
+          </div>
+        </div>
+      `).join('');
+    }
+
+    const routeStatusList = document.getElementById('chart-route-status-list');
+    if (routeStatusList) {
+      routeStatusList.innerHTML = Array.from({ length: 5 }, () => `
+        <div class="status-bar-item">
+          <div class="status-bar-item__header">
+            <div class="status-bar-item__label">
+              <span class="skeleton" style="width:10px;height:10px;border-radius:50%;display:inline-block;"></span>
+              <span class="skeleton" style="width:48px;height:12px;display:inline-block;margin-left:6px;"></span>
+            </div>
+            <div class="status-bar-item__values">
+              <span class="skeleton" style="width:28px;height:12px;display:inline-block;"></span>
+            </div>
+          </div>
+          <div class="status-bar-item__track"><div class="skeleton" style="width:100%;height:100%;"></div></div>
+        </div>
+      `).join('');
+    }
 
     // ── Tables Skeleton ──
     const tablesSection = document.getElementById('tables-section');

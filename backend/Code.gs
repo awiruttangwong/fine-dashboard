@@ -372,14 +372,30 @@ function buildDebtRowsForDashboard_(driverRows) {
   return driverRows.map(function(row) {
     return {
       month_label: row.month_label,
+      driver_name: row.driver_name,
+      route: row.route,
       total: row.total || 0,
       paid: row.paid || 0,
       balance: row.balance || 0,
       collectible: row.collectible,
       status: row.status,
-      customer: row.customer
+      customer: row.customer,
+      start_date: row.start_date,
+      start_date_iso: debtDmyToIso_(row.start_date)
     };
   });
+}
+
+// แปลง 'dd/mm/yyyy...' (จาก start_date ที่บังคับ number format ไว้แล้วใน
+// applyDebtDateFormat_) เป็น 'yyyy-mm-dd' ให้ frontend ใช้เป็นคีย์เดียวกับ fine_date
+// ได้ตรงกัน (สำหรับรวมยอดค่าปรับรถไม่เข้ารับงานเข้ากราฟแนวโน้มรายวัน)
+function debtDmyToIso_(text) {
+  var m = cleanText_(text).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
+  if (!m) return null;
+  var dd = ('0' + m[1]).slice(-2);
+  var mm = ('0' + m[2]).slice(-2);
+  var yyyy = m[3].length === 2 ? '20' + m[3] : m[3];
+  return yyyy + '-' + mm + '-' + dd;
 }
 
 function extractMonthNumberFromLabel_(label) {
@@ -539,7 +555,35 @@ function getOrCreateDebtSheet_(ss, baseName, monthLabel, headers) {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
     sheet.setFrozenRows(1);
   }
+  applyDebtDateFormat_(sheet, baseName, headers);
   return sheet;
+}
+
+// ── บังคับคอลัมน์วันที่ให้แสดง วว/ดด/ปปปป เสมอ ไม่ขึ้นกับ locale ของสเปรดชีต ──
+// สำคัญ: extractMonthFromDmyText_ อ่านฟิลด์ที่ 2 เป็น "เดือน" (คาดหวัง dd/mm/yyyy)
+// ถ้าปล่อยให้ cell วันที่เป็น Date ที่ render ตาม locale (บางเครื่องได้ m/d/yyyy)
+// parser จะอ่าน "วัน" เป็น "เดือน" เพี้ยน (เช่น 7/27/2026 → เดือน 27) — ตั้ง number
+// format ตายตัวจึงกันปัญหาทั้งฝั่งแสดงผลในชีตและฝั่งตรวจ mismatch
+//   Drivers "วันที่เริ่ม" = dd/mm/yyyy | Payments "วันที่" = dd/mm/yyyy hh:mm (มีเวลา)
+function applyDebtDateFormat_(sheet, baseName, headers) {
+  var maxRows = sheet.getMaxRows();
+  if (maxRows < 2) return;
+  var dateHeader = baseName === 'Payments' ? 'วันที่' : 'วันที่เริ่ม';
+  var dateCol = headers.indexOf(dateHeader) + 1; // 1-based; 0 = ไม่พบ
+  if (dateCol < 1) return;
+  var fmt = baseName === 'Payments' ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy';
+  sheet.getRange(2, dateCol, maxRows - 1, 1).setNumberFormat(fmt);
+}
+
+// แปลง 'YYYY-MM-DD' (จาก <input type=date> ฝั่ง frontend) เป็น Date object เพื่อให้
+// number format dd/mm/yyyy มีผล — สร้างจากส่วนประกอบด้วย new Date(y, m-1, d) กันปัญหา
+// timezone (new Date('2026-06-05') = UTC เที่ยงคืน อาจเลื่อนวันในบาง tz) ถ้าค่าไม่ใช่
+// ISO (ว่าง หรือส่งมาเป็น dd/mm/yyyy อยู่แล้ว) คืนค่าเดิมเป็น text ไม่ดัดแปลง
+function parseDebtDate_(v) {
+  var s = cleanText_(v);
+  var m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})$/);
+  if (!m) return s;
+  return new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3]));
 }
 
 function getDebtDriversSheet_(ss, monthLabel) {
@@ -570,15 +614,28 @@ function readDebtMonthDrivers_(ss, monthLabel, createIfMissing) {
 
     var totalInst = parseInt(row[6], 10) || 12;
     var balance = Number(rawRow[8]) || 0;
+    var total = Number(rawRow[5]) || 0;
+    var paid = Number(rawRow[7]) || 0;
     var dPayments = payments.filter(function(p) { return String(p[1]) === String(driverId); });
     var remainingInst = totalInst - dPayments.length;
     var suggestedAmount = 0;
     if (remainingInst > 0 && balance > 0) suggestedAmount = Math.ceil(balance / remainingInst);
 
+    // "คืบหน้า" (paidInstallments) ต้องสื่อความหมายเป็น "จ่ายไปแล้วกี่งวดเทียบเป็นยอดเงิน"
+    // ไม่ใช่ "จ่ายมากี่ครั้ง" (nextInst-1) — เพราะถ้าผู้ใช้จ่ายยอดไม่ตรงงวดแนะนำ (จ่าย
+    // ก้อนเดียวจบ/จ่ายย่อยเกินจำนวนงวด) ตัวนับครั้งจะเพี้ยนจากยอดเงินจริง (เช่น จ่ายครบ
+    // ในทีเดียวจะค้างที่ 1/N ทั้งที่ควรเป็น N/N) — คำนวณจากสัดส่วนยอดที่จ่ายจริงต่อยอด
+    // ต่องวด (total/totalInst) แทน แล้ว cap ไม่ให้เกิน totalInst (จ่ายเกินงวดที่ตั้งไว้ก็ยัง
+    // แสดงไม่เกิน N/N) และบังคับเป็น N/N เสมอเมื่อ balance<=0 กันปัดเศษหลุดกรอบ
+    var installmentUnit = totalInst > 0 ? (total / totalInst) : 0;
+    var paidInstallments = installmentUnit > 0 ? Math.round(paid / installmentUnit) : 0;
+    paidInstallments = Math.max(0, Math.min(totalInst, paidInstallments));
+    if (balance <= 0 && total > 0) paidInstallments = totalInst;
+
     data.push({
       id: driverId, month_label: monthLabel, name: row[1], driverName: row[2] || '', route: row[3],
-      startDate: row[4], total: Number(rawRow[5]) || 0, paid: Number(rawRow[7]) || 0, balance: balance,
-      totalInst: totalInst, nextInst: dPayments.length + 1, suggestedAmount: suggestedAmount,
+      startDate: row[4], total: total, paid: paid, balance: balance,
+      totalInst: totalInst, nextInst: dPayments.length + 1, paidInstallments: paidInstallments, suggestedAmount: suggestedAmount,
       status: row[9], fineType: row[10] || '', collectible: row[11] || 'ปรับได้', log: row[12] || '', customer: row[13] || ''
     });
   }
@@ -685,7 +742,7 @@ function debtAddDriver_(driverSheet, monthLabel, p) {
   var id = debtNewDriverId_(driverSheet, monthLabel);
 
   driverSheet.appendRow([
-    id, name, cleanText_(p.driverName), cleanText_(p.route), cleanText_(p.date),
+    id, name, cleanText_(p.driverName), cleanText_(p.route), parseDebtDate_(p.date),
     total, installments, 0, total, 'กำลังผ่อน', fineType, collectible, '', customer
   ]);
   return { ok: true, action: 'debt_add', month: monthLabel, id: id, message: 'เพิ่ม ' + name + ' เรียบร้อย' };

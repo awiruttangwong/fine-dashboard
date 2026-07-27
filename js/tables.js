@@ -540,6 +540,7 @@ const Tables = (() => {
           title: 'รายการปรับ',
           rowCountLabel: 'รายการปรับ',
           rowCountValue: summaryItemCount,
+          summaryNote: 'รายการปรับจากสาเหตุ ค่ายยกเลิก ตกเวลาต้นทาง ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ',
           searchPlaceholder: 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
         })}
       </div>

@@ -559,7 +559,7 @@ const FineData = (() => {
       }
 
       if (row.fine_date) {
-        if (!result.dailyTrend[row.fine_date]) result.dailyTrend[row.fine_date] = { count: 0, fineTotal: 0 };
+        if (!result.dailyTrend[row.fine_date]) result.dailyTrend[row.fine_date] = { count: 0, fineTotal: 0, debtTotal: 0, debtCount: 0 };
         result.dailyTrend[row.fine_date].count++;
         result.dailyTrend[row.fine_date].fineTotal += row.fine_amount || 0;
       }
@@ -582,6 +582,22 @@ const FineData = (() => {
     result.installment = getInstallmentSummary(selectedMonth);
     result.nonCollectibleDebt = getNonCollectibleDebtSummary(selectedMonth);
     result.driverStatusCounts = getDriverStatusCounts(selectedMonth);
+
+    // ผสานค่าปรับรถไม่เข้ารับงานเข้ากับข้อมูลค่าปรับปกติ — วนแถวหนี้รอบเดียวทำ 2 อย่าง
+    // (คนละชุดข้อมูลกับค่าปรับปกติเสมอ ยืนยันแล้วว่าไม่กรอกซ้ำ 2 ที่ จึงรวมได้ไม่ทับซ้อน):
+    //   1) นับ พขร. เข้าอันดับเดียวกับค่าปรับปกติ (นับทุกแถว ไม่ผูกกับวันที่)
+    //   2) รวมยอดเข้ากราฟแนวโน้มรายวัน โดยใช้ start_date (วันเริ่มก่อหนี้) เทียบ fine_date
+    //      — เฉพาะแถวที่มี start_date_iso เท่านั้น (ต้องนับข้อ 1 ก่อน return ข้อ 2 เสมอ)
+    getFilteredDebtRows(selectedMonth).forEach(row => {
+      const driverKey = row.driver_name || '(ไม่ระบุ)';
+      result.driverCounts[driverKey] = (result.driverCounts[driverKey] || 0) + 1;
+
+      if (!row.start_date_iso) return;
+      if (!result.dailyTrend[row.start_date_iso]) result.dailyTrend[row.start_date_iso] = { count: 0, fineTotal: 0, debtTotal: 0, debtCount: 0 };
+      result.dailyTrend[row.start_date_iso].debtTotal += row.total || 0;
+      result.dailyTrend[row.start_date_iso].debtCount++;
+    });
+
     return result;
   }
 
@@ -607,15 +623,21 @@ const FineData = (() => {
   // ยอดผ่อนชำระของ พขร. กลุ่ม "ปรับได้" (ตามตัวกรองเดือนของ dashboard หลัก
   // เหมือนข้อมูลค่าปรับทุกอย่างในระบบ) — ไม่นับกลุ่ม "ปรับไม่ได้" เพราะเป็นคนละ
   // ความหมาย (ดู getNonCollectibleDebtSummary ด้านล่าง)
+  // แยกตาม status เป็น "กำลังผ่อน" (active) กับ "ชำระครบแล้ว" (done) เสมอ เพื่อไม่ให้
+  // จำนวนรายการที่จบผ่อนแล้วปนเข้ามาทำให้เข้าใจผิดว่ายังมีรายการค้างอยู่เท่านั้น —
+  // แยกเป็น 2 การ์ด KPI (กำลังผ่อน / ผ่อนเสร็จแล้ว) จึงต้องมียอดเงินหลักของตัวเอง
+  // ทั้งคู่: totalRemainingAmount (คงเหลือของกลุ่ม active) และ doneAmount (ยอดที่
+  // เก็บได้แล้วจากกลุ่ม done — ใช้ paid ไม่ใช่ total เพราะสื่อ "เก็บเงินได้จริงเท่าไหร่")
   function getInstallmentSummary(selectedMonth) {
     const rows = getFilteredDebtRows(selectedMonth).filter(row => row.collectible !== 'ปรับไม่ได้');
-    return rows.reduce((summary, row) => {
-      summary.totalCases += 1;
-      summary.totalPlanAmount += row.total || 0;
-      summary.totalPaidAmount += row.paid || 0;
-      summary.totalRemainingAmount += row.balance || 0;
-      return summary;
-    }, { totalCases: 0, totalPlanAmount: 0, totalPaidAmount: 0, totalRemainingAmount: 0 });
+    const activeRows = rows.filter(row => row.status === 'กำลังผ่อน');
+    const doneRows = rows.filter(row => row.status !== 'กำลังผ่อน');
+    return {
+      activeCases: activeRows.length,
+      doneCases: doneRows.length,
+      totalRemainingAmount: activeRows.reduce((sum, row) => sum + (row.balance || 0), 0),
+      doneAmount: doneRows.reduce((sum, row) => sum + (row.paid || 0), 0)
+    };
   }
 
   // ยอด พขร. กลุ่ม "ปรับไม่ได้" (ตัดหนี้สูญ) — แยกจากยอดผ่อนชำระข้างบนเสมอ
@@ -920,6 +942,7 @@ const FineData = (() => {
     getAggregates,
     getComparisonModel,
     getYearlyComparisonModel,
+    getFilteredDebtRows,
     getDuplicateBarcodeRows,
     getMismatchRows,
     getMissingDataRows,

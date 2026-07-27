@@ -32,7 +32,8 @@
 #kpi-total-fine,
 #kpi-paid-amount,
 #kpi-remaining-amount,
-#kpi-installment-plan,
+#kpi-installment-active,
+#kpi-installment-done,
 #kpi-non-collectible {
   background: var(--color-surface-alt);
   border-color: var(--color-border);
@@ -40,7 +41,8 @@
 #kpi-total-fine:hover,
 #kpi-paid-amount:hover,
 #kpi-remaining-amount:hover,
-#kpi-installment-plan:hover,
+#kpi-installment-active:hover,
+#kpi-installment-done:hover,
 #kpi-non-collectible:hover {
   border-color: var(--color-border);
   box-shadow: var(--shadow-card-hover);
@@ -52,6 +54,7 @@
 .kpi-card:nth-child(3) { animation-delay: 0.15s; }
 .kpi-card:nth-child(4) { animation-delay: 0.20s; }
 .kpi-card:nth-child(5) { animation-delay: 0.25s; }
+.kpi-card:nth-child(6) { animation-delay: 0.30s; }
 
 .kpi-card:hover {
   transform: translateY(-5px);
@@ -117,6 +120,10 @@
   background: linear-gradient(135deg, #4A9FDB, #5856D6);
   box-shadow: 0 4px 16px rgba(90, 200, 250, 0.40);
 }
+.kpi-card__icon--mint {
+  background: linear-gradient(135deg, #00C7BE, #34C759);
+  box-shadow: 0 4px 16px rgba(0, 199, 190, 0.40);
+}
 
 /* Override remaining-amount icon → orange-to-red */
 #kpi-remaining-amount .kpi-card__icon--orange {
@@ -179,7 +186,8 @@
 #kpi-total-fine .kpi-card__value-suffix             { color: #FF3B30; }
 #kpi-paid-amount .kpi-card__value-suffix            { color: #34C759; }
 #kpi-remaining-amount .kpi-card__value-suffix       { color: #FF7000; }
-#kpi-installment-plan .kpi-card__value-suffix       { color: #4A9FDB; }
+#kpi-installment-active .kpi-card__value-suffix     { color: #4A9FDB; }
+#kpi-installment-done .kpi-card__value-suffix       { color: #00C7BE; }
 #kpi-non-collectible .kpi-card__value-suffix        { color: #FF3B30; }
 
 .kpi-card__value--small {
@@ -226,10 +234,15 @@
   border-color: rgba(255, 100, 0, 0.18);
   color: #a06300;
 }
-#kpi-installment-plan .kpi-card__detail:not(:empty) {
+#kpi-installment-active .kpi-card__detail:not(:empty) {
   background: rgba(74, 159, 219, 0.06);
   border-color: rgba(74, 159, 219, 0.18);
   color: #2271b8;
+}
+#kpi-installment-done .kpi-card__detail:not(:empty) {
+  background: rgba(0, 199, 190, 0.08);
+  border-color: rgba(0, 199, 190, 0.22);
+  color: #0a8f88;
 }
 #kpi-non-collectible .kpi-card__detail:not(:empty) {
   background: rgba(255, 59, 48, 0.06);

@@ -380,8 +380,11 @@ const Charts = (() => {
     if (!canvas) return;
 
     const dates = Object.keys(aggregates.dailyTrend).sort();
-    const amounts = dates.map(d => aggregates.dailyTrend[d].fineTotal);
-    const counts = dates.map(d => aggregates.dailyTrend[d].count);
+    const fineAmounts = dates.map(d => aggregates.dailyTrend[d].fineTotal || 0);
+    const debtAmounts = dates.map(d => aggregates.dailyTrend[d].debtTotal || 0);
+    const amounts = dates.map((d, i) => fineAmounts[i] + debtAmounts[i]);
+    const counts = dates.map(d => aggregates.dailyTrend[d].count || 0);
+    const debtCounts = dates.map(d => aggregates.dailyTrend[d].debtCount || 0);
     const labels = dates.map(d => {
       const parts = d.split('-');
       const dayVal = parseInt(parts[2]);
@@ -394,7 +397,7 @@ const Charts = (() => {
     if (subtitleEl) {
       const selectedMonthLabel = formatMonthLabel(selectedMonth || (dates[0] ? dates[0].slice(0, 7) : ''));
       if (dates.length > 0 && selectedMonthLabel) {
-        subtitleEl.textContent = `ยอดค่าปรับสะสมรายวัน ประจำเดือน${selectedMonthLabel}`;
+        subtitleEl.textContent = `ยอดค่าปรับสะสมรายวัน ประจำเดือน${selectedMonthLabel} (รวมค่าปรับรถไม่เข้ารับงาน)`;
       } else if (selectedMonthLabel) {
         subtitleEl.textContent = `ไม่มีข้อมูลสำหรับเดือน${selectedMonthLabel}`;
       } else {
@@ -404,6 +407,24 @@ const Charts = (() => {
 
     ensureDailyTrendLegend(canvas);
 
+    // แยกรายละเอียดยอดปกติ/ยอดค่าปรับรถไม่เข้ารับงานใน tooltip เท่านั้น — ตัวแท่งกราฟ
+    // และ pill ค่ายอดด้านบนยังคงเป็นยอดรวมค่าเดียว (ตามที่ตกลง) ไม่แตกสี/แตกแท่ง
+    const buildTooltipCallbacks = () => ({
+      title: (items) => {
+        const index = items?.[0]?.dataIndex ?? 0;
+        return formatThaiDateLabel(dates[index]);
+      },
+      label: (tooltipCtx) => `  ยอดปรับรวม: ${formatCurrency(tooltipCtx.raw)}`,
+      afterLabel: (tooltipCtx) => {
+        const i = tooltipCtx.dataIndex;
+        const lines = [`  ค่าปรับปกติ: ${formatCurrency(fineAmounts[i])} (${counts[i]} รายการ)`];
+        if (debtAmounts[i] > 0) {
+          lines.push(`  ค่าปรับรถไม่เข้ารับงาน: ${formatCurrency(debtAmounts[i])} (${debtCounts[i]} รายการ)`);
+        }
+        return lines;
+      }
+    });
+
     const ctx = canvas.getContext('2d');
     const barGrad = getBarGradient(ctx);
     const existingChart = chartInstances['dailyTrend'];
@@ -412,14 +433,7 @@ const Charts = (() => {
       existingChart.data.labels = labels;
       existingChart.data.datasets[0].data = amounts;
       existingChart.data.datasets[0].backgroundColor = barGrad;
-      existingChart.options.plugins.tooltip.callbacks = {
-        title: (items) => {
-          const index = items?.[0]?.dataIndex ?? 0;
-          return formatThaiDateLabel(dates[index]);
-        },
-        label: (tooltipCtx) => `  ยอดปรับ: ${formatCurrency(tooltipCtx.raw)}`,
-        afterLabel: (tooltipCtx) => `  จำนวนรายการ: ${counts[tooltipCtx.dataIndex] || 0} รายการ`
-      };
+      existingChart.options.plugins.tooltip.callbacks = buildTooltipCallbacks();
       existingChart.update('none');
       return;
     }
@@ -478,14 +492,7 @@ const Charts = (() => {
           ...baseOptions.plugins,
           tooltip: {
             ...baseOptions.plugins.tooltip,
-            callbacks: {
-              title: (items) => {
-                const index = items?.[0]?.dataIndex ?? 0;
-                return formatThaiDateLabel(dates[index]);
-              },
-              label: (tooltipCtx) => `  ยอดปรับ: ${formatCurrency(tooltipCtx.raw)}`,
-              afterLabel: (tooltipCtx) => `  จำนวนรายการ: ${counts[tooltipCtx.dataIndex] || 0} รายการ`
-            }
+            callbacks: buildTooltipCallbacks()
           }
         }
       }
@@ -574,7 +581,12 @@ const Charts = (() => {
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10);
 
-    const maxCount = sorted.length > 0 ? sorted[0][1] : 1;
+    if (sorted.length === 0) {
+      setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่มีข้อมูล พขร. ที่ถูกปรับสำหรับเดือนนี้</div></div>`);
+      return;
+    }
+
+    const maxCount = sorted[0][1];
 
     const html = sorted.map(([name, count], i) => {
       const pct = (count / maxCount) * 100;
@@ -720,7 +732,7 @@ const Charts = (() => {
       'ปรับไม่ได้': COLORS.red,
       'กำลังผ่อน (รถไม่เข้ารับงาน)': COLORS.indigo,
       'ชำระครบแล้ว (รถไม่เข้ารับงาน)': COLORS.mint,
-      'ปรับไม่ได้ (รถไม่เข้ารับงาน)': COLORS.pink
+      'ปรับไม่ได้ (รถไม่เข้ารับงาน)': COLORS.orange
     };
     const breakdown = aggregates.statusBreakdown || {};
     const driverCounts = aggregates.driverStatusCounts || {};
@@ -792,7 +804,7 @@ const Charts = (() => {
   }
 
   // ── 7. Full Route Table (NEW — shows complete route strings) ──
-  function renderFullRoutes(filteredData) {
+  function renderFullRoutes(filteredData, selectedMonth) {
     const container = document.getElementById('route-detail-list');
     if (!container) return;
 
@@ -806,6 +818,7 @@ const Charts = (() => {
           vehicle: row.vehicle_type || '-',
           time: row.route_time || '-',
           status: row.route_status,
+          isDebt: false,
           count: 0,
           totalFine: 0
         };
@@ -814,15 +827,46 @@ const Charts = (() => {
       routeCounts[row.route_raw].totalFine += row.fine_amount;
     });
 
+    // รวมเส้นทางจากค่าปรับรถไม่เข้ารับงานเข้าลิสต์เดียวกัน — คีย์แยกด้วย prefix
+    // "debt:" กันชนกับ route_raw ปกติที่อาจซ้ำข้อความกันโดยบังเอิญ (คนละชุดข้อมูล
+    // คนละความหมาย ไม่ควรถูกนับรวมเป็นแถวเดียวกัน) ยืนยันแล้วว่าเป็นข้อมูลคนละชุดกับ
+    // ค่าปรับปกติเสมอ จึงนับจำนวน/รวมยอดแยกกันได้โดยไม่ทับซ้อน
+    FineData.getFilteredDebtRows(selectedMonth).forEach(row => {
+      if (!row.route) return;
+      const key = 'debt:' + row.route;
+      if (!routeCounts[key]) {
+        routeCounts[key] = {
+          route: row.route,
+          group: null,
+          vehicle: '-',
+          time: '-',
+          status: null,
+          isDebt: true,
+          count: 0,
+          totalFine: 0
+        };
+      }
+      routeCounts[key].count++;
+      routeCounts[key].totalFine += row.total || 0;
+    });
+
     const sorted = Object.values(routeCounts).sort((a, b) => b.count - a.count);
+
+    if (sorted.length === 0) {
+      setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่มีข้อมูลเส้นทางสำหรับเดือนนี้</div></div>`);
+      return;
+    }
+
     const html = sorted.map(r => {
+      const metaTags = r.isDebt
+        ? `<span class="route-meta-tag">ค่าปรับรถไม่เข้ารับงาน</span>`
+        : `${r.vehicle !== '-' ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : ''}${r.status && r.status !== 'needs_review' ? `<span class="route-meta-tag route-meta-tag--status">${escapeHtml(r.status)}</span>` : ''}`;
       return `
         <div class="route-detail-row">
           <div class="route-detail-row__route">
             <code class="route-detail-row__path">${escapeHtml(r.route)}</code>
             <div class="route-detail-row__meta">
-              ${r.vehicle !== '-' ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : ''}
-              <span class="route-meta-tag route-meta-tag--status">${escapeHtml(r.status)}</span>
+              ${metaTags}
             </div>
           </div>
           <div class="route-detail-row__stats">
@@ -842,7 +886,7 @@ const Charts = (() => {
     renderCustomerChart(aggregates);
     renderTopDrivers(aggregates);
     renderPaymentStatus(aggregates);
-    renderFullRoutes(filteredData || FineData.getAll());
+    renderFullRoutes(filteredData || FineData.getAll(), filters.selectedMonth);
   }
 
   function updateAll(aggregates, filteredData, filters = {}) {

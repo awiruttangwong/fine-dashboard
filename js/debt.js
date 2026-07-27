@@ -42,19 +42,27 @@ const DebtTracker = (() => {
   function fmtDate(v) { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || ''); }
 
   // ── data ──
+  // ป้องกัน race: ถ้าผู้ใช้สลับเดือนเร็ว ๆ (หรือสลับก่อน load แรกจะกลับมา) คำขอหลาย
+  // อันจะวิ่งพร้อมกัน ตัวที่ตอบกลับ "ช้าสุด" อาจไม่ใช่ "คำขอล่าสุด" — ผูก seq ให้ทุก
+  // load แล้วรับเฉพาะผลของคำขอล่าสุดเท่านั้น กันตารางแสดงข้อมูลเดือนผิดกับ dropdown
+  let loadSeq = 0;
   async function load(silent) {
+    const seq = ++loadSeq;
+    const reqMonth = state.month;
     if (!silent) renderInto('debt-groups', '<div class="debt-loading">กำลังโหลดข้อมูล…</div>');
     let res;
     try {
-      res = await jsonp({ action: 'debt_dashboard', month: state.month });
+      res = await jsonp({ action: 'debt_dashboard', month: reqMonth });
       if (!res || res.ok === false) throw new Error((res && res.error) || 'โหลดข้อมูลไม่สำเร็จ');
     } catch (err) {
+      if (seq !== loadSeq) return; // มี load ใหม่กว่าเข้ามาแล้ว — ทิ้ง error ของคำขอเก่า
       if (!silent) {
         renderInto('debt-groups', '<div class="debt-error">โหลดข้อมูลไม่สำเร็จ: ' + esc(err.message) + '<br><br><button class="btn btn-primary" id="debt-retry">ลองใหม่</button></div>');
         const r = document.getElementById('debt-retry'); if (r) r.onclick = () => load(false);
       } else toast('รีเฟรชไม่สำเร็จ: ' + err.message, 'error');
       return;
     }
+    if (seq !== loadSeq) return; // คำขอนี้ถูกแทนที่ด้วย load ที่ใหม่กว่าแล้ว — ไม่ apply ผลเก่า
     state.drivers = res.drivers || [];
     if (Array.isArray(res.customers) && res.customers.length) state.customers = res.customers;
     state.fineTypes = res.fine_types || [];
@@ -162,6 +170,11 @@ const DebtTracker = (() => {
     const yes = all.filter(d => d.collectible !== 'ปรับไม่ได้');
     const no = all.filter(d => d.collectible === 'ปรับไม่ได้');
     const sum = (a, k) => a.reduce((s, d) => s + (d[k] || 0), 0);
+    // "ยอดปรับรวมทั้งหมด" หักยอดคงเหลือของกลุ่ม "ปรับไม่ได้" ออก เพราะยอดนั้นเก็บไม่ได้จริง
+    // สูตร: sum(all,total) - sum(no,balance) = sum(yes,total) + sum(no,paid)
+    //   → กลุ่มปรับได้นับเต็มยอด, กลุ่มปรับไม่ได้นับเฉพาะที่จ่ายมาแล้ว (ส่วนคงเหลือคือส่วนที่สูญ)
+    // เมื่อกด "ดึงกลับปรับได้" แถวนั้นย้ายจาก no→yes (backend เก็บ total/paid/balance ไว้เดิม
+    // แค่พลิก flag) ยอด balance ที่เคยถูกหักออกจึงไหลกลับเข้ายอดรวมโดยอัตโนมัติเมื่อ re-render
     el.innerHTML = `
       <div class="stat-card">
         <div class="stat-card__head">
@@ -169,10 +182,10 @@ const DebtTracker = (() => {
             <span class="stat-card__icon stat-card__icon--accent"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg></span>
             ยอดปรับรวม
           </div>
-          <span class="pill pill--muted">${all.length} คน</span>
+          <span class="pill pill--muted">${all.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
-          <div><span class="stat-card__metric-label">ยอดปรับรวมทั้งหมด</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ยอดปรับรวมทั้งหมด</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - sum(no, 'balance'))} ฿</span></div>
         </div>
       </div>
       <div class="stat-card">
@@ -181,11 +194,11 @@ const DebtTracker = (() => {
             <span class="stat-card__icon stat-card__icon--green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
             ปรับได้
           </div>
-          <span class="pill pill--green">${yes.length} คน</span>
+          <span class="pill pill--green">${yes.length} รายการ</span>
         </div>
         <div class="stat-card__metrics">
           <div><span class="stat-card__metric-label">ยอดคงเหลือ</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(yes, 'balance'))} ฿</span></div>
-          <div><span class="stat-card__metric-label">ชำระแล้ว</span><span class="stat-card__metric-value stat-card__metric-value--success">${num(sum(yes, 'paid'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ชำระค่าปรับแล้ว</span><span class="stat-card__metric-value stat-card__metric-value--success">${num(sum(yes, 'paid'))} ฿</span></div>
         </div>
       </div>
       <div class="stat-card stat-card--danger">
@@ -194,7 +207,7 @@ const DebtTracker = (() => {
             <span class="stat-card__icon stat-card__icon--danger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></span>
             ปรับไม่ได้
           </div>
-          <span class="pill pill--danger">${no.length} คน</span>
+          <span class="pill pill--danger">${no.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
           <div><span class="stat-card__metric-label">ยอดปรับไม่ได้</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(no, 'balance'))} ฿</span></div>
@@ -234,7 +247,7 @@ const DebtTracker = (() => {
       </td>
       <td class="cell-center">${badge}</td>
       <td class="cell-balance">${num(d.balance)}</td>
-      <td class="cell-progress"><small>${Math.max(0, d.nextInst - 1)}/${d.totalInst}</small></td>
+      <td class="cell-progress"><small>${d.paidInstallments}/${d.totalInst}</small></td>
       <td><div class="cell-actions">${actions}</div></td>
     </tr>`;
   }

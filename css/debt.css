@@ -36,7 +36,6 @@
 #debt-view .stat-card__icon--green  { background: linear-gradient(135deg,#34C759,#00C7BE); box-shadow: 0 4px 14px rgba(52,199,89,.35); }
 #debt-view .stat-card__icon--danger { background: linear-gradient(135deg,#FF3B30,#FF7066); box-shadow: 0 4px 14px rgba(255,59,48,.35); }
 #debt-view .stat-card__icon--accent { background: linear-gradient(135deg,#4A9FDB,#5AC8FA); box-shadow: 0 4px 14px rgba(74,159,219,.35); }
-#debt-view .stat-card--danger { background: rgba(255,59,48,.04); border-color: rgba(255,59,48,.20); }
 #debt-view .stat-card__metrics { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; text-align: left; }
 #debt-view .stat-card__metrics--single { grid-template-columns: 1fr; }
 #debt-view .stat-card__metric-label { display: block; font-size: .72rem; color: var(--color-text-muted); margin-bottom: 4px; }
@@ -118,6 +117,7 @@
 #debt-view .table-responsive { overflow-x: auto; padding: 0 6px; }
 #debt-view .debt-table { width: 100%; min-width: 880px; table-layout: fixed; border-collapse: collapse; }
 #debt-view .debt-table thead th { color: var(--color-text-muted); font-weight: 600; font-size: .7rem; text-transform: uppercase; letter-spacing: .04em; border-bottom: 1px solid var(--color-border); white-space: nowrap; padding: .6rem; text-align: left; }
+#debt-view .debt-table thead th.cell-center { text-align: center; }
 #debt-view .debt-table tbody td { border-bottom: 1px solid var(--color-border-light); padding: .6rem; vertical-align: middle; }
 #debt-view .debt-table tbody tr:last-child td { border-bottom: none; }
 #debt-view .debt-table tbody tr:hover td { background: var(--color-surface-alt); }

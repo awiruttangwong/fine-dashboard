@@ -226,6 +226,7 @@ button {
 .skeleton-kpi:nth-child(3) { animation-delay: 0.15s; }
 .skeleton-kpi:nth-child(4) { animation-delay: 0.20s; }
 .skeleton-kpi:nth-child(5) { animation-delay: 0.25s; }
+.skeleton-kpi:nth-child(6) { animation-delay: 0.30s; }
 
 .skeleton-kpi .skeleton-icon {
   width: 34px;

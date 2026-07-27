@@ -72,13 +72,21 @@ const KPICards = (() => {
 
   const cardConfigs = [
     {
+      // "ยอดปรับรวม" หักยอด "ปรับไม่ได้" ออกตั้งแต่การ์ดนี้ เพราะถ้าอยู่ในสถานะ
+      // ปรับไม่ได้แล้วแปลว่าไม่มีทางเก็บเงินก้อนนั้นได้จริง — แสดงรวมไว้จะทำให้ดู
+      // ขัดแย้งกับการ์ด "ยอดคงเหลือ" ที่หักออกไปแล้ว (agg.totalFine ดิบยังคงเก็บ
+      // ยอดรวมทั้งหมดไว้ตามเดิม ใช้ต่อใน collectionRate/comparison ปีย้อนหลัง
+      // ไม่กระทบ เปลี่ยนแค่ค่าที่การ์ดนี้แสดงเท่านั้น)
       id: 'total-fine',
       label: 'ยอดปรับรวม',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => agg.totalFine,
+      getValue: (agg) => agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0),
       format: formatCurrency,
-      getDetail: (agg) => `จาก ${formatNumber(agg.count)} รายการปรับ`
+      getDetail: (agg) => {
+        const netCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
+        return `จาก ${formatNumber(netCount)} รายการปรับ`;
+      }
     },
     {
       id: 'paid-amount',
@@ -109,17 +117,31 @@ const KPICards = (() => {
       }
     },
     {
-      id: 'installment-plan',
-      label: 'ผ่อนชำระ',
+      // เดิมเป็นการ์ดเดียว "ผ่อนชำระ" ที่รวม 2 สถานะ (กำลังผ่อน/เสร็จแล้ว) ไว้ในบรรทัด
+      // detail เดียวกัน — พอมีทั้งคู่พร้อมกัน ข้อความยาวจนล้นออกนอกกล่อง (วัดจริงแล้ว
+      // scrollWidth > clientWidth ที่ 1400px) จึงแยกเป็น 2 การ์ดคนละตัวเลขหลักไปเลย
+      // แทนที่จะพยายามยัดทั้ง 2 สถานะไว้ในบรรทัดเดียว
+      id: 'installment-active',
+      label: 'กำลังผ่อน',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--blue',
       getValue: (agg) => agg.installment.totalRemainingAmount,
       format: formatCurrency,
       getDetail: (agg) => {
-        const cases = agg.installment.totalCases;
-        return cases > 0
-          ? `${formatNumber(cases)} เคสผ่อนชำระ`
-          : 'ยังไม่มีเคสผ่อนชำระ';
+        const { activeCases } = agg.installment;
+        return activeCases > 0 ? `${formatNumber(activeCases)} รายการ` : 'ไม่มีรายการที่กำลังผ่อน';
+      }
+    },
+    {
+      id: 'installment-done',
+      label: 'ผ่อนเสร็จแล้ว',
+      icon: ICONS.checkCircle,
+      iconClass: 'kpi-card__icon--mint',
+      getValue: (agg) => agg.installment.doneAmount,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const { doneCases } = agg.installment;
+        return doneCases > 0 ? `${formatNumber(doneCases)} รายการ` : 'ยังไม่มีรายการผ่อนเสร็จ';
       }
     },
     {
@@ -127,8 +149,8 @@ const KPICards = (() => {
       // (1) ค่าปรับลูกค้าที่เก็บไม่ได้ จากชีต ปรับไม่ได้(Mx) และ (2) หนี้ พขร.
       // ที่ตัดเป็นปรับไม่ได้ จาก Drivers(Mx) — ทั้งสองกรองตามตัวกรองเดือนเดียวกัน
       // (month_label ของ Drivers/Payments ยืนยันแล้วว่าคือเดือนปฏิทินจริง เหมือน
-      // fine_date) รายละเอียดแยกแสดง 2 บรรทัดย่อยไว้ให้เห็นที่มาชัดเจน ไม่ปนกัน
-      // แบบมองไม่ออก
+      // fine_date) รายละเอียดแสดงยอดรวมเดียว (ไม่แยกที่มา) ตามที่ตกลง — ดูรายละเอียด
+      // แยกที่มาได้จากตารางอยู่แล้ว ไม่จำเป็นต้องพูดซ้ำในการ์ดสรุป
       id: 'non-collectible',
       label: 'ปรับไม่ได้',
       icon: ICONS.alertTriangle,
@@ -136,12 +158,8 @@ const KPICards = (() => {
       getValue: (agg) => (agg.statusBreakdown.uncollectibleAmount || 0) + (agg.nonCollectibleDebt.totalAmount || 0),
       format: formatCurrency,
       getDetail: (agg) => {
-        const fineCount = agg.statusBreakdown.uncollectibleCount || 0;
-        const driverCount = agg.nonCollectibleDebt.totalCases || 0;
-        const parts = [];
-        if (fineCount > 0) parts.push(`${formatNumber(fineCount)} รายการปรับ`);
-        if (driverCount > 0) parts.push(`${formatNumber(driverCount)} คน พขร.`);
-        return parts.join(' + ') || 'ไม่มีรายการปรับไม่ได้';
+        const total = (agg.statusBreakdown.uncollectibleCount || 0) + (agg.nonCollectibleDebt.totalCases || 0);
+        return total > 0 ? `${formatNumber(total)} รายการ` : 'ไม่มีรายการปรับไม่ได้';
       }
     }
   ];

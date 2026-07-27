@@ -335,10 +335,31 @@
   font-size: var(--font-size-xl);
 }
 
+/* ── "ค่าปรับรถไม่เข้ารับงาน" — หัวข้อ+ไอคอนใหญ่กว่าปกติ จัดสมดุลด้วย badge วงกลม ── */
+.section__title--debt {
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  gap: var(--space-3);
+}
+
+.section__title-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: var(--radius-lg);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  color: #fff;
+  background: linear-gradient(135deg, #FF3B30, #FF7066);
+  box-shadow: 0 4px 14px rgba(255, 59, 48, .35);
+}
+
 /* ── Grid Systems ── */
 .kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   gap: var(--space-5);
 }
 
