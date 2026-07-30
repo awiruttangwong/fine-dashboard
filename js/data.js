@@ -580,6 +580,7 @@ const FineData = (() => {
     result.totalRemaining = result.totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
     result.collectionRate = result.totalFine > 0 ? (statusAgg.paidAmount / result.totalFine) * 100 : 0;
     result.installment = getInstallmentSummary(selectedMonth);
+    result.debtGrandTotal = getDebtGrandTotalSummary(selectedMonth);
     result.nonCollectibleDebt = getNonCollectibleDebtSummary(selectedMonth);
     result.driverStatusCounts = getDriverStatusCounts(selectedMonth);
 
@@ -638,6 +639,21 @@ const FineData = (() => {
       totalRemainingAmount: activeRows.reduce((sum, row) => sum + (row.balance || 0), 0),
       doneAmount: doneRows.reduce((sum, row) => sum + (row.paid || 0), 0)
     };
+  }
+
+  // "ยอดปรับรวมทั้งหมด" ของค่าปรับรถไม่เข้ารับงาน — ใช้สูตรเดียวกับหน้าโมดูล debt เป๊ะ
+  // (debt.js:renderSummary): sum(all,total) - sum(no,balance)
+  //   = กลุ่มปรับได้นับเต็มยอด + กลุ่มปรับไม่ได้นับเฉพาะที่จ่ายมาแล้ว (หักคงเหลือที่สูญออก)
+  // เพื่อให้การ์ด KPI "ยอดปรับรวม" หน้าหลักรวมยอดนี้เข้าไปเป็นภาพรวมเงินทั้งหมดได้ตรงกัน
+  // (คนละชุดข้อมูลกับค่าปรับปกติ ยืนยันแล้วว่าไม่กรอกซ้ำ 2 ที่ จึงบวกรวมได้ไม่ทับซ้อน)
+  function getDebtGrandTotalSummary(selectedMonth) {
+    const rows = getFilteredDebtRows(selectedMonth);
+    let amount = 0;
+    rows.forEach(row => {
+      amount += row.total || 0;
+      if (row.collectible === 'ปรับไม่ได้') amount -= row.balance || 0;
+    });
+    return { amount, count: rows.length };
   }
 
   // ยอด พขร. กลุ่ม "ปรับไม่ได้" (ตัดหนี้สูญ) — แยกจากยอดผ่อนชำระข้างบนเสมอ

@@ -72,20 +72,29 @@ const KPICards = (() => {
 
   const cardConfigs = [
     {
-      // "ยอดปรับรวม" หักยอด "ปรับไม่ได้" ออกตั้งแต่การ์ดนี้ เพราะถ้าอยู่ในสถานะ
-      // ปรับไม่ได้แล้วแปลว่าไม่มีทางเก็บเงินก้อนนั้นได้จริง — แสดงรวมไว้จะทำให้ดู
-      // ขัดแย้งกับการ์ด "ยอดคงเหลือ" ที่หักออกไปแล้ว (agg.totalFine ดิบยังคงเก็บ
-      // ยอดรวมทั้งหมดไว้ตามเดิม ใช้ต่อใน collectionRate/comparison ปีย้อนหลัง
-      // ไม่กระทบ เปลี่ยนแค่ค่าที่การ์ดนี้แสดงเท่านั้น)
+      // "ยอดปรับรวม" = ภาพรวมเงินทั้งหมดของทั้ง 2 ชุดข้อมูลที่แยกกันในระบบ:
+      //   (1) ค่าปรับปกติ (หัก "ปรับไม่ได้" ออกแล้ว เพราะเก็บเงินก้อนนั้นไม่ได้จริง)
+      //   (2) ค่าปรับรถไม่เข้ารับงาน "ยอดปรับรวมทั้งหมด" (agg.debtGrandTotal — สูตรเดียว
+      //       กับหน้าโมดูล debt: กลุ่มปรับได้เต็มยอด + กลุ่มปรับไม่ได้เฉพาะที่จ่ายแล้ว)
+      // ทั้งคู่เป็น "ยอดทั้งหมด" คนละชุด ไม่ทับซ้อน จึงบวกรวมเป็นภาพเดียวได้ (agg.totalFine
+      // ดิบยังเก็บยอดค่าปรับปกติทั้งหมดไว้ ใช้ต่อใน collectionRate/comparison ไม่กระทบ)
       id: 'total-fine',
       label: 'ยอดปรับรวม',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0),
+      getValue: (agg) => {
+        const fineNet = agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0);
+        const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
+        return fineNet + debtTotal;
+      },
       format: formatCurrency,
       getDetail: (agg) => {
-        const netCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
-        return `จาก ${formatNumber(netCount)} รายการปรับ`;
+        // แสดงที่มาแยก 2 ส่วนให้ไล่ตรวจได้ว่ายอดรวมมาจากไหน — "ค่าปรับ" = ค่าปรับปกติ,
+        // "รถ" = ค่าปรับรถไม่เข้ารับงาน (ย่อให้พอดี pill บรรทัดเดียวทั้งจอ desktop/laptop
+        // ตัดเลข ฿ ออกเพราะสื่อด้วยยอดใหญ่ด้านบนแล้ว)
+        const fineNet = agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0);
+        const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
+        return `ค่าปรับ ${formatNumber(fineNet)} + รถ ${formatNumber(debtTotal)}`;
       }
     },
     {

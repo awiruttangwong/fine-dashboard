@@ -217,6 +217,10 @@
   font-weight: var(--font-weight-medium);
   white-space: nowrap;
   letter-spacing: 0;
+  /* กันข้อความยาว (เช่น breakdown ของยอดปรับรวม) ล้นออกนอกการ์ดบนจอแคบ —
+     ตัดด้วย … แทนที่จะสปิลออกมาทับการ์ดอื่น */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 #kpi-total-fine .kpi-card__detail:not(:empty) {
