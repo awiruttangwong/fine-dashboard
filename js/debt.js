@@ -208,6 +208,10 @@ const DebtTracker = (() => {
     //   → กลุ่มปรับได้นับเต็มยอด, กลุ่มปรับไม่ได้นับเฉพาะที่จ่ายมาแล้ว (ส่วนคงเหลือคือส่วนที่สูญ)
     // เมื่อกด "ดึงกลับปรับได้" แถวนั้นย้ายจาก no→yes (backend เก็บ total/paid/balance ไว้เดิม
     // แค่พลิก flag) ยอด balance ที่เคยถูกหักออกจึงไหลกลับเข้ายอดรวมโดยอัตโนมัติเมื่อ re-render
+    // แสดง hint "หักปรับไม่ได้ออกแล้ว" เฉพาะตอนที่มีการหักจริง (มี balance ของกลุ่ม
+    // ปรับไม่ได้ > 0) — ถ้าไม่มีก็ไม่ต้องบอก เพราะยอดที่แสดงเท่ากับผลรวมดิบอยู่แล้ว
+    const nonCollectibleBalance = sum(no, 'balance');
+    const deductedHint = nonCollectibleBalance > 0 ? ' <span class="stat-card__metric-hint">(หัก "ปรับไม่ได้" ออกแล้ว)</span>' : '';
     el.innerHTML = `
       <div class="stat-card">
         <div class="stat-card__head">
@@ -218,7 +222,7 @@ const DebtTracker = (() => {
           <span class="pill pill--muted">${all.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
-          <div><span class="stat-card__metric-label">ยอดปรับรวมทั้งหมด</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - sum(no, 'balance'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ยอดปรับรวมทั้งหมด${deductedHint}</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - nonCollectibleBalance)} ฿</span></div>
         </div>
       </div>
       <div class="stat-card">

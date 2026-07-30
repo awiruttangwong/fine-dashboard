@@ -105,7 +105,7 @@ const KPICards = (() => {
         return {
           title: 'ที่มาของยอดปรับรวม',
           rows: [
-            { label: 'ค่าปรับ (ปกติ)', hint: `หัก "ปรับไม่ได้" ออกแล้ว`, amount: fineNet, count: fineCount, tone: 'red' },
+            { label: 'ค่ายกเลิก', hint: 'ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ', amount: fineNet, count: fineCount, tone: 'red' },
             { label: 'ค่าปรับรถไม่เข้ารับงาน', hint: 'ยอดปรับรวมทั้งหมด', amount: debtTotal, count: debtCount, tone: 'blue' }
           ],
           total: fineNet + debtTotal
