@@ -649,11 +649,16 @@ const FineData = (() => {
   function getDebtGrandTotalSummary(selectedMonth) {
     const rows = getFilteredDebtRows(selectedMonth);
     let amount = 0;
+    let deducted = 0;
     rows.forEach(row => {
       amount += row.total || 0;
-      if (row.collectible === 'ปรับไม่ได้') amount -= row.balance || 0;
+      if (row.collectible === 'ปรับไม่ได้') deducted += row.balance || 0;
     });
-    return { amount, count: rows.length };
+    amount -= deducted;
+    // deducted > 0 บอกว่ามีการหัก "ปรับไม่ได้" ออกจริง (ไม่ใช่แค่มีกลุ่มปรับไม่ได้
+    // เฉยๆ) ใช้ตัดสินใจว่าจะโชว์ hint "(หัก ... ออกแล้ว)" หรือไม่ — ให้ที่มาตรงกับ
+    // การ์ด "ยอดปรับรวมทั้งหมด" ในหน้าโมดูล debt (debt.js:renderSummary) เป๊ะ
+    return { amount, count: rows.length, deducted };
   }
 
   // ยอด พขร. กลุ่ม "ปรับไม่ได้" (ตัดหนี้สูญ) — แยกจากยอดผ่อนชำระข้างบนเสมอ

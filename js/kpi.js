@@ -102,11 +102,16 @@ const KPICards = (() => {
         const fineCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
         const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
         const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
+        // hint ของแถวรถไม่เข้ารับงาน บอกว่ามีการหัก "ปรับไม่ได้" ออกแล้วหรือไม่ —
+        // ใช้เงื่อนไขเดียวกับการ์ด "ยอดปรับรวมทั้งหมด" ในหน้าโมดูล debt ทุกประการ
+        // (deducted > 0 คือมีการหักจริง ไม่ใช่แค่มีกลุ่มปรับไม่ได้เฉยๆ)
+        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
+        const debtHint = 'ยอดปรับรวมทั้งหมด' + (debtDeducted > 0 ? ' (หัก "ปรับไม่ได้" ออกแล้ว)' : '');
         return {
           title: 'ที่มาของยอดปรับรวม',
           rows: [
             { label: 'ค่ายกเลิก', hint: 'ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ', amount: fineNet, count: fineCount, tone: 'red' },
-            { label: 'ค่าปรับรถไม่เข้ารับงาน', hint: 'ยอดปรับรวมทั้งหมด', amount: debtTotal, count: debtCount, tone: 'blue' }
+            { label: 'ค่าปรับรถไม่เข้ารับงาน', hint: debtHint, amount: debtTotal, count: debtCount, tone: 'blue' }
           ],
           total: fineNet + debtTotal
         };
