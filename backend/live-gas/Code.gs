@@ -31,12 +31,26 @@ function runCentralDataSync_() {
 
     activeSyncCount++;
 
+    // "เตรียมชีตเปล่า" Drivers(Mx)/Payments(Mx) ให้พร้อมใช้งานทันทีที่เดือนนั้นถูกเปิดใช้
+    // (เติม id ใน monthlySources แล้วกดซิงค์) ไม่ต้องรอให้มีคนกดเพิ่ม พขร. ทางหน้าเว็บก่อน
+    // ถึงจะสร้างชีตขึ้นมา — แยก try/catch ของตัวเองโดยเจตนา ไม่ผูกกับผลของการ sync ข้อมูล
+    // ค่าปรับ (SUM/สถานะ) ด้านล่าง เพราะเป็นคนละงานกัน ถ้า sync ค่าปรับพัง (เช่นไฟล์ต้นทาง
+    // มีปัญหาโครงสร้าง) ก็ไม่ควรทำให้ชีต Drivers/Payments เดือนนั้นไม่ถูกสร้างไปด้วย —
+    // ปลอดภัย ไม่ทับข้อมูลเดิม เพราะ getOrCreateDebtSheet_ แค่สร้างชีตถ้ายังไม่มี/บังคับหัว
+    // คอลัมน์ให้ตรง schema เท่านั้น
+    try {
+      ensureDebtSheetsForMonth_(ssCentral, source.label);
+    } catch (debtSheetError) {
+      processLog.push(source.label + ': เตรียมชีต Drivers/Payments ล้มเหลว (สาเหตุ: ' + debtSheetError.message + ')');
+    }
+
     try {
       var sourceSs = SpreadsheetApp.openById(cleanText_(source.id));
       var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')');
       var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label);
-      // ไม่ sync Drivers/Payments อีกต่อไป — คลังกลางเป็นแหล่งข้อมูลหลักแล้ว native UI
-      // เขียนตรงเข้าคลัง ถ้ายัง copy จากไฟล์รายเดือนจะทับข้อมูลที่เพิ่งเขียนหาย
+      // ไม่ copy ข้อมูล Drivers/Payments จากไฟล์รายเดือนอีกต่อไป — คลังกลางเป็นแหล่งข้อมูล
+      // หลักแล้ว native UI เขียนตรงเข้าคลัง ถ้ายัง copy จากไฟล์รายเดือนจะทับข้อมูลที่เพิ่ง
+      // เขียนหาย
 
       if (sumStatus) {
         processLog.push(source.label + ': สำเร็จ' + buildStatusSyncLog_(statusResults));
@@ -666,6 +680,14 @@ function getDebtDriversSheet_(ss, monthLabel) {
 
 function getDebtPaymentsSheet_(ss, monthLabel) {
   return getOrCreateDebtSheet_(ss, 'Payments', monthLabel, BACKEND_CONFIG.debtSchema.payments.headers);
+}
+
+// ── เรียกจาก runCentralDataSync_ ทุกครั้งที่ซิงค์ เพื่อให้ Drivers(Mx)/Payments(Mx)
+// ของเดือนที่เพิ่งเปิดใช้ (เติม id ใน monthlySources) ถูกสร้างพร้อมหัวคอลัมน์ทันที
+// ไม่ต้องรอให้มีคนกดเพิ่ม พขร. ทางหน้าเว็บก่อน — idempotent, ไม่แตะแถวข้อมูลเดิม ──
+function ensureDebtSheetsForMonth_(ss, monthLabel) {
+  getDebtDriversSheet_(ss, monthLabel);
+  getDebtPaymentsSheet_(ss, monthLabel);
 }
 
 // อ่าน Drivers/Payments ของเดือนหนึ่งเข้า array (ไม่สร้างชีตถ้า readOnly = สำหรับ view
