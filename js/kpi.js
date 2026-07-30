@@ -206,7 +206,6 @@ const KPICards = (() => {
             <div class="kpi-card__value" data-value="${value}">${buildMetricValueMarkup(config.format(0))}</div>
             <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
           </div>
-          ${clickable ? '<span class="kpi-card__more" aria-hidden="true">ดูที่มา</span>' : ''}
         </div>
       `;
     }).join('');

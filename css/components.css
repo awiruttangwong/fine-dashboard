@@ -254,29 +254,10 @@
   color: #c0392b;
 }
 
-/* ── Clickable KPI card → เปิด popup แยกที่มาของยอด ── */
+/* ── Clickable KPI card → เปิด popup แยกที่มาของยอด (ไม่มีป้ายบอก คลิกได้เลย) ── */
 .kpi-card--clickable { cursor: pointer; }
 .kpi-card--clickable:hover { transform: translateY(-2px); }
 .kpi-card--clickable:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
-.kpi-card__more {
-  position: absolute;
-  right: var(--space-5);
-  bottom: var(--space-5); /* มุมขวาล่าง สมดุลกับ detail pill มุมซ้ายล่าง ไม่ทับไอคอน */
-  font-size: 0.6rem;
-  font-weight: var(--font-weight-semibold);
-  color: var(--color-accent);
-  background: var(--color-accent-light);
-  border: 1px solid rgba(74, 159, 219, 0.25);
-  padding: 3px 9px;
-  border-radius: var(--radius-full);
-  white-space: nowrap;
-  opacity: 0.9;
-  transition: opacity var(--transition-fast), transform var(--transition-fast);
-  pointer-events: none;
-}
-.kpi-card__more::after { content: "\2192"; margin-left: 3px; }
-.kpi-card--clickable:hover .kpi-card__more,
-.kpi-card--clickable:focus-visible .kpi-card__more { opacity: 1; transform: scale(1.04); }
 
 /* ── Breakdown popup (executive-facing money-source dialog) ── */
 .kpi-bd-overlay {
