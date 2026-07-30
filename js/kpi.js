@@ -30,31 +30,57 @@ const KPICards = (() => {
     return num.toFixed(1) + '%';
   }
 
-  function buildMetricValueMarkup(formattedValue) {
+  function parseMetricValue(formattedValue) {
     const text = String(formattedValue ?? '').trim();
-    if (!text) {
-      return '<span class="kpi-card__value-main">0</span>';
-    }
-
-    if (text.endsWith(' ฿')) {
-      const main = text.slice(0, -2).trim();
-      return `<span class="kpi-card__value-main">${main}</span><span class="kpi-card__value-suffix">฿</span>`;
-    }
-
-    if (text.endsWith('%')) {
-      const main = text.slice(0, -1).trim();
-      return `<span class="kpi-card__value-main">${main}</span><span class="kpi-card__value-suffix">%</span>`;
-    }
-
-    return `<span class="kpi-card__value-main">${text}</span>`;
+    if (!text) return { main: '0', suffix: '' };
+    if (text.endsWith(' ฿')) return { main: text.slice(0, -2).trim(), suffix: '฿' };
+    if (text.endsWith('%')) return { main: text.slice(0, -1).trim(), suffix: '%' };
+    return { main: text, suffix: '' };
   }
 
+  function buildMetricValueMarkup(formattedValue) {
+    const { main, suffix } = parseMetricValue(formattedValue);
+    return suffix
+      ? `<span class="kpi-card__value-main">${main}</span><span class="kpi-card__value-suffix">${suffix}</span>`
+      : `<span class="kpi-card__value-main">${main}</span>`;
+  }
+
+  // อัปเดตเฉพาะ "ค่าข้อความ" ในโครงสร้าง span เดิม (แก้ nodeValue ของ text node ตรงๆ)
+  // ไม่แตะ childList เลย — เดิม setMetricValue เขียน element.innerHTML ใหม่ทุกเฟรมของ
+  // count-up animation (~60fps × 6 การ์ด) ทำให้ <span> ถูกสร้าง/ทำลายทิ้งทุกเฟรม เป็น
+  // ต้นเหตุการ "กระพริบ" ของการ์ด KPI. โครงสร้างจะถูกสร้างครั้งเดียว (จาก render template
+  // หรือครั้งแรกที่ยังไม่มี/ต้องสลับมี-ไม่มี suffix) หลังจากนั้นทุกเฟรมแค่แก้ตัวเลข
   function setMetricValue(element, formattedValue) {
     if (!element) return;
-    element.innerHTML = buildMetricValueMarkup(formattedValue);
+    const { main, suffix } = parseMetricValue(formattedValue);
+    const mainEl = element.querySelector('.kpi-card__value-main');
+    const suffixEl = element.querySelector('.kpi-card__value-suffix');
+
+    // โครงสร้างไม่ตรง (ครั้งแรก หรือสถานะมี/ไม่มี suffix เปลี่ยน) → สร้างใหม่ครั้งเดียว
+    if (!mainEl || (suffix && !suffixEl) || (!suffix && suffixEl)) {
+      element.innerHTML = buildMetricValueMarkup(formattedValue);
+      return;
+    }
+
+    setTextInPlace_(mainEl, main);
+    if (suffixEl) setTextInPlace_(suffixEl, suffix);
+  }
+
+  // แก้ค่าของ text node เดิมโดยไม่ add/remove node (characterData mutation ล้วน ไม่ใช่
+  // childList) — ป้องกันการกระพริบและลดงาน DOM ระหว่าง animation ให้เหลือน้อยที่สุด
+  function setTextInPlace_(el, value) {
+    if (el.firstChild && el.firstChild.nodeType === 3) {
+      if (el.firstChild.nodeValue !== value) el.firstChild.nodeValue = value;
+    } else if (el.textContent !== value) {
+      el.textContent = value;
+    }
   }
 
   function animateValue(element, start, end, duration, formatter) {
+    // ยกเลิก animation ก่อนหน้าบน element เดียวกันก่อนเสมอ — เดิมไม่ยกเลิก ทำให้เวลา
+    // เปลี่ยน filter ถี่ๆ (หรือ update ทับระหว่าง animation แรกยังไม่จบ) มีหลาย RAF loop
+    // วิ่งพร้อมกันบนการ์ดเดียว เขียนค่าแย่งกัน = กระพริบ/ตัวเลขกระตุกหนักขึ้น
+    if (element.__kpiRaf) cancelAnimationFrame(element.__kpiRaf);
     const startTime = performance.now();
     const diff = end - start;
 
@@ -65,10 +91,12 @@ const KPICards = (() => {
       const current = start + diff * eased;
       setMetricValue(element, formatter(Math.round(current * 10) / 10));
       if (progress < 1) {
-        requestAnimationFrame(step);
+        element.__kpiRaf = requestAnimationFrame(step);
+      } else {
+        element.__kpiRaf = null;
       }
     }
-    requestAnimationFrame(step);
+    element.__kpiRaf = requestAnimationFrame(step);
   }
 
   const cardConfigs = [
