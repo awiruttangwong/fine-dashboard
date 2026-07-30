@@ -217,8 +217,12 @@ const DebtTracker = (() => {
 
   function filtered() {
     return state.drivers.filter(d => {
-      if (state.statusFilter === 'active' && d.balance <= 0) return false;
-      if (state.statusFilter === 'done' && d.balance > 0) return false;
+      // กรองด้วย "สถานะ" (กำลังผ่อน/ชำระครบแล้ว) ให้ตรงกับการ์ด KPI "กำลังผ่อน"/"ผ่อนเสร็จแล้ว"
+      // ในหน้าหลัก ที่นับด้วย status เช่นกัน (data.js:getInstallmentSummary) — เดิมแท็บนี้กรอง
+      // ด้วย balance ทำให้เคสที่ status กับ balance ไม่ตรงกัน (เช่นจ่ายเกิน/แก้ยอดมือ) หลุดกรอบ
+      // จำนวนรายการในแท็บจึงไม่ตรงกับตัวเลขบนการ์ด กดไล่หาที่มาไม่เจอ
+      if (state.statusFilter === 'active' && d.status !== 'กำลังผ่อน') return false;
+      if (state.statusFilter === 'done' && d.status === 'กำลังผ่อน') return false;
       if (state.search) { const hay = ((d.name || '') + ' ' + (d.driverName || '') + ' ' + (d.customer || '')).toLowerCase(); if (!hay.includes(state.search)) return false; }
       if (state.typeFilter && d.fineType !== state.typeFilter) return false;
       return true;
@@ -227,7 +231,7 @@ const DebtTracker = (() => {
 
   function typeColor(type) { const i = state.fineTypes.indexOf(type); return i < 0 ? 'secondary' : TYPE_COLORS[i % TYPE_COLORS.length]; }
 
-  function rowHtml(d) {
+  function rowHtml(d, showPaid) {
     const badge = d.fineType ? `<span class="type-badge type-badge--${typeColor(d.fineType)}">${esc(d.fineType)}</span>` : '<span class="type-badge type-badge--light">ไม่ระบุ</span>';
     const edit = `<button class="btn btn-outline-dark btn-action" data-act="edit" data-id="${esc(d.id)}" title="แก้ไข"><svg viewBox="0 -960 960 960" fill="currentColor"><path d="M200-200h57l391-391-57-57-391 391v57Zm-80 80v-170l528-527q12-11 26.5-17t30.5-6q16 0 31 6t26 18l55 56q12 11 17.5 26t5.5 30q0 16-5.5 30.5T846-647L319-120H120Z"/></svg></button>`;
     let actions;
@@ -239,6 +243,10 @@ const DebtTracker = (() => {
       actions = edit + pay + move;
     }
     const sub = `${esc(d.route)} · ${esc(fmtDate(d.startDate))}${d.customer ? ' · ลูกค้า ' + esc(d.customer) : ''}`;
+    // คอลัมน์ "ชำระแล้ว" โชว์เฉพาะแท็บ "ผ่อนเสร็จแล้ว" เพื่อให้เห็นตัวเลขที่รวมกันเป็น
+    // ยอดบนการ์ด KPI "ผ่อนเสร็จแล้ว" ได้ตรงๆ ในตาราง ไม่ต้องเดา/บวกเอง — วางไว้ก่อน
+    // "คงเหลือ" และใช้สีเขียว (cell-paid) ต่างจากสีแดงของคงเหลือ ให้แยกความหมายชัดเจน
+    const paidCell = showPaid ? `<td class="cell-paid">${num(d.paid)}</td>` : '';
     return `<tr>
       <td>
         <div class="cell-driver__name" title="${esc(d.name)}">${esc(d.name)}</div>
@@ -246,6 +254,7 @@ const DebtTracker = (() => {
         <div class="cell-driver__sub" title="${sub}">${sub}</div>
       </td>
       <td class="cell-center">${badge}</td>
+      ${paidCell}
       <td class="cell-balance">${num(d.balance)}</td>
       <td class="cell-progress"><small>${d.paidInstallments}/${d.totalInst}</small></td>
       <td><div class="cell-actions">${actions}</div></td>
@@ -253,7 +262,11 @@ const DebtTracker = (() => {
   }
 
   function groupBlock(cls, mod, iconSvg, label, rows) {
-    const body = rows.length ? rows.map(rowHtml).join('') : '<tr><td colspan="5"><div class="debt-empty">ไม่มีรายการ</div></td></tr>';
+    const showPaid = state.statusFilter === 'done';
+    const colCount = showPaid ? 6 : 5;
+    const body = rows.length ? rows.map(d => rowHtml(d, showPaid)).join('') : `<tr><td colspan="${colCount}"><div class="debt-empty">ไม่มีรายการ</div></td></tr>`;
+    const paidCol = showPaid ? '<col class="col-balance">' : '';
+    const paidHeader = showPaid ? '<th class="cell-center">ชำระแล้ว</th>' : '';
     return `
       <div class="table-block">
         <div class="table-group-title table-group-title--${mod}">
@@ -265,8 +278,8 @@ const DebtTracker = (() => {
         </div>
         <div class="table-responsive">
           <table class="debt-table">
-            <colgroup><col class="col-driver"><col class="col-type"><col class="col-balance"><col class="col-progress"><col class="col-action"></colgroup>
-            <thead><tr><th>ชื่อผู้รับโอน / ชื่อ พขร / เส้นทาง</th><th class="cell-center">สาเหตุ</th><th class="cell-center">คงเหลือ</th><th class="cell-center">คืบหน้า</th><th class="cell-center">จัดการ</th></tr></thead>
+            <colgroup><col class="col-driver"><col class="col-type">${paidCol}<col class="col-balance"><col class="col-progress"><col class="col-action"></colgroup>
+            <thead><tr><th>ชื่อผู้รับโอน / ชื่อ พขร / เส้นทาง</th><th class="cell-center">สาเหตุ</th>${paidHeader}<th class="cell-center">คงเหลือ</th><th class="cell-center">คืบหน้า</th><th class="cell-center">จัดการ</th></tr></thead>
             <tbody>${body}</tbody>
           </table>
         </div>
