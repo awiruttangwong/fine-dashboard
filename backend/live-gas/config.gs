@@ -102,7 +102,7 @@ var BACKEND_CONFIG = {
     { label: 'M5', id: '' },
     { label: 'M6', id: '1DEQ2s_C2EszJ27udXkd7L1IJGo4syGUiHM4VCE-9Fh0' },
     { label: 'M7', id: '15Z8CC5Y53NVEuKy52sq1eZhdeHkXqmX2ZrXcBEGs558' },
-    { label: 'M8', id: '' },
+    { label: 'M8', id: '173rdnYB8xT92abBkTOCIsxZFcDTSaKCYWjc6Y7exIV8' },
     { label: 'M9', id: '' },
     { label: 'M10', id: '' },
     { label: 'M11', id: '' },
