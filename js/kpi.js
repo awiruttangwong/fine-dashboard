@@ -6,6 +6,7 @@
 
 const KPICards = (() => {
   let container = null;
+  let lastAgg = null; // เก็บ aggregates ล่าสุดไว้ให้ popup ที่มา (breakdown) ใช้ตอนกดการ์ด
 
   // ── SVG Icons ──
   const ICONS = {
@@ -89,12 +90,26 @@ const KPICards = (() => {
       },
       format: formatCurrency,
       getDetail: (agg) => {
-        // แสดงที่มาแยก 2 ส่วนให้ไล่ตรวจได้ว่ายอดรวมมาจากไหน — "ค่าปรับ" = ค่าปรับปกติ,
-        // "รถ" = ค่าปรับรถไม่เข้ารับงาน (ย่อให้พอดี pill บรรทัดเดียวทั้งจอ desktop/laptop
-        // ตัดเลข ฿ ออกเพราะสื่อด้วยยอดใหญ่ด้านบนแล้ว)
+        // แสดงจำนวนรายการรวมทั้ง 2 ส่วน (ค่าปรับปกติ + รถไม่เข้ารับงาน) แบบเดิม —
+        // ส่วนที่มาของยอดเงินแยกละเอียดไปอยู่ใน popup ที่กดจากการ์ดแทน
+        const netCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
+        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
+        return `จาก ${formatNumber(netCount + debtCount)} รายการ`;
+      },
+      // กดการ์ดนี้แล้วเด้ง popup แยกที่มาของยอดปรับรวม (ให้ผู้บริหารเห็นว่าประกอบจากอะไร)
+      getBreakdown: (agg) => {
         const fineNet = agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0);
+        const fineCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
         const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
-        return `ค่าปรับ ${formatNumber(fineNet)} + รถ ${formatNumber(debtTotal)}`;
+        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
+        return {
+          title: 'ที่มาของยอดปรับรวม',
+          rows: [
+            { label: 'ค่าปรับ (ปกติ)', hint: `หัก "ปรับไม่ได้" ออกแล้ว`, amount: fineNet, count: fineCount, tone: 'red' },
+            { label: 'ค่าปรับรถไม่เข้ารับงาน', hint: 'ยอดปรับรวมทั้งหมด', amount: debtTotal, count: debtCount, tone: 'blue' }
+          ],
+          total: fineNet + debtTotal
+        };
       }
     },
     {
@@ -176,11 +191,13 @@ const KPICards = (() => {
   function render(aggregates) {
     if (!container) container = document.getElementById('kpi-grid');
     if (!container) return;
+    lastAgg = aggregates;
 
     container.innerHTML = cardConfigs.map(config => {
       const value = config.getValue(aggregates);
+      const clickable = typeof config.getBreakdown === 'function';
       return `
-        <div class="kpi-card" id="kpi-${config.id}">
+        <div class="kpi-card${clickable ? ' kpi-card--clickable' : ''}" id="kpi-${config.id}"${clickable ? ' role="button" tabindex="0" aria-haspopup="dialog" title="ดูที่มาของยอด"' : ''}>
           <div class="kpi-card__header-row">
             <span class="kpi-card__label">${config.label}</span>
             <div class="kpi-card__icon ${config.iconClass}">${config.icon}</div>
@@ -189,9 +206,19 @@ const KPICards = (() => {
             <div class="kpi-card__value" data-value="${value}">${buildMetricValueMarkup(config.format(0))}</div>
             <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
           </div>
+          ${clickable ? '<span class="kpi-card__more" aria-hidden="true">ดูที่มา</span>' : ''}
         </div>
       `;
     }).join('');
+
+    cardConfigs.forEach((config) => {
+      if (typeof config.getBreakdown !== 'function') return;
+      const card = document.getElementById(`kpi-${config.id}`);
+      if (!card) return;
+      const open = () => showBreakdown(config);
+      card.addEventListener('click', open);
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
+    });
 
     requestAnimationFrame(() => {
       container.querySelectorAll('.kpi-card__value').forEach((el, idx) => {
@@ -205,6 +232,7 @@ const KPICards = (() => {
   function update(aggregates) {
     if (!container) container = document.getElementById('kpi-grid');
     if (!container) return;
+    lastAgg = aggregates;
 
     cardConfigs.forEach((config) => {
       const card = document.getElementById(`kpi-${config.id}`);
@@ -220,6 +248,55 @@ const KPICards = (() => {
 
       animateValue(valueEl, oldValue, newValue, 500, config.format);
     });
+  }
+
+  // ── Popup แยกที่มาของยอด (breakdown) — เปิดเมื่อกดการ์ดที่มี getBreakdown ──
+  function escHtml(s) {
+    return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  }
+
+  function showBreakdown(config) {
+    if (!lastAgg || typeof config.getBreakdown !== 'function') return;
+    const data = config.getBreakdown(lastAgg);
+
+    const rowsHtml = data.rows.map(r => `
+      <div class="kpi-bd__row kpi-bd__row--${r.tone || 'neutral'}">
+        <span class="kpi-bd__dot"></span>
+        <div class="kpi-bd__info">
+          <span class="kpi-bd__label">${escHtml(r.label)}</span>
+          ${r.hint ? `<span class="kpi-bd__hint">${escHtml(r.hint)}</span>` : ''}
+        </div>
+        <div class="kpi-bd__figures">
+          <span class="kpi-bd__amount">${formatCurrency(r.amount)}</span>
+          <span class="kpi-bd__count">จาก ${formatNumber(r.count)} รายการ</span>
+        </div>
+      </div>
+    `).join('<div class="kpi-bd__plus">+</div>');
+
+    const ov = document.createElement('div');
+    ov.className = 'kpi-bd-overlay';
+    ov.innerHTML = `
+      <div class="kpi-bd" role="dialog" aria-modal="true" aria-label="${escHtml(data.title)}">
+        <div class="kpi-bd__head">
+          <h5>${escHtml(data.title)}</h5>
+          <button class="kpi-bd__x" aria-label="ปิด">&times;</button>
+        </div>
+        <div class="kpi-bd__body">
+          ${rowsHtml}
+          <div class="kpi-bd__total">
+            <span class="kpi-bd__total-label">ยอดปรับรวมทั้งหมด</span>
+            <span class="kpi-bd__total-amount">${formatCurrency(data.total)}</span>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+
+    const close = () => { ov.classList.remove('is-show'); setTimeout(() => { if (ov.parentNode) ov.parentNode.removeChild(ov); }, 180); document.removeEventListener('keydown', onKey); };
+    const onKey = (e) => { if (e.key === 'Escape') close(); };
+    ov.querySelector('.kpi-bd__x').addEventListener('click', close);
+    ov.addEventListener('click', (e) => { if (e.target === ov) close(); });
+    document.addEventListener('keydown', onKey);
+    requestAnimationFrame(() => ov.classList.add('is-show'));
   }
 
   return { render, update };
