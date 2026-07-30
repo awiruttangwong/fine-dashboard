@@ -23,7 +23,7 @@
 
 ระบบมี **2 ชั้นข้อมูลที่แยกกัน** เดือนใหม่ต้องรองรับทั้งคู่:
 
-```
+```text
 ┌─ ไฟล์รายเดือน (M9) ──────────┐         ┌─ คลังกลาง (fine database) ──────────┐
 │  6 ชีตลูกค้า:                │  sync   │  SUM(M9) รอปรับ(M9)                  │
 │  FLASH SPX KEX BEST J&T SGT  │ ──────► │  ปรับได้(M9) ปรับไม่ได้(M9)         │ ──► Dashboard
@@ -68,6 +68,7 @@
 `https://docs.google.com/spreadsheets/d/`**`<ตรงนี้คือ ID>`**`/edit`
 
 แก้ **ทั้ง 2 ไฟล์ให้ตรงกันเป๊ะ** (คลังกลางต้องมิเรอร์กันเสมอ):
+
 - `backend/config.gs`
 - `backend/live-gas/config.gs`
 
@@ -84,6 +85,7 @@ monthlySources: [
 ```
 
 ยืนยันว่า 2 ไฟล์ตรงกัน:
+
 ```bash
 diff backend/config.gs backend/live-gas/config.gs   # ต้องไม่มี output
 ```
@@ -96,14 +98,16 @@ npx clasp push -f
 npx clasp deploy -i AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi89KEsI25-Y7XOw -d "wire M9 into monthlySources"
 ```
 
-> ⚠️ **ต้อง `deploy -i <ID เดิม>` เสมอ** — `push` อย่างเดียว endpoint จริงไม่อัปเดต (endpoint ผูกกับ deployment ID ที่ pin ไว้ ไม่ใช่โค้ดล่าสุด) ดูรายละเอียดใน [backend-deploy-mechanism](#) / memory
+> ⚠️ **ต้อง `deploy -i <ID เดิม>` เสมอ** — `push` อย่างเดียว endpoint จริงไม่อัปเดต (endpoint ผูกกับ deployment ID ที่ pin ไว้ ไม่ใช่โค้ดล่าสุด) ดูรายละเอียดในหัวข้อ "Pinned deployment ID" ท้ายเอกสารนี้
 
 commit เก็บประวัติด้วย:
+
 ```bash
 git add backend/config.gs backend/live-gas/config.gs
 git commit -m "feat: wire M9 into monthlySources"
 git push origin main
 ```
+
 > config เป็น backend ล้วน **ไม่ต้อง deploy Netlify** (Netlify deploy เฉพาะตอนแก้ frontend — `js/`, `css/`, `index.html`)
 
 ### ขั้น 5 — ซิงค์ที่คลังกลาง + ตรวจผล
@@ -111,11 +115,13 @@ git push origin main
 **วิธี A (แนะนำ — กดเมนู):** เปิดคลังกลาง → เมนู **"ซิงค์และอัปเดตข้อมูลทุกเดือน"** → กด 1 ครั้ง
 
 **วิธี B (ผ่าน URL — ตรวจ log ได้ละเอียด):**
+
 ```bash
 curl -sL "https://script.google.com/macros/s/AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi89KEsI25-Y7XOw/exec?action=sync"
 ```
 
 ผลที่ถูกต้อง — `process_log` ต้องขึ้น **"M9: สำเร็จ"**:
+
 ```json
 { "ok": true, "active_sync_count": 4,
   "process_log": [ "M6: สำเร็จ ...", "M7: สำเร็จ ...", "M8: สำเร็จ ...", "M9: สำเร็จ ..." ] }
@@ -128,6 +134,7 @@ curl -sL "https://script.google.com/macros/s/AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5
 ## 🔍 การตรวจสอบ (Verification)
 
 ตรวจว่าชีต M9 ครบในคลังกลาง:
+
 ```bash
 curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี SUM(M9)/รอปรับ(M9)/ปรับได้(M9)/ปรับไม่ได้(M9)
                                         # และ unmatched_sheet_names ต้องมี Drivers(M9)/Payments(M9)
@@ -160,7 +167,7 @@ curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี
 | **Pinned deployment ID (endpoint จริง)** | `AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi89KEsI25-Y7XOw` |
 | **สคริปต์รายเดือน (canonical)** | `ค่าปรับค้าง พขร/Code.monthly-sync.gs.txt` |
 | **config ที่ต้องแก้** | `backend/config.gs` + `backend/live-gas/config.gs` (มิเรอร์ให้ตรงกัน) |
-| **Frontend (Netlify)** | https://2kfine-dashboard.netlify.app — deploy ด้วย `netlify deploy --prod` (เฉพาะเมื่อแก้ frontend) |
+| **Frontend (Netlify)** | <https://2kfine-dashboard.netlify.app> — deploy ด้วย `netlify deploy --prod` (เฉพาะเมื่อแก้ frontend) |
 
 ### เดือนที่เปิดใช้แล้ว (อัปเดตทุกครั้งที่เพิ่มเดือน)
 
@@ -169,14 +176,14 @@ curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี
 | M6 | `1DEQ2s_C2EszJ27udXkd7L1IJGo4syGUiHM4VCE-9Fh0` | — | ✅ มีข้อมูล |
 | M7 | `15Z8CC5Y53NVEuKy52sq1eZhdeHkXqmX2ZrXcBEGs558` | — | ✅ มีข้อมูล |
 | M8 | `173rdnYB8xT92abBkTOCIsxZFcDTSaKCYWjc6Y7exIV8` | ค่าปรับ EXPRESS August 2026 | ✅ โครงสร้างพร้อม (รอข้อมูลสิงหาคม) |
-| M9 | _(เติมเมื่อเปิดใช้)_ | | ⬜ |
-| M10 | _(เติมเมื่อเปิดใช้)_ | | ⬜ |
+| M9 | *(เติมเมื่อเปิดใช้)* | | ⬜ |
+| M10 | *(เติมเมื่อเปิดใช้)* | | ⬜ |
 
 ---
 
 ## ⏱️ Checklist สั้น (ปริ้นท์/ก๊อปไว้ใช้จริง)
 
-```
+```text
 [ ] 1. สร้างไฟล์เดือนใหม่ + ชื่อไฟล์มี "เดือน" (M9/September/กันยายน)
 [ ] 1. Extensions > Apps Script > วาง Code.monthly-sync.gs.txt เหมือนเป๊ะ > Save
 [ ] 2. กรอก 6 ชีตลูกค้า > เมนู "ซิงก์ข้อมูล" > เช็ค SUM
@@ -192,4 +199,5 @@ curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี
 ```
 
 ---
-*อัปเดตล่าสุด: 30 ก.ค. 2026 — หลังเปิดใช้ M8 สำเร็จ*
+
+อัปเดตล่าสุด: 30 ก.ค. 2026 — หลังเปิดใช้ M8 สำเร็จ
