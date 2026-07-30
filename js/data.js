@@ -20,7 +20,7 @@ const FineData = (() => {
   const DEFAULT_CONFIG = {
     gasEndpoint: '',
     useJsonp: true,
-    requestTimeoutMs: 20000
+    requestTimeoutMs: 35000
   };
 
   let config = { ...DEFAULT_CONFIG, ...(window.FINE_DASHBOARD_CONFIG || {}) };

@@ -11,5 +11,8 @@ window.FINE_DASHBOARD_CONFIG = {
   databaseHealthPath: '',
 
   useJsonp: true,
-  requestTimeoutMs: 20000
+  // 35s เผื่อ margin ให้พอสำหรับกรณี GAS cold-start + สแกนหลายเดือน — เดิม 20s แคบเกินไป
+  // (โหลดจริงเคยวัดได้ ~14s บวก JSONP overhead จึงชนขอบง่าย) backend ถูก optimize ให้
+  // อ่านสเปรดชีตน้อยลงแล้ว แต่ตั้ง timeout เผื่อไว้กันพลาดตอน endpoint เพิ่งตื่น
+  requestTimeoutMs: 35000
 };

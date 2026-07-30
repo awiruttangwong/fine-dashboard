@@ -961,12 +961,14 @@ function collectRawDebtRows_(centralSpreadsheet, sheetName) {
     var lastColumn = sheet.getLastColumn();
     if (lastRow <= BACKEND_CONFIG.headerRow || lastColumn === 0) return;
 
-    var rangeRowCount = lastRow - BACKEND_CONFIG.headerRow;
-    var values = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getValues();
-    var displayValues = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getDisplayValues();
-    var headerMap = resolveDebtHeaderMap_(getHeaderRow_(sheet));
+    // อ่านหัวตาราง + ข้อมูลในการอ่านชุดเดียว (แถวแรก = header) เลี่ยงการยิงอ่าน header
+    // แยกด้วย getHeaderRow_ อีกหนึ่ง round-trip ต่อชีต
+    var region = sheet.getRange(BACKEND_CONFIG.headerRow, 1, lastRow - BACKEND_CONFIG.headerRow + 1, lastColumn);
+    var values = region.getValues();
+    var displayValues = region.getDisplayValues();
+    var headerMap = resolveDebtHeaderMap_(displayValues[0]);
 
-    for (var i = 0; i < values.length; i++) {
+    for (var i = 1; i < values.length; i++) {
       var row = normalizeDebtRow_(sheetName, values[i], displayValues[i], headerMap, source.label);
       if (row) rows.push(row);
     }
@@ -1145,24 +1147,28 @@ function discoverMonthlySheets_(spreadsheet) {
   }
 
   var warnings = [];
-  var catalog = spreadsheet.getSheets()
-    .map(function(sheet) {
-      return parseSheetDescriptor_(sheet);
-    })
-    .filter(function(item) {
-      return item !== null;
-    });
+  var catalog = [];
+
+  // วนชีตครั้งเดียว: จับ descriptor และตรวจ header ด้วย sheet object ที่ถืออยู่แล้ว
+  // (เดิม parseSheetDescriptor_ ทิ้ง sheet ไปแล้ว validate ต้อง getSheetByName ใหม่ต่อชีต
+  // ~12 ครั้ง — เลี่ยงได้ทั้งหมด)
+  spreadsheet.getSheets().forEach(function(sheet) {
+    var descriptor = parseSheetDescriptor_(sheet);
+    if (!descriptor) return;
+    catalog.push(descriptor);
+    // ข้ามการอ่าน+ตรวจ header ของชีตว่าง (เดือนใหม่ที่ยังไม่มีข้อมูล) — ไม่มีข้อมูลให้
+    // อ่านผิดพลาดอยู่แล้ว การเตือน header ที่ชีตว่างจึงไม่มีประโยชน์ และประหยัด round-trip
+    // ต่อเดือนใหม่ที่เปิดไว้ล่วงหน้าแต่ยังไม่มีรายการ
+    if (descriptor.data_row_count <= 0) return;
+    var validation = validateSheetHeaders_(sheet, descriptor.type);
+    if (validation.missing.length > 0) {
+      warnings.push('Sheet ' + descriptor.name + ' missing headers: ' + validation.missing.join(', '));
+    }
+  });
 
   if (catalog.length === 0) {
     throw new Error('ไม่พบชีท SUM(Mx), รอปรับ(Mx), ปรับได้(Mx) หรือ ปรับไม่ได้(Mx) ในไฟล์ Google Sheet นี้');
   }
-
-  catalog.forEach(function(item) {
-    var validation = validateSheetHeaders_(spreadsheet.getSheetByName(item.name), item.type);
-    if (validation.missing.length > 0) {
-      warnings.push('Sheet ' + item.name + ' missing headers: ' + validation.missing.join(', '));
-    }
-  });
 
   return {
     catalog: catalog,
@@ -1289,18 +1295,26 @@ function collectCanonicalRows_(spreadsheet, catalog, params) {
 }
 
 function extractRowsFromSheet_(sheet, descriptor) {
-  var lastRow = sheet.getLastRow();
-  var lastColumn = sheet.getLastColumn();
-  if (lastRow <= BACKEND_CONFIG.headerRow || lastColumn === 0) return [];
+  // ใช้ metadata ที่ discovery อ่านมาแล้ว (last_column / data_row_count) แทนการเรียก
+  // getLastRow()/getLastColumn() ซ้ำอีกครั้งต่อชีต — แต่ละครั้งเป็น round-trip ไปเซิร์ฟเวอร์
+  // และข้ามชีตว่าง (เดือนใหม่ที่ยังไม่มีข้อมูล เช่น SUM(M8) 0 แถว) โดยไม่ต้องอ่านเลย
+  var lastColumn = descriptor.last_column != null ? descriptor.last_column : sheet.getLastColumn();
+  var dataRowCount = descriptor.data_row_count != null
+    ? descriptor.data_row_count
+    : Math.max(sheet.getLastRow() - BACKEND_CONFIG.headerRow, 0);
+  if (dataRowCount <= 0 || lastColumn === 0) return [];
 
-  var rangeRowCount = lastRow - BACKEND_CONFIG.headerRow;
-  var values = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getValues();
-  var displayValues = sheet.getRange(BACKEND_CONFIG.headerRow + 1, 1, rangeRowCount, lastColumn).getDisplayValues();
-  var headerMap = resolveHeaderMap_(getHeaderRow_(sheet));
+  // อ่านหัวตาราง + ข้อมูลในการอ่านชุดเดียว (แถวแรกของ region คือ header) เพื่อไม่ต้อง
+  // ยิงอ่าน header แยกอีกรอบด้วย getHeaderRow_ — getValues/getDisplayValues เป็น round-trip
+  // ที่จำเป็นต้องเรียกอยู่แล้ว จึงรวมหัวตารางเข้าไปในนั้นแทนการอ่านซ้ำ
+  var region = sheet.getRange(BACKEND_CONFIG.headerRow, 1, dataRowCount + 1, lastColumn);
+  var values = region.getValues();
+  var displayValues = region.getDisplayValues();
+  var headerMap = resolveHeaderMap_(displayValues[0]);
   var rows = [];
 
-  for (var i = 0; i < values.length; i++) {
-    var sourceRow = BACKEND_CONFIG.headerRow + 1 + i;
+  for (var i = 1; i < values.length; i++) {
+    var sourceRow = BACKEND_CONFIG.headerRow + i;
     var row = normalizeSheetRow_(values[i], displayValues[i], headerMap, descriptor, sourceRow);
     if (row) rows.push(row);
   }
