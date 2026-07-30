@@ -2,6 +2,7 @@ function onOpen() {
   SpreadsheetApp.getUi()
     .createMenu(BACKEND_CONFIG.menuName)
     .addItem(BACKEND_CONFIG.syncMenuLabel, BACKEND_CONFIG.syncMenuFunction)
+    .addItem('ซ่อมรูปแบบวันที่ (Drivers/Payments)', 'repairAllDebtDateFormats')
     .addToUi();
 }
 
@@ -575,6 +576,53 @@ function applyDebtDateFormat_(sheet, baseName, headers) {
   sheet.getRange(2, dateCol, maxRows - 1, 1).setNumberFormat(fmt);
 }
 
+// คอลัมน์/ฟอร์แมตวันที่ของแต่ละชีต — แหล่งความจริงจุดเดียว ใช้ร่วมกันทั้ง format แถวเก่า
+// (applyDebtDateFormat_) และ format แถวที่เพิ่ง append (formatAppendedDebtDate_)
+function debtDateSpec_(baseName) {
+  var isPayments = baseName === 'Payments';
+  var headers = isPayments ? BACKEND_CONFIG.debtSchema.payments.headers : BACKEND_CONFIG.debtSchema.drivers.headers;
+  var dateHeader = isPayments ? 'วันที่' : 'วันที่เริ่ม';
+  return { col: headers.indexOf(dateHeader) + 1, fmt: isPayments ? 'dd/mm/yyyy hh:mm' : 'dd/mm/yyyy' };
+}
+
+// ★ จุดแก้บั๊กหลัก: หลัง appendRow ต้องบังคับ number format ของเซลล์วันที่ "แถวที่เพิ่ง
+// เพิ่ม" ทันที เพราะ appendRow เพิ่มแถวใหม่เลยขอบ grid เดิมที่ applyDebtDateFormat_ ครอบ
+// ไว้ (แค่ 2..getMaxRows ณ ตอนเปิดชีต) แถวใหม่จึงหลุดไปได้ default locale ของสเปรดชีต
+// (เช่น m/d/yyyy hh:mm:ss แบบ US) → เป็นสาเหตุที่วันที่เพี้ยนซ้ำทุกครั้งที่จ่ายเงิน/เพิ่ม
+// พขร. แม้จะเคย format ทั้งชีตแล้วก็ตาม (setNumberFormat เปลี่ยนแค่การแสดงผล ไม่แตะค่า)
+function formatAppendedDebtDate_(sheet, baseName) {
+  var spec = debtDateSpec_(baseName);
+  if (spec.col < 1) return;
+  sheet.getRange(sheet.getLastRow(), spec.col).setNumberFormat(spec.fmt);
+}
+
+// ซ่อมรูปแบบวันที่ของ "แถวเก่า" ที่เคยเพี้ยนก่อนติดตั้ง fix นี้ — ไล่ทุกชีต
+// Drivers(Mx)/Payments(Mx) ที่มีอยู่แล้ว set number format ให้ทั้งคอลัมน์วันที่
+// เป็น วว/ดด/ปปปป (setNumberFormat เปลี่ยนแค่การแสดงผล ไม่แตะค่าข้อมูลใดๆ)
+// เรียกครั้งเดียวผ่านเมนูก็พอ — แถวใหม่หลังจากนี้ถูก formatAppendedDebtDate_ คุมอยู่แล้ว
+function repairAllDebtDateFormats() {
+  var ss = openBackendSpreadsheet_();
+  var sheets = ss.getSheets();
+  var fixed = [];
+  for (var i = 0; i < sheets.length; i++) {
+    var sheet = sheets[i];
+    var name = sheet.getName();
+    var baseName = name.indexOf('Payments(') === 0 ? 'Payments' : (name.indexOf('Drivers(') === 0 ? 'Drivers' : null);
+    if (!baseName) continue;
+    var spec = debtDateSpec_(baseName);
+    if (spec.col < 1) continue;
+    var lastRow = sheet.getLastRow();
+    if (lastRow >= 2) {
+      sheet.getRange(2, spec.col, lastRow - 1, 1).setNumberFormat(spec.fmt);
+      fixed.push(name + ' (' + (lastRow - 1) + ' แถว)');
+    }
+  }
+  try {
+    SpreadsheetApp.getUi().alert('ซ่อมรูปแบบวันที่เป็น วว/ดด/ปปปป เรียบร้อย\n\n' + (fixed.length ? fixed.join('\n') : 'ไม่พบชีต Drivers/Payments'));
+  } catch (e) { /* ไม่มี UI context (เช่นรันจาก trigger) ก็ข้ามการแจ้งเตือน */ }
+  return fixed;
+}
+
 // แปลง 'YYYY-MM-DD' (จาก <input type=date> ฝั่ง frontend) เป็น Date object เพื่อให้
 // number format dd/mm/yyyy มีผล — สร้างจากส่วนประกอบด้วย new Date(y, m-1, d) กันปัญหา
 // timezone (new Date('2026-06-05') = UTC เที่ยงคืน อาจเลื่อนวันในบาง tz) ถ้าค่าไม่ใช่
@@ -745,6 +793,7 @@ function debtAddDriver_(driverSheet, monthLabel, p) {
     id, name, cleanText_(p.driverName), cleanText_(p.route), parseDebtDate_(p.date),
     total, installments, 0, total, 'กำลังผ่อน', fineType, collectible, '', customer
   ]);
+  formatAppendedDebtDate_(driverSheet, 'Drivers'); // บังคับ วว/ดด/ปปปป บนแถวใหม่
   return { ok: true, action: 'debt_add', month: monthLabel, id: id, message: 'เพิ่ม ' + name + ' เรียบร้อย' };
 }
 
@@ -821,6 +870,7 @@ function debtPay_(ss, driverSheet, monthLabel, p) {
 
   var paymentSheet = getDebtPaymentsSheet_(ss, monthLabel);
   paymentSheet.appendRow(['P-' + new Date().getTime(), cleanText_(p.driverId), cleanText_(p.nextInst), payAmt, new Date(), 'WebApp']);
+  formatAppendedDebtDate_(paymentSheet, 'Payments'); // บังคับ วว/ดด/ปปปป hh:mm บนแถวใหม่
   driverSheet.getRange(r, 8).setValue(newPaid);
   driverSheet.getRange(r, 9).setValue(newBalance);
   driverSheet.getRange(r, 10).setValue(newBalance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
