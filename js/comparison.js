@@ -21,11 +21,15 @@ const ComparisonView = (() => {
   };
 
   const KPI_CONFIGS = [
-    { key: 'totalFine', label: 'ยอดปรับรวมทั้งปี', format: 'currency', icon: ICONS.money, tone: 'red' },
+    // totalFineNet = สูตรเดียวกับการ์ด "ยอดปรับรวม" ของโหมดปกติ (js/kpi.js): หัก
+    // "ปรับไม่ได้" ออกแล้วบวกยอดค่าปรับรถไม่เข้ารับงาน — ไม่ใช่ yearly.totalFine ดิบ
+    // (ตัวนั้นยังใช้เป็นผลรวมคอลัมน์ "ยอดปรับ" ในตารางด้านล่างเหมือนเดิม)
+    { key: 'totalFineNet', label: 'ยอดปรับรวมทั้งปี', format: 'currency', icon: ICONS.money, tone: 'red' },
     { key: 'totalRows', label: 'จำนวนรายการปรับ', format: 'count', icon: ICONS.file, tone: 'blue' },
     { key: 'totalPaid', label: 'ยอดชำระแล้ว', format: 'currency', icon: ICONS.check, tone: 'green' },
     { key: 'totalRemaining', label: 'ยอดคงเหลือ', format: 'currency', icon: ICONS.clock, tone: 'orange' },
-    { key: 'collectionRate', label: 'อัตราการเรียกเก็บ', format: 'percent', icon: ICONS.trend, tone: 'purple' }
+    { key: 'collectionRate', label: 'อัตราการเรียกเก็บ', format: 'percent', icon: ICONS.trend, tone: 'purple' },
+    { key: 'debtTotal', label: 'ค่าปรับรถไม่เข้ารับงาน', format: 'currency', icon: ICONS.money, tone: 'blue' }
   ];
 
   let dailyChart = null;
@@ -56,6 +60,9 @@ const ComparisonView = (() => {
 
   function renderKpiCard(config, yearly) {
     const value = yearly[config.key];
+    const baselineText = config.key === 'debtTotal'
+      ? `ปี ${yearly.year + 543} รวม ${formatNumber(yearly.debtCount)} ราย`
+      : `ปี ${yearly.year + 543} ข้อมูล ${formatNumber(yearly.totalRows)} รายการ`;
     return `
       <article class="comparison-kpi comparison-kpi--${config.tone}">
         <div class="comparison-kpi__header">
@@ -64,7 +71,7 @@ const ComparisonView = (() => {
         </div>
         <div class="comparison-kpi__value">${formatValue(value, config.format)}</div>
         <div class="comparison-kpi__footer">
-          <span class="comparison-kpi__baseline">ปี ${yearly.year + 543} ข้อมูล ${formatNumber(yearly.totalRows)} รายการ</span>
+          <span class="comparison-kpi__baseline">${baselineText}</span>
         </div>
       </article>
     `;
@@ -83,6 +90,7 @@ const ComparisonView = (() => {
           <td class="cell-right cell-amount">${formatCurrency(m.totalFine)}</td>
           <td class="cell-right cell-amount cell-amount--positive">${formatCurrency(m.totalPaid)}</td>
           <td class="cell-right cell-amount">${formatCurrency(m.totalRemaining)}</td>
+          <td class="cell-right cell-amount">${formatCurrency(m.debtTotal)}</td>
           <td class="cell-right">${formatNumber(m.collectionRate, 1)}%</td>
         </tr>
       `;
@@ -104,6 +112,7 @@ const ComparisonView = (() => {
               <th style="text-align:right;white-space:nowrap">ยอดปรับ</th>
               <th style="text-align:right;white-space:nowrap">ชำระแล้ว</th>
               <th style="text-align:right;white-space:nowrap">คงเหลือ</th>
+              <th style="text-align:right;white-space:nowrap">ค่าปรับรถไม่เข้ารับงาน</th>
               <th style="text-align:right;white-space:nowrap">อัตราเรียกเก็บ</th>
             </tr>
           </thead>
@@ -115,6 +124,7 @@ const ComparisonView = (() => {
               <td class="cell-right cell-amount" style="font-weight:700">${formatCurrency(yearly.totalFine)}</td>
               <td class="cell-right cell-amount cell-amount--positive" style="font-weight:700">${formatCurrency(yearly.totalPaid)}</td>
               <td class="cell-right cell-amount" style="font-weight:700">${formatCurrency(yearly.totalRemaining)}</td>
+              <td class="cell-right cell-amount" style="font-weight:700">${formatCurrency(yearly.debtTotal)}</td>
               <td class="cell-right" style="font-weight:700">${formatNumber(yearly.collectionRate, 1)}%</td>
             </tr>
           </tbody>
@@ -171,11 +181,14 @@ const ComparisonView = (() => {
     `;
   }
 
+  let lastModel = null;
+
   function render(filters) {
     const container = document.getElementById('comparison-view');
     if (!container) return;
 
     const model = FineData.getYearlyComparisonModel(filters);
+    lastModel = model;
     const { year, yearly, months } = model;
 
     container.hidden = false;
@@ -185,6 +198,10 @@ const ComparisonView = (() => {
           <div>
             <div class="comparison-toolbar__period">ภาพรวมทั้งปี พ.ศ. ${year + 543}</div>
           </div>
+          <button type="button" class="btn btn-outline-dark comparison-export-btn" id="comparison-export-btn">
+            ${ICONS.file}
+            <span>Export ภาพรวม</span>
+          </button>
         </div>
 
         <div class="comparison-kpi-grid">
@@ -237,6 +254,50 @@ const ComparisonView = (() => {
 
     renderYearlyTrendChart(model);
     renderCustomerChart(model);
+
+    const exportBtn = document.getElementById('comparison-export-btn');
+    if (exportBtn) exportBtn.addEventListener('click', () => exportYearlyReport(model));
+  }
+
+  // ── Export ภาพรวมทั้งปีเป็น Excel — เพิ่มตามคำขอ (ครั้งนี้ครั้งเดียว) ──
+  // ใช้ ExcelJS ตัวเดียวกับที่โหลดจาก CDN ใน index.html อยู่แล้ว (ดู pattern การใช้งาน
+  // ใน js/debt.js:downloadTemplate) สร้าง workbook ของตัวเองแยกจากตรงนั้น ไม่แชร์กัน
+  async function exportYearlyReport(model) {
+    if (typeof ExcelJS === 'undefined') return;
+    const { year, yearly, monthlyData, customerBreakdown } = model;
+
+    const wb = new ExcelJS.Workbook();
+
+    const monthlySheet = wb.addWorksheet('ภาพรวมรายเดือน');
+    const monthlyHeader = ['เดือน', 'จำนวนรายการ', 'ยอดปรับ', 'ชำระแล้ว', 'คงเหลือ', 'ค่าปรับรถไม่เข้ารับงาน', 'อัตราเรียกเก็บ (%)'];
+    monthlySheet.addRow(monthlyHeader);
+    monthlySheet.getRow(1).font = { bold: true };
+    monthlyData.forEach(m => {
+      monthlySheet.addRow([m.label, m.count, m.totalFine, m.totalPaid, m.totalRemaining, m.debtTotal, Number(m.collectionRate.toFixed(1))]);
+    });
+    const totalRow = monthlySheet.addRow(['รวมทั้งปี', yearly.totalRows, yearly.totalFine, yearly.totalPaid, yearly.totalRemaining, yearly.debtTotal, Number(yearly.collectionRate.toFixed(1))]);
+    totalRow.font = { bold: true };
+    monthlySheet.columns.forEach(col => { col.width = 20; });
+
+    const customerSheet = wb.addWorksheet('สัดส่วนตามลูกค้า');
+    customerSheet.addRow(['ลูกค้า', 'จำนวนรายการ', 'ยอดปรับรวม', 'ชำระแล้ว', 'สัดส่วน (%)']);
+    customerSheet.getRow(1).font = { bold: true };
+    Object.entries(customerBreakdown)
+      .sort((a, b) => b[1].fineTotal - a[1].fineTotal)
+      .forEach(([name, data]) => {
+        const pct = yearly.totalFine > 0 ? Number(((data.fineTotal / yearly.totalFine) * 100).toFixed(1)) : 0;
+        customerSheet.addRow([name, data.count, data.fineTotal, data.paidTotal, pct]);
+      });
+    customerSheet.columns.forEach(col => { col.width = 20; });
+
+    const buf = await wb.xlsx.writeBuffer();
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
+    a.download = `ภาพรวมทั้งปี-${year + 543}.xlsx`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(a.href);
   }
 
   function renderYearlyTrendChart(model) {

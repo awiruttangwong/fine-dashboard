@@ -180,16 +180,18 @@
   white-space: nowrap;
 }
 
+/* จัดวางให้ตรงสัดส่วนเดียวกับ .kpi-grid ของโหมดปกติ (css/layout.css:360-364 —
+   6 คอลัมน์/gap เดียวกัน) เพราะตอนนี้มี 6 การ์ด (เพิ่มการ์ดค่าปรับรถไม่เข้ารับงาน) */
 .comparison-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-5);
 }
 
 .comparison-kpi {
   min-width: 0;
-  min-height: 142px;
-  padding: var(--space-4);
+  min-height: 156px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
   background: var(--color-surface);
@@ -198,6 +200,12 @@
   box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
+  transition: box-shadow var(--transition-spring), transform var(--transition-spring);
+}
+
+.comparison-kpi:hover {
+  transform: translateY(-4px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .comparison-kpi::before {
@@ -228,27 +236,34 @@
 }
 
 .comparison-kpi__icon {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  flex: 0 0 32px;
-  border-radius: var(--radius-md);
-  color: var(--comparison-tone);
-  background: color-mix(in srgb, var(--comparison-tone) 10%, white);
+  flex: 0 0 40px;
+  border-radius: 50%;
+  color: #ffffff;
+  background: var(--comparison-tone);
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--comparison-tone) 40%, transparent);
+  transition: transform var(--transition-spring);
+}
+
+.comparison-kpi:hover .comparison-kpi__icon {
+  transform: scale(1.10) rotate(-5deg);
 }
 
 .comparison-kpi__icon svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .comparison-kpi__value {
   margin-top: var(--space-4);
   color: var(--color-text-primary);
-  font-size: 1.45rem;
+  font-size: 1.65rem;
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
+  letter-spacing: var(--letter-spacing-tight);
   line-height: 1.15;
   white-space: nowrap;
 }
@@ -621,8 +636,10 @@
 
 .comparison-yearly-table th {
   color: var(--color-text-muted);
-  background: var(--color-surface-alt);
+  background: var(--color-bg);
   font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
   white-space: nowrap;
 }
 
@@ -678,13 +695,20 @@
   margin-bottom: 0;
 }
 
-@media (max-width: 1280px) {
+@media (max-width: 1200px) {
   .comparison-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   .comparison-breakdown-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1024px) {
+  .comparison-kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-4);
   }
 }
 
