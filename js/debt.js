@@ -71,7 +71,7 @@ const DebtTracker = (() => {
     renderData();
   }
 
-  async function write(action, params, okMsg) {
+  async function write(action, params, okMsg, highlightId) {
     if (state.busy) return;
     state.busy = true;
     try {
@@ -79,9 +79,42 @@ const DebtTracker = (() => {
       if (!res || res.ok === false) throw new Error((res && res.error) || 'บันทึกไม่สำเร็จ');
       if (okMsg) toast(okMsg, 'success');
       await load(true);
+      if (highlightId) flashRow(highlightId);
       return res;
     } catch (err) { toast(err.message, 'error'); throw err; }
     finally { state.busy = false; }
+  }
+
+  // ไฮไลต์แถวที่เพิ่ง add/pay/แก้ไข/ย้าย หลัง reload เสร็จ ให้ผู้ใช้เห็นว่าแถวไหนเปลี่ยน
+  // (ลบไม่ต้อง — แถวหายไปแล้ว จึงไม่ส่ง highlightId มา)
+  function flashRow(id) {
+    const key = (window.CSS && CSS.escape) ? CSS.escape(String(id)) : String(id);
+    const tr = document.querySelector('#debt-groups tr[data-row-id="' + key + '"]');
+    if (!tr) return;
+    tr.classList.remove('row-just-updated');
+    void tr.offsetWidth; // บังคับ reflow เพื่อรีสตาร์ท animation
+    tr.classList.add('row-just-updated');
+  }
+
+  // ยิงคำสั่งเขียนพร้อมฟีดแบ็กครบวงจร: หมุน spinner ระหว่างบันทึก → ติ๊กเขียว "สำเร็จ"
+  // สั้นๆ → ปิดโมดัล → ไฮไลต์แถวที่เปลี่ยน แทน pattern เดิมที่แค่ตั้ง disabled เฉยๆ
+  // (ผู้ใช้ไม่รู้เลยว่ากดติดหรือยัง / บันทึกเสร็จหรือยัง)
+  async function submitWrite(btn, close, action, params, okMsg, highlightId) {
+    if (state.busy || btn.classList.contains('is-loading')) return;
+    const foot = btn.closest('.debt-modal__foot');
+    const others = foot ? Array.prototype.slice.call(foot.querySelectorAll('.btn')).filter(b => b !== btn) : [];
+    btn.classList.add('is-loading');
+    others.forEach(b => { b.disabled = true; });
+    try {
+      await write(action, params, okMsg, highlightId);
+      btn.classList.remove('is-loading');
+      btn.classList.add('is-success');
+      await new Promise(r => setTimeout(r, 520));
+      close();
+    } catch (e) {
+      btn.classList.remove('is-loading');
+      others.forEach(b => { b.disabled = false; });
+    }
   }
 
   // ══ shell ══
@@ -247,7 +280,7 @@ const DebtTracker = (() => {
     // ยอดบนการ์ด KPI "ผ่อนเสร็จแล้ว" ได้ตรงๆ ในตาราง ไม่ต้องเดา/บวกเอง — วางไว้ก่อน
     // "คงเหลือ" และใช้สีเขียว (cell-paid) ต่างจากสีแดงของคงเหลือ ให้แยกความหมายชัดเจน
     const paidCell = showPaid ? `<td class="cell-paid">${num(d.paid)}</td>` : '';
-    return `<tr>
+    return `<tr data-row-id="${esc(d.id)}">
       <td>
         <div class="cell-driver__name" title="${esc(d.name)}">${esc(d.name)}</div>
         ${d.driverName ? `<div class="cell-driver__driver">พขร. ${esc(d.driverName)}</div>` : ''}
@@ -321,7 +354,7 @@ const DebtTracker = (() => {
   const typeOpts = (sel) => '<option value="">-- เลือกสาเหตุ --</option>' + state.fineTypes.map(t => `<option value="${esc(t)}"${t === sel ? ' selected' : ''}>${esc(t)}</option>`).join('');
 
   function openAddModal() {
-    const foot = '<button class="btn btn-dark" id="a-ok" style="flex:1">บันทึกข้อมูล</button>';
+    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="a-ok" style="flex:1">บันทึกข้อมูล</button>';
     const m = modal('เพิ่มรายชื่อ พขร. ใหม่', `
       <div class="ef">
         <div class="ef__field"><label class="ef__label">ชื่อผู้รับโอน *</label><input class="ef__input" id="a-name"></div>
@@ -340,7 +373,8 @@ const DebtTracker = (() => {
         <div class="debt-note-box"><strong>หมายเหตุ:</strong> คนเดียวกันแต่ต่างประเภท → เพิ่มได้เลย ระบบจะแยกติดตามอิสระกัน</div>
       </div>`, { foot });
     m.ov.querySelectorAll('input[name=a-col]').forEach(r => r.onchange = () => { m.ov.querySelector('#a-inst-wrap').style.display = m.ov.querySelector('input[name=a-col]:checked').value === 'ปรับไม่ได้' ? 'none' : ''; });
-    m.$('a-ok').onclick = async () => {
+    m.ov.querySelector('[data-role=cancel]').onclick = m.close;
+    m.$('a-ok').onclick = () => {
       const g = (id) => m.$(id).value.trim();
       const collectible = m.ov.querySelector('input[name=a-col]:checked').value;
       const date = g('a-date');
@@ -349,14 +383,13 @@ const DebtTracker = (() => {
       // target month: viewing a specific month → that month; viewing all → derive from start date, else current
       let targetMonth = state.month;
       if (targetMonth === 'all') { const md = date.match(/^\d{4}-(\d{2})-/); targetMonth = md ? 'M' + Number(md[1]) : currentMonthLabel(); }
-      m.$('a-ok').disabled = true;
-      try { await write('debt_add', Object.assign({ month: targetMonth }, data), 'เพิ่ม ' + data.name + ' แล้ว'); m.close(); }
-      catch (e) { m.$('a-ok').disabled = false; }
+      // แถวใหม่ยังไม่รู้ id (backend gen ให้) จึงไม่ส่ง highlightId
+      submitWrite(m.$('a-ok'), m.close, 'debt_add', Object.assign({ month: targetMonth }, data), 'เพิ่ม ' + data.name + ' แล้ว');
     };
   }
 
   function openEditModal(d) {
-    const foot = '<button class="btn btn-outline-secondary" id="e-del" style="flex:0 0 auto">ลบ</button><button class="btn btn-primary" id="e-ok" style="flex:1">บันทึก</button>';
+    const foot = '<button class="btn btn-outline-danger" id="e-del" style="flex:0 0 auto">ลบ</button><button class="btn btn-primary" id="e-ok" style="flex:1">บันทึก</button>';
     const m = modal('แก้ไขข้อมูล', `
       <div class="ef">
         <div class="ef__field"><label class="ef__label">ชื่อผู้รับโอน *</label><input class="ef__input" id="e-name" value="${esc(d.name)}"></div>
@@ -370,44 +403,39 @@ const DebtTracker = (() => {
         </div>
       </div>`, { foot });
     m.$('e-del').onclick = () => { m.close(); confirmDelete(d); };
-    m.$('e-ok').onclick = async () => {
+    m.$('e-ok').onclick = () => {
       const g = (id) => m.$(id).value.trim();
       if (!g('e-name')) { toast('กรุณากรอกชื่อผู้รับโอน', 'error'); return; }
       if (!g('e-customer')) { toast('กรุณาเลือกลูกค้า', 'error'); return; }
-      m.$('e-ok').disabled = true;
-      try { await write('debt_update', { month: monthFromId(d.id), driverId: d.id, name: g('e-name'), driverName: g('e-driver'), customer: g('e-customer'), route: g('e-route'), fineType: g('e-type'), total: g('e-total') || '0', installments: g('e-inst') || '12' }, 'แก้ไขแล้ว'); m.close(); }
-      catch (e) { m.$('e-ok').disabled = false; }
+      submitWrite(m.$('e-ok'), m.close, 'debt_update', { month: monthFromId(d.id), driverId: d.id, name: g('e-name'), driverName: g('e-driver'), customer: g('e-customer'), route: g('e-route'), fineType: g('e-type'), total: g('e-total') || '0', installments: g('e-inst') || '12' }, 'แก้ไขแล้ว', d.id);
     };
   }
 
   function openPayModal(d) {
-    const foot = '<button class="btn btn-primary" id="p-ok" style="flex:1">ยืนยันบันทึก</button>';
+    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="p-ok" style="flex:1">ยืนยันบันทึก</button>';
     const m = modal('บันทึกชำระเงิน', `
       <h4 class="debt-inst-heading">งวดที่ ${d.nextInst}</h4>
       <div class="debt-suggest"><small>ยอดแนะนำ</small><h3>${num(d.suggestedAmount)} ฿</h3></div>
       <div class="ef"><div class="ef__field"><label class="ef__label">จำนวนเงินที่จ่ายจริง</label><input class="ef__input" type="number" id="p-amount" min="1" value="${d.suggestedAmount || ''}"></div></div>`, { foot });
-    m.$('p-ok').onclick = async () => {
+    m.ov.querySelector('[data-role=cancel]').onclick = m.close;
+    m.$('p-ok').onclick = () => {
       const amt = m.$('p-amount').value.trim();
       if (!(Number(amt) > 0)) { toast('จำนวนเงินไม่ถูกต้อง', 'error'); return; }
-      m.$('p-ok').disabled = true;
-      try { await write('debt_pay', { month: monthFromId(d.id), driverId: d.id, amount: amt, nextInst: d.nextInst }, 'บันทึกการจ่ายแล้ว'); m.close(); }
-      catch (e) { m.$('p-ok').disabled = false; }
+      submitWrite(m.$('p-ok'), m.close, 'debt_pay', { month: monthFromId(d.id), driverId: d.id, amount: amt, nextInst: d.nextInst }, 'บันทึกการจ่ายแล้ว', d.id);
     };
   }
 
   function moveNon(d) {
-    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="mn-ok" style="flex:1">ย้าย</button>';
+    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-warning" id="mn-ok" style="flex:1">ยืนยันย้าย</button>';
     const m = modal('ย้ายไปปรับไม่ได้', `<p class="debt-note-box" style="margin:0">ยอดคงเหลือ <b>${num(d.balance)} ฿</b> ของ <b>${esc(d.name)}</b> จะถูกย้ายไปกลุ่มปรับไม่ได้</p>`, { foot });
     m.ov.querySelector('[data-role=cancel]').onclick = m.close;
-    m.$('mn-ok').onclick = async () => {
-      m.$('mn-ok').disabled = true;
-      try { await write('debt_setcollectible', { month: monthFromId(d.id), driverId: d.id, collectible: 'ปรับไม่ได้', date: todayDMY(), note: '' }, 'ย้ายไปปรับไม่ได้แล้ว'); m.close(); }
-      catch (e) { m.$('mn-ok').disabled = false; }
+    m.$('mn-ok').onclick = () => {
+      submitWrite(m.$('mn-ok'), m.close, 'debt_setcollectible', { month: monthFromId(d.id), driverId: d.id, collectible: 'ปรับไม่ได้', date: todayDMY(), note: '' }, 'ย้ายไปปรับไม่ได้แล้ว', d.id);
     };
   }
 
   function moveBack(d) {
-    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="mb-ok" style="flex:1">ยืนยัน</button>';
+    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-success" id="mb-ok" style="flex:1">ยืนยันดึงกลับ</button>';
     const m = modal('ดึงกลับมาปรับได้', `
       <div class="ef">
         <div class="ef__row">
@@ -417,24 +445,20 @@ const DebtTracker = (() => {
         <div class="ef__field"><label class="ef__label">หมายเหตุ</label><textarea class="ef__input" id="mb-note" placeholder="เช่น เจอตัวแล้ว / เริ่มหักย้อนหลัง"></textarea></div>
       </div>`, { foot });
     m.ov.querySelector('[data-role=cancel]').onclick = m.close;
-    m.$('mb-ok').onclick = async () => {
+    m.$('mb-ok').onclick = () => {
       const date = m.$('mb-date').value, inst = parseInt(m.$('mb-inst').value, 10);
       if (!date) { toast('กรุณาเลือกวันที่ย้อนหลัง', 'error'); return; }
       if (!(inst >= 1 && inst <= 12)) { toast('จำนวนงวดต้องอยู่ระหว่าง 1-12', 'error'); return; }
-      m.$('mb-ok').disabled = true;
-      try { await write('debt_setcollectible', { month: monthFromId(d.id), driverId: d.id, collectible: 'ปรับได้', date, note: m.$('mb-note').value.trim(), installments: inst }, 'ดึงกลับแล้ว'); m.close(); }
-      catch (e) { m.$('mb-ok').disabled = false; }
+      submitWrite(m.$('mb-ok'), m.close, 'debt_setcollectible', { month: monthFromId(d.id), driverId: d.id, collectible: 'ปรับได้', date, note: m.$('mb-note').value.trim(), installments: inst }, 'ดึงกลับแล้ว', d.id);
     };
   }
 
   function confirmDelete(d) {
-    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="d-ok" style="flex:1;background:var(--color-danger);border-color:var(--color-danger)">ลบ</button>';
+    const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-danger" id="d-ok" style="flex:1">ลบถาวร</button>';
     const m = modal('ลบรายการนี้?', `<p class="debt-note-box" style="margin:0"><b>${esc(d.name)}</b><br>ลบแล้วกู้คืนไม่ได้ (รวมประวัติการจ่าย)</p>`, { foot });
     m.ov.querySelector('[data-role=cancel]').onclick = m.close;
-    m.$('d-ok').onclick = async () => {
-      m.$('d-ok').disabled = true;
-      try { await write('debt_delete', { month: monthFromId(d.id), driverId: d.id }, 'ลบแล้ว'); m.close(); }
-      catch (e) { m.$('d-ok').disabled = false; }
+    m.$('d-ok').onclick = () => {
+      submitWrite(m.$('d-ok'), m.close, 'debt_delete', { month: monthFromId(d.id), driverId: d.id }, 'ลบแล้ว');
     };
   }
 

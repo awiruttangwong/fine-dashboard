@@ -137,23 +137,61 @@
 #debt-view .debt-loading, #debt-view .debt-error { padding: 40px; text-align: center; color: var(--color-text-muted); font-size: .88rem; }
 #debt-view .debt-error { color: var(--color-danger); }
 
-/* ── Buttons ── */
-#debt-view .btn { border-radius: var(--radius-md); font-weight: 500; font-size: .86rem; font-family: inherit; cursor: pointer; transition: all var(--transition-fast); border: 1px solid transparent; padding: .38rem .9rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
-#debt-view .btn svg { vertical-align: -2px; }
-#debt-view .btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
-#debt-view .btn-primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); }
-#debt-view .btn-dark { background: var(--color-text-primary); border-color: var(--color-text-primary); color: #fff; }
-#debt-view .btn-dark:hover { background: #000; }
-#debt-view .btn-outline-dark { color: var(--color-text-primary); border-color: var(--color-border); background: var(--color-surface); }
-#debt-view .btn-outline-dark:hover { background: var(--color-surface-hover); }
-#debt-view .btn-outline-secondary { color: var(--color-text-secondary); border-color: var(--color-border); background: var(--color-surface); }
-#debt-view .btn-outline-secondary:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
-#debt-view .btn-outline-success { color: var(--color-success); border-color: rgba(52,199,89,.4); background: var(--color-surface); }
-#debt-view .btn-outline-success:hover { background: var(--color-success); border-color: var(--color-success); color: #fff; }
-#debt-view .btn-outline-primary { color: var(--color-accent); border-color: rgba(74,159,219,.4); background: var(--color-surface); }
-#debt-view .btn-outline-primary:hover { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+/* ── Buttons ──
+   สำคัญ: modal ถูก append เข้า <body> (นอก #debt-view) จึงต้อง scope style ปุ่มให้
+   ครอบ .debt-modal ด้วย ไม่งั้นปุ่มในโมดัลจะไม่มีสี (พื้นโปร่ง/ดำเหมือนกันหมด แยก
+   ลบ/บันทึก ไม่ออก) — ทุก selector ด้านล่างจึงมีคู่ #debt-view + .debt-modal เสมอ */
+#debt-view .btn, .debt-modal .btn { position: relative; border-radius: var(--radius-md); font-weight: 500; font-size: .86rem; font-family: inherit; cursor: pointer; transition: transform var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast), color var(--transition-fast), box-shadow var(--transition-fast); border: 1px solid transparent; padding: .38rem .9rem; display: inline-flex; align-items: center; justify-content: center; gap: 6px; }
+#debt-view .btn svg, .debt-modal .btn svg { vertical-align: -2px; }
+/* กดแล้วยุบเล็กน้อยให้รู้สึกว่ากดติด (tactile feedback) */
+#debt-view .btn:active, .debt-modal .btn:active { transform: scale(.96); }
+#debt-view .btn:disabled, .debt-modal .btn:disabled { opacity: .5; cursor: not-allowed; }
+#debt-view .btn:disabled:active, .debt-modal .btn:disabled:active { transform: none; }
+
+#debt-view .btn-primary, .debt-modal .btn-primary { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+#debt-view .btn-primary:hover, .debt-modal .btn-primary:hover { background: var(--color-accent-hover); border-color: var(--color-accent-hover); box-shadow: 0 4px 14px rgba(74,159,219,.28); }
+#debt-view .btn-dark, .debt-modal .btn-dark { background: var(--color-text-primary); border-color: var(--color-text-primary); color: #fff; }
+#debt-view .btn-dark:hover, .debt-modal .btn-dark:hover { background: #000; }
+/* ยืนยันเชิงบวก (ดึงกลับปรับได้) — เขียว */
+#debt-view .btn-success, .debt-modal .btn-success { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+#debt-view .btn-success:hover, .debt-modal .btn-success:hover { background: #2CB44E; border-color: #2CB44E; box-shadow: 0 4px 14px rgba(52,199,89,.28); }
+/* การกระทำเชิงเตือน (ย้ายไปปรับไม่ได้) — ส้ม */
+#debt-view .btn-warning, .debt-modal .btn-warning { background: var(--color-warning); border-color: var(--color-warning); color: #fff; }
+#debt-view .btn-warning:hover, .debt-modal .btn-warning:hover { background: #E88600; border-color: #E88600; box-shadow: 0 4px 14px rgba(255,149,0,.28); }
+/* การกระทำทำลาย (ลบถาวร) — แดงทึบ */
+#debt-view .btn-danger, .debt-modal .btn-danger { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
+#debt-view .btn-danger:hover, .debt-modal .btn-danger:hover { background: #E4322A; border-color: #E4322A; box-shadow: 0 4px 14px rgba(255,59,48,.28); }
+
+#debt-view .btn-outline-dark, .debt-modal .btn-outline-dark { color: var(--color-text-primary); border-color: var(--color-border); background: var(--color-surface); }
+#debt-view .btn-outline-dark:hover, .debt-modal .btn-outline-dark:hover { background: var(--color-surface-hover); }
+#debt-view .btn-outline-secondary, .debt-modal .btn-outline-secondary { color: var(--color-text-secondary); border-color: var(--color-border); background: var(--color-surface); }
+#debt-view .btn-outline-secondary:hover, .debt-modal .btn-outline-secondary:hover { background: var(--color-surface-hover); color: var(--color-text-primary); }
+#debt-view .btn-outline-success, .debt-modal .btn-outline-success { color: var(--color-success); border-color: rgba(52,199,89,.4); background: var(--color-surface); }
+#debt-view .btn-outline-success:hover, .debt-modal .btn-outline-success:hover { background: var(--color-success); border-color: var(--color-success); color: #fff; }
+#debt-view .btn-outline-primary, .debt-modal .btn-outline-primary { color: var(--color-accent); border-color: rgba(74,159,219,.4); background: var(--color-surface); }
+#debt-view .btn-outline-primary:hover, .debt-modal .btn-outline-primary:hover { background: var(--color-accent); border-color: var(--color-accent); color: #fff; }
+/* ลบ (ในโมดัลแก้ไข) — outline แดง แยกจากปุ่มบันทึกชัดเจน */
+#debt-view .btn-outline-danger, .debt-modal .btn-outline-danger { color: var(--color-danger); border-color: rgba(255,59,48,.4); background: var(--color-surface); }
+#debt-view .btn-outline-danger:hover, .debt-modal .btn-outline-danger:hover { background: var(--color-danger); border-color: var(--color-danger); color: #fff; }
 #debt-view .btn-action { font-size: .74rem; border-radius: var(--radius-sm); padding: .26rem .62rem; }
 #debt-view .btn-action svg { width: 13px; height: 13px; }
+
+/* ── สถานะกำลังบันทึก: หมุน spinner แทนข้อความ ── */
+#debt-view .btn.is-loading, .debt-modal .btn.is-loading { color: transparent !important; pointer-events: none; }
+#debt-view .btn.is-loading::after, .debt-modal .btn.is-loading::after { content: ""; position: absolute; top: 50%; left: 50%; width: 15px; height: 15px; margin: -8px 0 0 -8px; border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%; animation: debtSpin .6s linear infinite; }
+/* ปุ่ม outline พื้นขาว → spinner สีเทาให้มองเห็น */
+#debt-view .btn[class*="outline"].is-loading::after, .debt-modal .btn[class*="outline"].is-loading::after { border-color: rgba(0,0,0,.18); border-top-color: var(--color-text-secondary); }
+@keyframes debtSpin { to { transform: rotate(360deg); } }
+
+/* ── สถานะสำเร็จ: ปุ่มเปลี่ยนเป็นเขียว + เครื่องหมายถูก ก่อนปิดโมดัล
+   เพื่อให้ผู้ใช้เห็นชัดว่า "ข้อมูลถูกบันทึก/อัปเดตแล้ว" ── */
+#debt-view .btn.is-success, .debt-modal .btn.is-success { background: var(--color-success) !important; border-color: var(--color-success) !important; color: transparent !important; pointer-events: none; }
+#debt-view .btn.is-success::after, .debt-modal .btn.is-success::after { content: ""; position: absolute; top: 50%; left: 50%; width: 13px; height: 7px; margin: -6px 0 0 -7px; border-left: 2.5px solid #fff; border-bottom: 2.5px solid #fff; transform: rotate(-45deg); animation: debtCheckPop .28s cubic-bezier(0.34,1.56,0.64,1); }
+@keyframes debtCheckPop { from { opacity: 0; transform: rotate(-45deg) scale(.3); } to { opacity: 1; transform: rotate(-45deg) scale(1); } }
+
+/* ── ไฮไลต์แถวที่เพิ่งถูกอัปเดต ให้ผู้ใช้เห็นว่าแถวไหนเปลี่ยน ── */
+#debt-view tr.row-just-updated > td { animation: debtRowFlash 1.7s ease; }
+@keyframes debtRowFlash { 0% { background: rgba(52,199,89,.22); } 60% { background: rgba(52,199,89,.12); } 100% { background: transparent; } }
 
 @media (max-width: 900px) { #debt-view .debt-summary { grid-template-columns: 1fr; } }
 @media (max-width: 640px) { #debt-view .toolbar__search, #debt-view .toolbar__month, #debt-view .toolbar__select { width: 100%; } }
