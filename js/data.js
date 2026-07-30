@@ -808,42 +808,21 @@ const FineData = (() => {
 
     const yearData = allData.filter(row => row.fine_year === year);
 
-    // ใช้ getStatusAggregates ตัวเดิม (บรรทัด 508) ซึ่งกรองด้วย
-    // fine_date.startsWith(scopeKey) อยู่แล้ว — ส่ง "YYYY-MM" ได้ผลรายเดือนเหมือนเดิม
-    // และส่ง "YYYY" (ปีเฉยๆ) ก็กรองทั้งปีได้ทันทีโดยไม่ต้องเขียนฟังก์ชันใหม่ ทำให้
-    // totalPaid/totalRemaining/collectionRate ของโหมดภาพรวมทั้งปีใช้สูตรเดียวกับ
-    // โหมดปกติ (getAggregates + js/kpi.js) เป๊ะ แทนที่จะรวม row.paid_amount/
-    // computed_remaining_amount ดิบซึ่งคนละแหล่งกับที่โหมดปกติใช้ (เคยทำให้ตัวเลข
-    // ระหว่าง 2 โหมดไม่ตรงกัน — ยืนยันจากข้อมูลจริงต่างกัน ~2,000-2,300 บาท)
     const monthlyData = months.map(month => {
       const rows = yearData.filter(row => row.fine_month === month.index);
-      const totalFine = rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0);
-      const statusAgg = getStatusAggregates(month.key);
-      const totalRemaining = totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
       return {
         ...month,
         count: rows.length,
-        totalFine,
-        totalPaid: statusAgg.paidAmount,
-        totalRemaining,
-        collectionRate: totalFine > 0 ? (statusAgg.paidAmount / totalFine) * 100 : 0,
-        debtTotal: 0, // เติมค่าจริงด้านล่างหลังคำนวณ debtByMonth
+        totalFine: rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0),
+        totalPaid: rows.reduce((sum, r) => sum + (r.paid_amount || 0), 0),
+        totalRemaining: rows.reduce((sum, r) => sum + (r.computed_remaining_amount || 0), 0),
+        collectionRate: 0,
         rows
       };
     });
 
-    // ── ค่าปรับรถไม่เข้ารับงาน (debt module) แยกตามเดือน ──
-    // ผูกเข้ากับตาราง "ภาพรวมรายเดือน" เดิม — ใช้สูตรเดียวกับการ์ด "ยอดปรับรวม"
-    // ของโหมดปกติ (getDebtGrandTotalSummary: ยอดกลุ่มปรับได้เต็มยอด + กลุ่มปรับไม่ได้
-    // เฉพาะที่จ่ายแล้ว) กรองด้วย month_label ต่อเดือน
     monthlyData.forEach(m => {
-      const monthDebt = getFilteredDebtRows(m.key); // เดือน m.key='YYYY-MM' -> กรอง month_label='Mx' ให้แล้ว
-      let amount = 0;
-      monthDebt.forEach(row => {
-        amount += row.collectible === 'ปรับไม่ได้' ? (row.paid || 0) : (row.total || 0);
-      });
-      m.debtTotal = amount;
-      m.debtCount = monthDebt.length;
+      m.collectionRate = m.totalFine > 0 ? (m.totalPaid / m.totalFine) * 100 : 0;
     });
 
     const customerBreakdown = {};
@@ -871,29 +850,16 @@ const FineData = (() => {
       customerMonthlyBreakdown[customer][monthKey].paidTotal += row.paid_amount || 0;
     });
 
-    const yearStatusAgg = getStatusAggregates(String(year));
-    const yearDebtRows = getFilteredDebtRows(null); // ระบบรองรับข้อมูลปีเดียวที่ active อยู่ (เหมือนโหมดปกติ)
-    let yearDebtTotal = 0;
-    yearDebtRows.forEach(row => {
-      yearDebtTotal += row.collectible === 'ปรับไม่ได้' ? (row.paid || 0) : (row.total || 0);
-    });
-
-    const totalFineRaw = yearData.reduce((s, r) => s + (r.fine_amount || 0), 0);
     const yearly = {
       year,
       totalRows: yearData.length,
-      totalFine: totalFineRaw, // ยอดปรับดิบทั้งปี (ตรงกับผลรวมคอลัมน์ "ยอดปรับ" ในตารางรายเดือน/สัดส่วนลูกค้า)
-      // "ยอดปรับรวมทั้งปี" ที่การ์ด KPI แถวบนใช้แสดง — สูตรเดียวกับการ์ด "ยอดปรับรวม"
-      // ของโหมดปกติเป๊ะ (js/kpi.js): หัก "ปรับไม่ได้" ออก แล้วบวกยอดค่าปรับรถไม่เข้า
-      // รับงานเข้าไป (เดิมโหมดนี้ใช้ totalFine ดิบเฉยๆ ทำให้ตัวเลขไม่ตรงกับโหมดปกติ)
-      totalFineNet: (totalFineRaw - yearStatusAgg.uncollectibleAmount) + yearDebtTotal,
-      totalPaid: yearStatusAgg.paidAmount,
-      totalRemaining: totalFineRaw - yearStatusAgg.paidAmount - yearStatusAgg.uncollectibleAmount,
-      collectionRate: totalFineRaw > 0 ? (yearStatusAgg.paidAmount / totalFineRaw) * 100 : 0,
-      debtTotal: yearDebtTotal,
-      debtCount: yearDebtRows.length,
+      totalFine: yearData.reduce((s, r) => s + (r.fine_amount || 0), 0),
+      totalPaid: yearData.reduce((s, r) => s + (r.paid_amount || 0), 0),
+      totalRemaining: yearData.reduce((s, r) => s + (r.computed_remaining_amount || 0), 0),
+      collectionRate: 0,
       dataIssues: yearData.filter(r => r.is_full_duplicate || r.is_barcode_duplicate || r.has_amount_mismatch || r.is_driver_blank).length
     };
+    yearly.collectionRate = yearly.totalFine > 0 ? (yearly.totalPaid / yearly.totalFine) * 100 : 0;
 
     return {
       year,
