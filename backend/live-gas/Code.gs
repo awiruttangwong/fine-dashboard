@@ -382,7 +382,7 @@ function buildDebtRowsForDashboard_(driverRows) {
       status: row.status,
       customer: row.customer,
       start_date: row.start_date,
-      start_date_iso: debtDmyToIso_(row.start_date)
+      start_date_iso: row.start_iso
     };
   });
 }
@@ -399,6 +399,20 @@ function debtDmyToIso_(text) {
   return yyyy + '-' + mm + '-' + dd;
 }
 
+// แปลงวันที่เริ่มของ พขร. เป็น ISO (yyyy-mm-dd) สำหรับใช้เป็นคีย์กราฟแนวโน้มรายวัน
+// แบบทนทานต่อ format: ถ้าเซลล์เป็น Date object ใช้ค่าจริง (ไม่ขึ้น locale) — กัน
+// debtDmyToIso_ อ่านสลับ วัน/เดือน เมื่อ cell เผลอโชว์ m/d/yyyy จนได้ ISO เพี้ยน
+// (เช่น 7/30/2026 → "2026-30-07" ที่ invalid); text ล้วนค่อย fallback ไป dd/mm/yyyy
+function debtCellToIso_(rawValue, displayText) {
+  if (Object.prototype.toString.call(rawValue) === '[object Date]' && !isNaN(rawValue.getTime())) {
+    var y = rawValue.getFullYear();
+    var mm = ('0' + (rawValue.getMonth() + 1)).slice(-2);
+    var dd = ('0' + rawValue.getDate()).slice(-2);
+    return y + '-' + mm + '-' + dd;
+  }
+  return debtDmyToIso_(displayText);
+}
+
 function extractMonthNumberFromLabel_(label) {
   var match = cleanText_(label).match(/M(\d{1,2})/i);
   return match ? Number(match[1]) : null;
@@ -411,6 +425,18 @@ function extractMonthNumberFromLabel_(label) {
 function extractMonthFromDmyText_(text) {
   var match = cleanText_(text).match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{2,4})/);
   return match ? Number(match[2]) : null;
+}
+
+// เดือนที่แท้จริงของเซลล์วันที่ "แบบทนทานต่อ format การแสดงผล": ถ้าเซลล์เป็น Date object
+// (กรณีปกติที่ระบบเขียน) ใช้ getMonth() ซึ่งไม่ขึ้นกับ locale/number format เลย — จึงไม่
+// ถูกหลอกว่า "เดือน 30" อีก แม้ cell จะเผลอโชว์ m/d/yyyy; เหลือ fallback ไป parse
+// dd/mm/yyyy เฉพาะกรณีเซลล์เป็น text ล้วน (พิมพ์มือ/ข้อมูลเก่า) เท่านั้น
+// → ตัดความเปราะบางที่ผูก detector ไว้กับ display format ออกถาวร (defense-in-depth)
+function debtActualMonthFromCell_(rawValue, displayText) {
+  if (Object.prototype.toString.call(rawValue) === '[object Date]' && !isNaN(rawValue.getTime())) {
+    return rawValue.getMonth() + 1;
+  }
+  return extractMonthFromDmyText_(displayText);
 }
 
 // ── ตรวจจับความไม่ตรงกันระหว่าง "ชื่อไฟล์เดือน" (M6/M7/...) กับ "วันที่จริงข้างใน" ──
@@ -435,7 +461,7 @@ function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
 
   driverRows.forEach(function(row) {
     var expected = extractMonthNumberFromLabel_(row.month_label);
-    var actual = extractMonthFromDmyText_(row.start_date);
+    var actual = row.start_month;
     if (expected && actual && expected !== actual) {
       items.push({
         source: 'Drivers(' + row.month_label + ')',
@@ -448,7 +474,7 @@ function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
 
   paymentRows.forEach(function(row) {
     var expected = extractMonthNumberFromLabel_(row.month_label);
-    var actual = extractMonthFromDmyText_(row.payment_date);
+    var actual = row.payment_month;
     if (expected && actual && expected !== actual) {
       items.push({
         source: 'Payments(' + row.month_label + ')',
@@ -1008,6 +1034,12 @@ function normalizeDebtRow_(sheetName, values, displayValues, headerMap, monthLab
       driver_name: blankToNull_(getCellByField_(values, displayValues, headerMap, 'driver_name')),
       route: blankToNull_(getCellByField_(values, displayValues, headerMap, 'route')),
       start_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'start_date')),
+      // ค่า derived แบบทนทานต่อ format (คำนวณจาก Date object ดิบตั้งแต่ตอนอ่าน) เพื่อให้
+      // ทั้ง detector และกราฟใช้ต่อได้โดยไม่ต้องพึ่งการแสดงผลของเซลล์ (number/string สะอาด
+      // ไม่พก Date object ไปรั่วใน output ของ action=drivers)
+      start_month: debtActualMonthFromCell_(getRawValueByField_(values, headerMap, 'start_date'), cleanText_(getCellByField_(values, displayValues, headerMap, 'start_date'))),
+      start_iso: debtCellToIso_(getRawValueByField_(values, headerMap, 'start_date'), cleanText_(getCellByField_(values, displayValues, headerMap, 'start_date'))),
+
       total: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'total')),
       installments: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'installments')),
       paid: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'paid')),
@@ -1031,6 +1063,9 @@ function normalizeDebtRow_(sheetName, values, displayValues, headerMap, monthLab
     installment_no: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'installment_no')),
     amount: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'amount')),
     payment_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date')),
+    // เดือนที่แท้จริงแบบทนทานต่อ format (คำนวณจาก Date object ดิบ) — detector ใช้ตัวนี้
+    payment_month: debtActualMonthFromCell_(getRawValueByField_(values, headerMap, 'payment_date'), cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date'))),
+
     source: blankToNull_(getCellByField_(values, displayValues, headerMap, 'source'))
   };
 }
