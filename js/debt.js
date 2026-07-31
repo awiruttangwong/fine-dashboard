@@ -41,6 +41,24 @@ const DebtTracker = (() => {
   const monthFromId = (id) => { const m = String(id || '').match(/^D-(\d+)-/); return m ? 'M' + m[1] : (state.month !== 'all' ? state.month : currentMonthLabel()); };
   function fmtDate(v) { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || ''); }
 
+  // แปลงค่าวันที่จากไฟล์ import ให้เป็น 'YYYY-MM-DD' อย่างแม่นยำ:
+  // - เซลล์วันที่ของ Excel อ่านด้วย cellDates:true เป็น Date object ที่ยึด UTC-midnight
+  //   (Excel เก็บวันที่เป็น serial ไร้ timezone) จึงใช้ getUTC* เพื่อได้วันที่ตรงเป๊ะ ไม่
+  //   เลื่อนข้ามวัน/ข้ามเดือนจาก timezone. เดิมใช้ sheet_to_json raw:false + dateNF ซึ่ง
+  //   ไม่ format เซลล์วันที่จริงตามที่สั่ง (ได้ "6/14/26") ทำให้ตัดสินเดือนเพี้ยน
+  // - ถ้าเป็น string รองรับ 'YYYY-M-D' และ 'DD/MM/YYYY' (ธรรมเนียมไทย)
+  // - parse ไม่ได้ → คืน '' (ผู้เรียกต้องบล็อก ห้ามเดาเดือน)
+  function importCellToIso_(v) {
+    if (v == null || v === '') return '';
+    const pad = (n) => String(n).padStart(2, '0');
+    if (v instanceof Date) return isNaN(v.getTime()) ? '' : (v.getUTCFullYear() + '-' + pad(v.getUTCMonth() + 1) + '-' + pad(v.getUTCDate()));
+    const s = String(v).trim();
+    let m;
+    if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return m[1] + '-' + pad(+m[2]) + '-' + pad(+m[3]);
+    if ((m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/))) return m[3] + '-' + pad(+m[2]) + '-' + pad(+m[1]);
+    return '';
+  }
+
   // ── data ──
   // ป้องกัน race: ถ้าผู้ใช้สลับเดือนเร็ว ๆ (หรือสลับก่อน load แรกจะกลับมา) คำขอหลาย
   // อันจะวิ่งพร้อมกัน ตัวที่ตอบกลับ "ช้าสุด" อาจไม่ใช่ "คำขอล่าสุด" — ผูก seq ให้ทุก
@@ -395,9 +413,13 @@ const DebtTracker = (() => {
       const date = g('a-date');
       const data = { name: g('a-name'), driverName: g('a-driver'), customer: g('a-customer'), fineType: g('a-type'), route: g('a-route'), date, total: g('a-total') || '0', installments: g('a-inst') || '12', collectible };
       if (!data.name || !data.customer || !data.fineType) { toast('ชื่อผู้รับโอน, ลูกค้า และสาเหตุ จำเป็นต้องระบุ', 'error'); return; }
-      // target month: viewing a specific month → that month; viewing all → derive from start date, else current
-      let targetMonth = state.month;
-      if (targetMonth === 'all') { const md = date.match(/^\d{4}-(\d{2})-/); targetMonth = md ? 'M' + Number(md[1]) : currentMonthLabel(); }
+      // เดือนปลายทางกำหนดจาก "วันที่เริ่ม" เสมอ — ไม่เดาเดือนปัจจุบันอีกต่อไป (กันข้อมูล
+      // ไหลผิดเดือนแบบเดียวกับ import). วันที่จึงจำเป็น และถ้ากำลังดูเดือนเจาะจงอยู่ วันที่
+      // ต้องอยู่ในเดือนนั้น ไม่งั้นบล็อก (กันเผลอเพิ่มข้ามเดือนที่กำลังดู)
+      const md = date.match(/^(\d{4})-(\d{2})-\d{2}$/);
+      if (!md) { toast('กรุณาระบุวันที่เริ่ม', 'error'); return; }
+      const targetMonth = 'M' + Number(md[2]);
+      if (state.month !== 'all' && targetMonth !== state.month) { toast('วันที่เริ่มต้องอยู่ในเดือน ' + state.month.slice(1) + ' ที่กำลังดูอยู่', 'error'); return; }
       // แถวใหม่ยังไม่รู้ id (backend gen ให้) จึงไม่ส่ง highlightId
       submitWrite(m.$('a-ok'), m.close, 'debt_add', Object.assign({ month: targetMonth }, data), 'เพิ่ม ' + data.name + ' แล้ว');
     };
@@ -517,43 +539,52 @@ const DebtTracker = (() => {
     if (typeof XLSX === 'undefined') { toast('ตัวอ่าน .xlsx ยังโหลดไม่เสร็จ', 'error'); return; }
     const reader = new FileReader();
     reader.onload = async (e) => {
+      // raw:true → เซลล์วันที่คืนเป็น Date object (แปลงเดือน/วันแม่นยำผ่าน importCellToIso_)
+      // แทน raw:false เดิมที่คืน string รูปแบบ locale เพี้ยน. เก็บ dateRaw ไว้โชว์ใน error
+      // เฉพาะตอน parse ไม่ได้ (ไม่ส่งขึ้น backend)
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
-      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: false, dateNF: 'yyyy-mm-dd' });
+      const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, blankrows: false });
       const data = rows.slice(1).filter(r => r[1] && String(r[1]).trim() !== '').map(r => ({
         customer: String(r[0] || '').trim(), name: String(r[1] || '').trim(), driverName: String(r[2] || '').trim(),
-        route: String(r[3] || '').trim(), date: String(r[4] || '').trim(), total: String(r[5] || '').trim(),
-        installments: String(r[6] || '').trim() || '12', fineType: String(r[7] || '').trim(), collectible: String(r[8] || '').trim() || 'ปรับได้'
+        route: String(r[3] || '').trim(),
+        date: importCellToIso_(r[4]),
+        dateRaw: (r[4] instanceof Date) ? importCellToIso_(r[4]) : String(r[4] == null ? '' : r[4]).trim(),
+        total: String(r[5] == null ? '' : r[5]).trim(),
+        installments: String(r[6] == null ? '' : r[6]).trim() || '12', fineType: String(r[7] || '').trim(), collectible: String(r[8] || '').trim() || 'ปรับได้'
       }));
       if (!data.length) { toast('ไม่พบข้อมูลในไฟล์', 'error'); return; }
       const validSet = new Set(state.customers);
       if (data.some(d => !d.customer || !validSet.has(d.customer))) { toast('มีลูกค้าไม่อยู่ในรายการ ' + state.customers.join(', '), 'error'); return; }
       if (data.some(d => !d.fineType)) { toast('มีบางแถวไม่ระบุสาเหตุ', 'error'); return; }
 
-      // เดือนที่เลือกใน dropdown ตอนกด Import คือปลายทางที่แถวทั้งหมดจะถูกเขียนลง
-      // (ไม่ได้อ่านคอลัมน์วันที่มาตัดสินเดือนเอง ยกเว้นตอนเลือก "ทุกเดือน") — ถ้าวันที่
-      // ในไฟล์เดือนไม่ตรงกับเดือนที่เลือกไว้ ข้อมูลจะไหลไปเข้าชีตผิดเดือนแบบเงียบๆ จึง
-      // ต้องเช็คและบล็อกทั้งไฟล์ก่อนเขียนแม้แต่แถวเดียว
-      if (state.month !== 'all') {
-        const mismatches = [];
-        data.forEach((row, idx) => {
-          const md = String(row.date).match(/^(\d{4})-(\d{2})-\d{2}$/);
-          const rowMonth = md ? 'M' + Number(md[2]) : null;
-          if (!rowMonth || rowMonth !== state.month) {
-            mismatches.push('แถว ' + (idx + 2) + ': วันที่ "' + (row.date || '(ว่าง)') + '" ไม่ใช่เดือน ' + state.month.slice(1));
-          }
-        });
-        if (mismatches.length) {
-          const prog = m.$('i-prog');
-          prog.style.display = '';
-          prog.style.color = 'var(--color-danger)';
-          prog.style.borderColor = 'var(--color-danger)';
-          prog.innerHTML = '<b>นำเข้าไม่สำเร็จ — พบ ' + mismatches.length + ' แถวที่วันที่ไม่ตรงกับเดือน ' + state.month.slice(1) + ' ที่เลือกไว้:</b><br>' +
-            mismatches.slice(0, 10).map(esc).join('<br>') +
-            (mismatches.length > 10 ? '<br>...และอีก ' + (mismatches.length - 10) + ' แถว' : '') +
-            '<br><br>กรุณาเลือกเดือนให้ตรงกับข้อมูล หรือแก้วันที่ในไฟล์ก่อนอัปโหลดใหม่';
-          toast('นำเข้าไม่สำเร็จ: มีแถวที่วันที่ไม่ตรงกับเดือนที่เลือก', 'error');
-          return;
+      // ตรวจความถูกต้องของ "เดือนปลายทาง" ก่อนเขียนแม้แต่แถวเดียว — เดือนที่แต่ละแถวจะ
+      // ถูกเขียนลงมาจากวันที่ในไฟล์เสมอ (ไม่เดาจากเดือนปัจจุบันอีกต่อไป):
+      //   1) parse วันที่ไม่ได้ → บล็อก (กันข้อมูลไหลผิดเดือนแบบเงียบๆ ซึ่งเป็นบั๊กเดิม)
+      //   2) ถ้าเลือกเดือนเจาะจงใน dropdown → ทุกแถวต้องเป็นเดือนนั้น ไม่งั้นบล็อก
+      const badDates = [];
+      const mismatches = [];
+      data.forEach((row, idx) => {
+        if (!row.date) { badDates.push('แถว ' + (idx + 2) + ': อ่านวันที่ไม่ได้ "' + (row.dateRaw || '(ว่าง)') + '" — ต้องเป็น YYYY-MM-DD'); return; }
+        if (state.month !== 'all') {
+          const rowMonth = 'M' + Number(row.date.slice(5, 7));
+          if (rowMonth !== state.month) mismatches.push('แถว ' + (idx + 2) + ': วันที่ ' + row.date + ' ไม่ใช่เดือน ' + state.month.slice(1));
         }
+      });
+      if (badDates.length || mismatches.length) {
+        const problems = badDates.concat(mismatches);
+        const prog = m.$('i-prog');
+        prog.style.display = '';
+        prog.style.color = 'var(--color-danger)';
+        prog.style.borderColor = 'var(--color-danger)';
+        const head = badDates.length
+          ? 'นำเข้าไม่สำเร็จ — พบ ' + problems.length + ' แถวที่วันที่มีปัญหา:'
+          : 'นำเข้าไม่สำเร็จ — พบ ' + mismatches.length + ' แถวที่วันที่ไม่ตรงกับเดือน ' + state.month.slice(1) + ' ที่เลือกไว้:';
+        prog.innerHTML = '<b>' + head + '</b><br>' +
+          problems.slice(0, 10).map(esc).join('<br>') +
+          (problems.length > 10 ? '<br>...และอีก ' + (problems.length - 10) + ' แถว' : '') +
+          '<br><br>กรุณาแก้วันที่ในไฟล์ (หรือเลือกเดือนให้ตรงกับข้อมูล) แล้วอัปโหลดใหม่';
+        toast('นำเข้าไม่สำเร็จ: วันที่ในไฟล์มีปัญหา', 'error');
+        return;
       }
 
       m.$('i-ok').disabled = true;
@@ -561,9 +592,11 @@ const DebtTracker = (() => {
       let done = 0, fail = 0;
       for (const row of data) {
         prog.textContent = `กำลังนำเข้า ${done + fail + 1}/${data.length}…`;
-        let month = state.month;
-        if (month === 'all') { const md = String(row.date).match(/^\d{4}-(\d{2})-/); month = md ? 'M' + Number(md[1]) : currentMonthLabel(); }
-        try { const r = await jsonp(Object.assign({ action: 'debt_add', month }, row)); if (!r || r.ok === false) throw new Error(r && r.error); done++; }
+        // เดือนปลายทาง = เดือนของวันที่ในแถว (ผ่านการ validate แล้วว่าถูกต้องและตรงกับ
+        // dropdown ถ้าเลือกเจาะจง) — dateRaw เป็นแค่ข้อมูลช่วย error ไม่ส่งขึ้น backend
+        const { dateRaw, ...payload } = row;
+        const month = 'M' + Number(row.date.slice(5, 7));
+        try { const r = await jsonp(Object.assign({ action: 'debt_add', month }, payload)); if (!r || r.ok === false) throw new Error(r && r.error); done++; }
         catch (err) { fail++; }
       }
       m.close();
