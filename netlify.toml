@@ -84,14 +84,26 @@
   status = 404
   force = true
 
+# Downloaded UI/UX skill tooling (skills/ is git-ignored local tooling, never
+# part of the product). publish="." still uploads it and .netlifyignore is NOT
+# honoured by `netlify deploy` on this site, so a directory /* splat — the one
+# redirect shape Netlify matches reliably — is the only thing that keeps it off
+# the public site.
 [[redirects]]
-  from = "/*.xlsx"
+  from = "/skills/*"
   to = "/index.html"
   status = 404
   force = true
 
+# Local backup/export folder holding real fine-data spreadsheets and Apps Script
+# source copies. The files themselves are removed from the repo, but keep this
+# splat as defence-in-depth so the directory can never leak again if it returns.
+# NOTE: the earlier "/*.xlsx" and "/*.txt" rules were removed — a splat that is
+# not the trailing path segment matches nothing in Netlify (same reason "/*.gs"
+# is noted above as ineffective), so they never actually blocked anything. Block
+# by directory instead.
 [[redirects]]
-  from = "/*.txt"
+  from = "/ค่าปรับค้าง พขร/*"
   to = "/index.html"
   status = 404
   force = true
