@@ -1,6 +1,9 @@
 /* ============================================================
-   Fine Dashboard - Monthly Comparison
-   Extends the existing design tokens and card language
+   Fine Dashboard - Yearly Comparison ("ภาพรวมทั้งปี")
+   Visual language matches the main dashboard's Apple-inspired
+   soft-white theme (css/variables.css tokens, .kpi-card /
+   .chart-card / .data-table conventions) — this file only
+   restyles the comparison-specific classes, no logic here.
    ============================================================ */
 
 [hidden] {
@@ -111,30 +114,47 @@
   font-weight: var(--font-weight-medium);
 }
 
+/* ── Section shell ── */
 .comparison-section {
   display: grid;
   gap: var(--space-5);
   margin-bottom: var(--space-8);
 }
 
+/* ── Toolbar / page header ── */
 .comparison-toolbar {
   display: flex;
   align-items: flex-end;
   justify-content: space-between;
   gap: var(--space-4);
+  padding-bottom: var(--space-1);
+}
+
+.comparison-toolbar__title-block {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
 }
 
 .comparison-toolbar__period {
-  margin-top: 0;
+  margin: 0;
   color: var(--color-text-primary);
-  font-size: var(--font-size-md);
-  font-weight: var(--font-weight-semibold);
+  font-size: var(--font-size-2xl);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1.25;
 }
 
 .comparison-toolbar__period span {
   margin: 0 4px;
   color: var(--color-text-muted);
   font-weight: var(--font-weight-regular);
+}
+
+.comparison-toolbar__subtitle {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
 }
 
 .comparison-segmented {
@@ -180,32 +200,44 @@
   white-space: nowrap;
 }
 
+/* ── KPI cards — same visual language as the main dashboard's
+   .kpi-card (css/components.css): gradient icon circle with glow,
+   two-tone value (bold number + coloured unit), staggered fade-in. ── */
 .comparison-kpi-grid {
   display: grid;
-  grid-template-columns: repeat(5, minmax(0, 1fr));
-  gap: var(--space-4);
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: var(--space-5);
 }
 
 .comparison-kpi {
   min-width: 0;
-  min-height: 142px;
-  padding: var(--space-4);
+  min-height: 158px;
+  padding: var(--space-5);
   display: flex;
   flex-direction: column;
+  justify-content: space-between;
+  gap: var(--space-4);
   background: var(--color-surface);
   border: 1px solid var(--color-border-light);
   border-radius: var(--radius-xl);
   box-shadow: var(--shadow-card);
   position: relative;
   overflow: hidden;
+  animation: fadeIn 0.5s ease forwards;
+  opacity: 0;
+  transition: box-shadow var(--transition-spring), transform var(--transition-spring), border-color var(--transition-base);
 }
 
-.comparison-kpi::before {
-  content: '';
-  position: absolute;
-  inset: 0 auto 0 0;
-  width: 3px;
-  background: var(--comparison-tone);
+.comparison-kpi:nth-child(1) { animation-delay: 0.05s; }
+.comparison-kpi:nth-child(2) { animation-delay: 0.10s; }
+.comparison-kpi:nth-child(3) { animation-delay: 0.15s; }
+.comparison-kpi:nth-child(4) { animation-delay: 0.20s; }
+.comparison-kpi:nth-child(5) { animation-delay: 0.25s; }
+.comparison-kpi:nth-child(6) { animation-delay: 0.30s; }
+
+.comparison-kpi:hover {
+  transform: translateY(-5px);
+  box-shadow: var(--shadow-card-hover);
 }
 
 .comparison-kpi--red { --comparison-tone: var(--color-danger); }
@@ -213,6 +245,7 @@
 .comparison-kpi--green { --comparison-tone: var(--color-success); }
 .comparison-kpi--orange { --comparison-tone: var(--color-warning); }
 .comparison-kpi--purple { --comparison-tone: var(--chart-purple); }
+.comparison-kpi--mint { --comparison-tone: var(--chart-mint); }
 
 .comparison-kpi__header {
   display: flex;
@@ -223,39 +256,69 @@
 
 .comparison-kpi__label {
   color: var(--color-text-secondary);
-  font-size: var(--font-size-xs);
+  font-size: var(--font-size-sm);
   font-weight: var(--font-weight-semibold);
+  line-height: 1.3;
 }
 
 .comparison-kpi__icon {
-  width: 32px;
-  height: 32px;
+  width: 40px;
+  height: 40px;
   display: grid;
   place-items: center;
-  flex: 0 0 32px;
-  border-radius: var(--radius-md);
-  color: var(--comparison-tone);
-  background: color-mix(in srgb, var(--comparison-tone) 10%, white);
+  flex: 0 0 40px;
+  border-radius: 50%;
+  color: #FFFFFF;
+  background: linear-gradient(135deg, var(--comparison-tone), color-mix(in srgb, var(--comparison-tone) 65%, white));
+  box-shadow: 0 4px 16px color-mix(in srgb, var(--comparison-tone) 40%, transparent);
+  transition: transform var(--transition-spring), box-shadow var(--transition-base);
+}
+
+.comparison-kpi:hover .comparison-kpi__icon {
+  transform: scale(1.10) rotate(-5deg);
 }
 
 .comparison-kpi__icon svg {
-  width: 16px;
-  height: 16px;
+  width: 18px;
+  height: 18px;
 }
 
 .comparison-kpi__value {
-  margin-top: var(--space-4);
+  display: inline-flex;
+  align-items: baseline;
+  gap: 0.28rem;
   color: var(--color-text-primary);
-  font-size: 1.45rem;
+  font-size: 1.7rem;
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
-  line-height: 1.15;
+  letter-spacing: var(--letter-spacing-tight);
+  line-height: 1.1;
   white-space: nowrap;
 }
 
+.comparison-kpi__value-main {
+  display: inline-block;
+  line-height: 1;
+}
+
+.comparison-kpi__value-suffix {
+  display: inline-block;
+  font-size: 0.72em;
+  font-weight: var(--font-weight-semibold);
+  line-height: 1;
+  color: var(--comparison-tone);
+  transform: translateY(-0.06em);
+}
+
+.comparison-kpi__value-suffix--word {
+  font-size: 0.5em;
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-medium);
+}
+
 .comparison-kpi__footer {
-  margin-top: auto;
   padding-top: var(--space-3);
+  border-top: 1px solid var(--color-border-light);
   display: flex;
   align-items: center;
   justify-content: space-between;
@@ -293,7 +356,7 @@
   min-width: 0;
   overflow: hidden;
   color: var(--color-text-muted);
-  font-size: 0.625rem;
+  font-size: 0.68rem;
   text-overflow: ellipsis;
   white-space: nowrap;
 }
@@ -333,10 +396,12 @@
 
 .comparison-chart-legend__dot--primary { background: rgba(0, 113, 227, 0.78); }
 .comparison-chart-legend__dot--comparison { background: rgba(174, 174, 178, 0.72); }
+.comparison-chart-legend__dot--cumulative { background: #AF52DE; border-radius: var(--radius-full); }
 
 .comparison-daily-chart {
   width: 100%;
-  height: 325px;
+  height: 330px;
+  padding: 0 var(--space-2) var(--space-2);
 }
 
 .comparison-summary-card {
@@ -457,13 +522,14 @@
   text-align: center !important;
 }
 
+/* ── Customer doughnut card ── */
 .comparison-customer-chart-layout {
   min-height: 300px;
   padding: var(--space-4) var(--space-5) var(--space-5);
   display: grid;
   grid-template-columns: minmax(150px, 0.9fr) minmax(160px, 1.1fr);
   align-items: center;
-  gap: var(--space-4);
+  gap: var(--space-5);
 }
 
 .comparison-doughnut-wrap {
@@ -481,6 +547,7 @@
   width: 62%;
   display: grid;
   justify-items: center;
+  gap: 2px;
   pointer-events: none;
   text-align: center;
 }
@@ -488,15 +555,17 @@
 .comparison-doughnut-center strong {
   max-width: 100%;
   color: var(--color-text-primary);
-  font-size: var(--font-size-md);
+  font-size: var(--font-size-lg);
   font-weight: var(--font-weight-bold);
   font-variant-numeric: tabular-nums;
+  letter-spacing: var(--letter-spacing-tight);
   overflow-wrap: anywhere;
 }
 
 .comparison-doughnut-center span {
   color: var(--color-text-muted);
   font-size: 0.625rem;
+  font-weight: var(--font-weight-medium);
 }
 
 .comparison-customer-legend {
@@ -510,8 +579,15 @@
   grid-template-columns: 8px minmax(70px, 1fr) auto;
   align-items: center;
   gap: var(--space-2);
+  padding: 6px var(--space-2);
+  border-radius: var(--radius-sm);
   color: var(--color-text-secondary);
-  font-size: 0.625rem;
+  font-size: 0.68rem;
+  transition: background var(--transition-fast);
+}
+
+.comparison-customer-legend__item:hover {
+  background: var(--color-surface-hover);
 }
 
 .comparison-customer-legend__item strong {
@@ -527,9 +603,10 @@
 }
 
 .comparison-customer-legend__dot {
-  width: 8px;
-  height: 8px;
+  width: 9px;
+  height: 9px;
   border-radius: var(--radius-full);
+  box-shadow: 0 0 0 3px color-mix(in srgb, currentColor 16%, transparent);
 }
 
 .comparison-customer-legend__name {
@@ -537,6 +614,7 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+  font-weight: var(--font-weight-medium);
 }
 
 .comparison-empty {
@@ -552,8 +630,8 @@
   align-items: center;
   gap: var(--space-3);
   padding: var(--space-3) var(--space-4);
-  background: linear-gradient(135deg, rgba(0, 113, 227, 0.06) 0%, rgba(90, 200, 250, 0.06) 100%);
-  border: 1px solid rgba(0, 113, 227, 0.12);
+  background: linear-gradient(135deg, rgba(74, 159, 219, 0.10) 0%, rgba(90, 200, 250, 0.08) 100%);
+  border: 1px solid rgba(74, 159, 219, 0.18);
   border-radius: var(--radius-lg);
   position: relative;
   overflow: hidden;
@@ -566,7 +644,7 @@
   right: -20%;
   width: 80px;
   height: 80px;
-  background: radial-gradient(circle, rgba(0, 113, 227, 0.08) 0%, transparent 70%);
+  background: radial-gradient(circle, rgba(74, 159, 219, 0.14) 0%, transparent 70%);
   border-radius: 50%;
   pointer-events: none;
 }
@@ -593,7 +671,7 @@
 
 .yearly-mode-banner__badge {
   margin-left: auto;
-  padding: 3px 8px;
+  padding: 3px 9px;
   background: var(--color-accent);
   color: #FFFFFF;
   font-size: 0.625rem;
@@ -601,6 +679,7 @@
   border-radius: var(--radius-full);
   white-space: nowrap;
   letter-spacing: 0.02em;
+  box-shadow: 0 2px 8px rgba(74, 159, 219, 0.35);
 }
 
 /* ── Yearly Table ── */
@@ -610,6 +689,27 @@
   table-layout: auto;
   min-width: 0 !important;
 }
+
+/* ตารางภาพรวมรายเดือนมี 7 คอลัมน์ที่ชื่อหัวยาวไม่เท่ากัน — บังคับความกว้างต่อคอลัมน์
+   ให้รวมกันพอดี 100% ของการ์ด ไม่ล้นจนเกิด horizontal scroll และหัวข้อไม่ถูกตัด */
+.comparison-yearly-table--monthly {
+  table-layout: fixed;
+}
+
+.comparison-yearly-table--monthly th:nth-child(1),
+.comparison-yearly-table--monthly td:nth-child(1) { width: 11%; }
+.comparison-yearly-table--monthly th:nth-child(2),
+.comparison-yearly-table--monthly td:nth-child(2) { width: 13%; }
+.comparison-yearly-table--monthly th:nth-child(3),
+.comparison-yearly-table--monthly td:nth-child(3) { width: 14%; }
+.comparison-yearly-table--monthly th:nth-child(4),
+.comparison-yearly-table--monthly td:nth-child(4) { width: 15%; }
+.comparison-yearly-table--monthly th:nth-child(5),
+.comparison-yearly-table--monthly td:nth-child(5) { width: 14%; }
+.comparison-yearly-table--monthly th:nth-child(6),
+.comparison-yearly-table--monthly td:nth-child(6) { width: 19%; }
+.comparison-yearly-table--monthly th:nth-child(7),
+.comparison-yearly-table--monthly td:nth-child(7) { width: 14%; }
 
 .comparison-yearly-table th,
 .comparison-yearly-table td {
@@ -621,17 +721,105 @@
 
 .comparison-yearly-table th {
   color: var(--color-text-muted);
-  background: var(--color-surface-alt);
+  background: var(--color-bg);
   font-weight: var(--font-weight-semibold);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: normal;
+  line-height: 1.35;
+}
+
+.comparison-yearly-table--monthly th:first-child {
   white-space: nowrap;
 }
 
 .comparison-yearly-table td {
   color: var(--color-text-secondary);
+  transition: background var(--transition-fast);
+}
+
+/* .comparison-yearly-table td (2 classes) would otherwise out-specificity the
+   shared .cell-amount--positive/--negative color rules (css/tables.css, also
+   2 classes but declared earlier) — restate them here so paid/overpaid amounts
+   still show green/red instead of falling back to plain gray text. */
+.comparison-yearly-table td.cell-amount--positive { color: var(--color-success); }
+.comparison-yearly-table td.cell-amount--negative { color: var(--color-danger); }
+
+.comparison-yearly-table tbody tr:not(.row-total):nth-child(even) td {
+  background: var(--color-surface-alt);
+}
+
+.comparison-yearly-table tbody tr:not(.row-total):hover td {
+  background: var(--color-surface-hover);
 }
 
 .comparison-yearly-table td:first-child {
   white-space: nowrap;
+}
+
+.comparison-yearly-table--monthly td {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* เดือนที่ยังไม่มีข้อมูล (count 0) — ลดน้ำหนักสายตาลง ไม่ให้แถวว่างเด่นพอๆ กับ
+   เดือนที่มีข้อมูลจริง ช่วยให้กวาดตาหาเดือนที่ต้องดูได้เร็วขึ้น */
+.comparison-yearly-table tr.row--empty td {
+  color: var(--color-text-muted);
+}
+
+.comparison-yearly-table tr.row--empty .cell-month-name {
+  color: var(--color-text-muted);
+  font-weight: var(--font-weight-regular);
+}
+
+/* ── Collection-rate pill (โทนเดียวกับ .status-badge ของตารางหลัก) ── */
+.rate-pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 54px;
+  min-height: 22px;
+  padding: 2px 9px;
+  border-radius: var(--radius-full);
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+
+.rate-pill--good  { background: var(--color-success-light); color: var(--color-success); }
+.rate-pill--warn  { background: var(--color-warning-light); color: var(--color-warning); }
+.rate-pill--bad   { background: var(--color-danger-light);  color: var(--color-danger); }
+.rate-pill--muted { background: var(--color-surface-hover); color: var(--color-text-muted); }
+
+/* ── Table-card header icon — same gradient-circle badge language as the
+   KPI cards' icons (.comparison-kpi__icon), scoped to this section only so
+   the plain global .table-card__title-area icon used elsewhere is untouched. ── */
+.comparison-section .table-card__title-area > svg {
+  width: 34px;
+  height: 34px;
+  flex: 0 0 34px;
+  padding: 8px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  color: #FFFFFF;
+}
+
+.comparison-section .table-card__title-area--blue > svg {
+  background: linear-gradient(135deg, var(--color-accent), color-mix(in srgb, var(--color-accent) 65%, white));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--color-accent) 35%, transparent);
+}
+
+.comparison-section .table-card__title-area--purple > svg {
+  background: linear-gradient(135deg, var(--chart-purple), color-mix(in srgb, var(--chart-purple) 65%, white));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--chart-purple) 35%, transparent);
+}
+
+.comparison-section .table-card__title-area--mint > svg {
+  background: linear-gradient(135deg, var(--chart-mint), color-mix(in srgb, var(--chart-mint) 65%, white));
+  box-shadow: 0 4px 14px color-mix(in srgb, var(--chart-mint) 35%, transparent);
 }
 
 .cell-month-name {
@@ -654,6 +842,7 @@
   border-top: 2px solid var(--color-border);
   border-bottom: none !important;
   background: var(--color-surface-alt);
+  color: var(--color-text-primary);
 }
 
 .row--current-month td {
@@ -663,6 +852,17 @@
 .row--current-month .cell-month-name {
   color: var(--color-accent);
   font-weight: var(--font-weight-bold);
+}
+
+.row--current-month .cell-month-name::after {
+  content: '';
+  display: inline-block;
+  width: 6px;
+  height: 6px;
+  margin-left: 6px;
+  border-radius: 50%;
+  background: var(--color-accent);
+  vertical-align: middle;
 }
 
 .comparison-yearly-table-card {
@@ -756,6 +956,7 @@
   .comparison-section .chart-card {
     transition: none;
     animation: none;
+    opacity: 1;
   }
 
   .comparison-switch__track,
@@ -765,5 +966,58 @@
 
   .comparison-section .chart-card {
     opacity: 1;
+  }
+}
+
+/* ── Trend chart metric toggle — สลับกราฟแนวโน้มรายเดือนดูทีละตัวชี้วัด ── */
+.chart-card__header--stack {
+  flex-wrap: wrap;
+  align-items: center;
+}
+
+.chart-metric-toggle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.chart-metric-toggle__btn {
+  appearance: none;
+  border: 1px solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 0.72rem;
+  font-weight: var(--font-weight-medium);
+  padding: 5px 12px;
+  border-radius: var(--radius-full);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background var(--transition-fast), border-color var(--transition-fast),
+    color var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.chart-metric-toggle__btn:hover {
+  border-color: var(--metric-color);
+  color: var(--metric-color);
+}
+
+.chart-metric-toggle__btn.is-active {
+  background: var(--metric-color);
+  border-color: var(--metric-color);
+  color: #fff;
+  box-shadow: 0 2px 8px color-mix(in srgb, var(--metric-color) 40%, transparent);
+}
+
+@media (max-width: 640px) {
+  .chart-metric-toggle {
+    margin-left: 0;
+    width: 100%;
+  }
+
+  .chart-metric-toggle__btn {
+    flex: 1 1 auto;
+    text-align: center;
   }
 }

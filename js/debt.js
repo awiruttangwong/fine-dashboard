@@ -121,6 +121,17 @@ const DebtTracker = (() => {
   function show(mountEl) { container = mountEl; container.hidden = false; container.innerHTML = shellHtml(); wireShell(); load(false); }
   function hide() { if (container) container.hidden = true; }
 
+  // ให้หน้าอื่น (เช่น toggle เปิดโหมด "ค่าปรับรถไม่เข้ารับงาน" จาก sidebar) สั่งเปลี่ยน
+  // เดือนของโมดูลนี้ให้ตรงกับเดือนที่ผู้ใช้กำลังดูอยู่บน dashboard หลักได้ — ไม่ทำอะไรถ้า
+  // เดือนเดิมตรงกันอยู่แล้ว กันการ reload ซ้ำโดยไม่จำเป็น
+  function setMonth(monthLabel) {
+    if (!monthLabel || monthLabel === state.month) return;
+    state.month = monthLabel;
+    const sel = document.getElementById('debt-month');
+    if (sel) sel.value = monthLabel;
+    load(false);
+  }
+
   function shellHtml() {
     const monthOpts = '<option value="all"' + (state.month === 'all' ? ' selected' : '') + '>ทุกเดือน</option>' +
       THAI_MONTHS.map((m, i) => `<option value="M${i + 1}"${state.month === 'M' + (i + 1) ? ' selected' : ''}>${m}</option>`).join('');
@@ -419,7 +430,6 @@ const DebtTracker = (() => {
     const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="p-ok" style="flex:1">ยืนยันบันทึก</button>';
     const m = modal('บันทึกชำระเงิน', `
       <h4 class="debt-inst-heading">งวดที่ ${d.nextInst}</h4>
-      <div class="debt-suggest"><small>ยอดแนะนำ</small><h3>${num(d.suggestedAmount)} ฿</h3></div>
       <div class="ef"><div class="ef__field"><label class="ef__label">จำนวนเงินที่จ่ายจริง</label><input class="ef__input" type="number" id="p-amount" min="1" value="${d.suggestedAmount || ''}"></div></div>`, { foot });
     m.ov.querySelector('[data-role=cancel]').onclick = m.close;
     m.$('p-ok').onclick = () => {
@@ -471,12 +481,17 @@ const DebtTracker = (() => {
   function openImportModal() {
     const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="i-ok" style="flex:1">เริ่มการนำเข้า</button>';
     const m = modal('Import ข้อมูลหลายรายการ', `
-      <p class="debt-note-box">โหลด Template → กรอกในชีต <b>Import</b> (คอลัมน์ A "ลูกค้า" มี dropdown) → อัปโหลดกลับ</p>
+      <p class="debt-note-box">1. ดาวน์โหลด Template → 2. กรอกข้อมูลในชีต Import <span class="debt-note-box__warn">(ตรวจสอบเดือนให้ถูกต้อง)</span> → 3. เลือกไฟล์เพื่อนำเข้า</p>
       <button class="btn btn-outline-primary" id="i-tpl" style="margin:14px 0"><svg width="15" height="15" viewBox="0 -960 960 960" fill="currentColor"><path d="M480-320 280-520l56-58 104 104v-286h80v286l104-104 56 58-200 200ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg> โหลด Template Excel</button>
-      <input type="file" class="ef__input" id="i-file" accept=".xlsx,.xls">
+      <div class="file-picker" id="i-file-picker">
+        <label for="i-file" class="btn btn-outline-dark file-picker__btn"><svg width="15" height="15" viewBox="0 -960 960 960" fill="currentColor"><path d="M200-120q-33 0-56.5-23.5T120-200v-160h80v160h560v-160h80v160q0 33-23.5 56.5T760-120H200Zm240-160v-447L332-620l-56-60 204-204 204 204-56 60-108-107v447h-80Z"/></svg> เลือกไฟล์</label>
+        <span class="file-picker__name" id="i-file-name">ยังไม่ได้เลือกไฟล์</span>
+        <input type="file" class="file-picker__input" id="i-file" accept=".xlsx,.xls">
+      </div>
       <div id="i-prog" class="debt-note-box" style="margin-top:12px;display:none"></div>`, { foot, lg: true });
     m.ov.querySelector('[data-role=cancel]').onclick = m.close;
     m.$('i-tpl').onclick = downloadTemplate;
+    m.$('i-file').onchange = (e) => { m.$('i-file-name').textContent = (e.target.files[0] && e.target.files[0].name) || 'ยังไม่ได้เลือกไฟล์'; };
     m.$('i-ok').onclick = () => runImport(m);
   }
 
@@ -513,6 +528,34 @@ const DebtTracker = (() => {
       const validSet = new Set(state.customers);
       if (data.some(d => !d.customer || !validSet.has(d.customer))) { toast('มีลูกค้าไม่อยู่ในรายการ ' + state.customers.join(', '), 'error'); return; }
       if (data.some(d => !d.fineType)) { toast('มีบางแถวไม่ระบุสาเหตุ', 'error'); return; }
+
+      // เดือนที่เลือกใน dropdown ตอนกด Import คือปลายทางที่แถวทั้งหมดจะถูกเขียนลง
+      // (ไม่ได้อ่านคอลัมน์วันที่มาตัดสินเดือนเอง ยกเว้นตอนเลือก "ทุกเดือน") — ถ้าวันที่
+      // ในไฟล์เดือนไม่ตรงกับเดือนที่เลือกไว้ ข้อมูลจะไหลไปเข้าชีตผิดเดือนแบบเงียบๆ จึง
+      // ต้องเช็คและบล็อกทั้งไฟล์ก่อนเขียนแม้แต่แถวเดียว
+      if (state.month !== 'all') {
+        const mismatches = [];
+        data.forEach((row, idx) => {
+          const md = String(row.date).match(/^(\d{4})-(\d{2})-\d{2}$/);
+          const rowMonth = md ? 'M' + Number(md[2]) : null;
+          if (!rowMonth || rowMonth !== state.month) {
+            mismatches.push('แถว ' + (idx + 2) + ': วันที่ "' + (row.date || '(ว่าง)') + '" ไม่ใช่เดือน ' + state.month.slice(1));
+          }
+        });
+        if (mismatches.length) {
+          const prog = m.$('i-prog');
+          prog.style.display = '';
+          prog.style.color = 'var(--color-danger)';
+          prog.style.borderColor = 'var(--color-danger)';
+          prog.innerHTML = '<b>นำเข้าไม่สำเร็จ — พบ ' + mismatches.length + ' แถวที่วันที่ไม่ตรงกับเดือน ' + state.month.slice(1) + ' ที่เลือกไว้:</b><br>' +
+            mismatches.slice(0, 10).map(esc).join('<br>') +
+            (mismatches.length > 10 ? '<br>...และอีก ' + (mismatches.length - 10) + ' แถว' : '') +
+            '<br><br>กรุณาเลือกเดือนให้ตรงกับข้อมูล หรือแก้วันที่ในไฟล์ก่อนอัปโหลดใหม่';
+          toast('นำเข้าไม่สำเร็จ: มีแถวที่วันที่ไม่ตรงกับเดือนที่เลือก', 'error');
+          return;
+        }
+      }
+
       m.$('i-ok').disabled = true;
       const prog = m.$('i-prog'); prog.style.display = '';
       let done = 0, fail = 0;
@@ -541,5 +584,5 @@ const DebtTracker = (() => {
     clearTimeout(toastTimer); toastTimer = setTimeout(() => t.classList.remove('is-show'), 3200);
   }
 
-  return { show, hide };
+  return { show, hide, setMonth };
 })();

@@ -808,21 +808,36 @@ const FineData = (() => {
 
     const yearData = allData.filter(row => row.fine_year === year);
 
+    // ต่อเดือน: ใช้สูตรเดียวกับโหมดปกติเป๊ะ (getAggregates/kpi.js) แทนของเดิมที่ใช้
+    // fine_amount ดิบ + computed_remaining_amount ต่อแถว ซึ่งไม่ตรงกับตัวเลขที่แอปแสดง
+    // ที่อื่นทุกจุด — "ยอดปรับ" ต้องหัก "ปรับไม่ได้" แล้วบวกค่าปรับรถไม่เข้ารับงานเข้าไป
+    // (agg.totalFine - uncollectible + debtGrandTotal, ดู kpi.js:114-118), "ชำระแล้ว"/
+    // "คงเหลือ" มาจากชีตสถานะ ไม่ใช่ยอดในไฟล์ค่าปรับดิบ
     const monthlyData = months.map(month => {
       const rows = yearData.filter(row => row.fine_month === month.index);
+      const fineRaw = rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0);
+      const statusAgg = getStatusAggregates(month.key);
+      const debtSummary = getDebtGrandTotalSummary(month.key);
+      const installment = getInstallmentSummary(month.key);
+      const nonCollectibleDebt = getNonCollectibleDebtSummary(month.key);
       return {
         ...month,
         count: rows.length,
-        totalFine: rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0),
-        totalPaid: rows.reduce((sum, r) => sum + (r.paid_amount || 0), 0),
-        totalRemaining: rows.reduce((sum, r) => sum + (r.computed_remaining_amount || 0), 0),
-        collectionRate: 0,
+        fineRaw,
+        uncollectibleAmount: statusAgg.uncollectibleAmount,
+        uncollectibleCount: statusAgg.uncollectibleCount,
+        paidCount: statusAgg.paidCount,
+        pendingCount: statusAgg.pendingCount,
+        debtTotal: debtSummary.amount,
+        debtCount: debtSummary.count,
+        installment,
+        nonCollectibleDebt,
+        totalFine: (fineRaw - statusAgg.uncollectibleAmount) + debtSummary.amount,
+        totalPaid: statusAgg.paidAmount,
+        totalRemaining: fineRaw - statusAgg.paidAmount - statusAgg.uncollectibleAmount,
+        collectionRate: fineRaw > 0 ? (statusAgg.paidAmount / fineRaw) * 100 : 0,
         rows
       };
-    });
-
-    monthlyData.forEach(m => {
-      m.collectionRate = m.totalFine > 0 ? (m.totalPaid / m.totalFine) * 100 : 0;
     });
 
     const customerBreakdown = {};
@@ -850,16 +865,34 @@ const FineData = (() => {
       customerMonthlyBreakdown[customer][monthKey].paidTotal += row.paid_amount || 0;
     });
 
+    // รวมจากตัวเลขต่อเดือนที่ผ่านสูตรเดียวกับโหมดปกติแล้ว (ไม่ sum row ดิบซ้ำ) เพื่อให้
+    // "รวมทั้งปี" เท่ากับผลรวมของทุกแถวในตาราง "ภาพรวมรายเดือน" เป๊ะ ไม่ใช่คนละที่มา
+    const yearFineRaw = monthlyData.reduce((s, m) => s + m.fineRaw, 0);
     const yearly = {
       year,
       totalRows: yearData.length,
-      totalFine: yearData.reduce((s, r) => s + (r.fine_amount || 0), 0),
-      totalPaid: yearData.reduce((s, r) => s + (r.paid_amount || 0), 0),
-      totalRemaining: yearData.reduce((s, r) => s + (r.computed_remaining_amount || 0), 0),
+      totalFine: monthlyData.reduce((s, m) => s + m.totalFine, 0),
+      totalPaid: monthlyData.reduce((s, m) => s + m.totalPaid, 0),
+      totalRemaining: monthlyData.reduce((s, m) => s + m.totalRemaining, 0),
+      debtTotal: monthlyData.reduce((s, m) => s + m.debtTotal, 0),
+      debtCount: monthlyData.reduce((s, m) => s + m.debtCount, 0),
+      paidCount: monthlyData.reduce((s, m) => s + m.paidCount, 0),
+      pendingCount: monthlyData.reduce((s, m) => s + m.pendingCount, 0),
+      uncollectibleCount: monthlyData.reduce((s, m) => s + m.uncollectibleCount, 0),
+      installment: {
+        activeCases: monthlyData.reduce((s, m) => s + m.installment.activeCases, 0),
+        doneCases: monthlyData.reduce((s, m) => s + m.installment.doneCases, 0),
+        totalRemainingAmount: monthlyData.reduce((s, m) => s + m.installment.totalRemainingAmount, 0),
+        doneAmount: monthlyData.reduce((s, m) => s + m.installment.doneAmount, 0)
+      },
+      nonCollectible: {
+        totalCases: monthlyData.reduce((s, m) => s + m.uncollectibleCount + m.nonCollectibleDebt.totalCases, 0),
+        totalAmount: monthlyData.reduce((s, m) => s + m.uncollectibleAmount + m.nonCollectibleDebt.totalAmount, 0)
+      },
       collectionRate: 0,
       dataIssues: yearData.filter(r => r.is_full_duplicate || r.is_barcode_duplicate || r.has_amount_mismatch || r.is_driver_blank).length
     };
-    yearly.collectionRate = yearly.totalFine > 0 ? (yearly.totalPaid / yearly.totalFine) * 100 : 0;
+    yearly.collectionRate = yearFineRaw > 0 ? (yearly.totalPaid / yearFineRaw) * 100 : 0;
 
     return {
       year,
@@ -964,6 +997,7 @@ const FineData = (() => {
     getComparisonModel,
     getYearlyComparisonModel,
     getFilteredDebtRows,
+    monthLabelFromSelectedMonth,
     getDuplicateBarcodeRows,
     getMismatchRows,
     getMissingDataRows,

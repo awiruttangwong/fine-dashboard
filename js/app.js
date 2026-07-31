@@ -192,6 +192,12 @@ const App = (() => {
       if (contentInnerEl) contentInnerEl.classList.toggle('main__content-inner--debt-focus', active);
       if (mainTitleEl) mainTitleEl.textContent = active ? 'ค่าปรับรถไม่เข้ารับงาน' : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
       if (active && sectionDebtEl) window.scrollTo({ top: 0, behavior: 'auto' });
+      // ให้โมดูลนี้แสดงข้อมูลของ "เดือนที่กำลังเลือกดูอยู่" บน dashboard หลัก แทนที่
+      // จะค้างอยู่ที่เดือนล่าสุดที่เคยเปิดโมดูลนี้ครั้งก่อน — sync ทุกครั้งที่เปิด toggle
+      if (active && typeof DebtTracker !== 'undefined' && typeof FineData !== 'undefined') {
+        const targetMonth = FineData.monthLabelFromSelectedMonth(Filters.getState().selectedMonth);
+        if (targetMonth) DebtTracker.setMonth(targetMonth);
+      }
     }
 
     if (driverModuleToggle) {
@@ -311,6 +317,14 @@ const App = (() => {
     overviewSections.forEach(section => {
       if (section) section.hidden = isComparisonMode;
     });
+
+    // ค่าปรับรถไม่เข้ารับงานถูกรวมเข้ายอดของ "ภาพรวมทั้งปี" แล้ว (FineData.getYearlyComparisonModel)
+    // จึงไม่ต้องแสดงโมดูลดิบซ้ำต่อท้ายหน้านี้อีก — ยกเว้นตอน "โฟกัสโมดูลนี้โดยเฉพาะ"
+    // (driverModuleActive, ตัวแปรใน init() คนละสโคปกับฟังก์ชันนี้ จึงเช็คจาก DOM แทน)
+    const sectionDebtEl = document.getElementById('section-debt');
+    const driverModuleToggleEl = document.getElementById('driver-module-toggle');
+    const isDriverModuleFocused = !!(driverModuleToggleEl && driverModuleToggleEl.classList.contains('active'));
+    if (sectionDebtEl && !isDriverModuleFocused) sectionDebtEl.hidden = isComparisonMode;
 
     if (title) {
       title.textContent = isComparisonMode
