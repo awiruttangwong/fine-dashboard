@@ -62,10 +62,52 @@ function runCentralDataSync_() {
     }
   });
 
+  // จัดเรียงแท็บชีตในคลังกลางให้ทุกอย่างที่เป็นเดือนเดียวกันอยู่ติดกัน เรียงจากเดือนน้อย
+  // ไปมาก (M6 ก่อน แล้ว M7, M8, ...) เพื่อให้เปิดดูง่าย — ทำหลัง sync ทุกครั้งที่กดเมนู
+  // "ซิงค์และอัปเดตข้อมูลทุกเดือน" แยก try/catch ของตัวเอง ไม่ให้การจัดเรียงพังแล้วทำให้
+  // ผลการซิงค์ข้อมูล (ซึ่งสำคัญกว่า) ดูเหมือนล้มเหลวไปด้วย
+  try {
+    sortWarehouseSheetsByMonth_(ssCentral);
+  } catch (sortError) {
+    processLog.push('จัดเรียงลำดับชีต: ล้มเหลว (สาเหตุ: ' + sortError.message + ')');
+  }
+
   return {
     active_sync_count: activeSyncCount,
     process_log: processLog
   };
+}
+
+// ── จัดเรียงแท็บชีตของคลังกลางตามเดือน (Mx) จากน้อยไปมาก ──
+// ชื่อชีตรายเดือนทั้งหมดลงท้ายด้วย "(Mx)" เช่น SUM(M6), รอปรับ(M6), ปรับได้(M6),
+// ปรับไม่ได้(M6), Drivers(M6), Payments(M6) — เก็บ "ตำแหน่ง" เดิมของกลุ่มชีตรายเดือนไว้
+// (ไม่ยุ่งกับชีตอื่นที่ไม่ใช่รายเดือน เช่นชีตดูแลระบบ) แล้วแทนที่ด้วยชีตรายเดือนที่เรียง
+// ตามเลขเดือนแล้ว ภายในเดือนเดียวกันคงลำดับเดิมไว้ (stable sort)
+function sortWarehouseSheetsByMonth_(ss) {
+  var monthlyPattern = /\(M(\d{1,2})\)\s*$/i;
+  var sheets = ss.getSheets();
+
+  var monthlyEntries = [];
+  sheets.forEach(function(sheet, index) {
+    var match = monthlyPattern.exec(sheet.getName());
+    if (match) monthlyEntries.push({ sheet: sheet, slot: index, month: Number(match[1]) });
+  });
+  if (monthlyEntries.length < 2) return; // ไม่มีอะไรให้เรียง
+
+  var sortedEntries = monthlyEntries.slice().sort(function(a, b) {
+    if (a.month !== b.month) return a.month - b.month;
+    return a.slot - b.slot; // เดือนเท่ากัน: คงลำดับเดิม
+  });
+
+  var desiredOrder = sheets.slice();
+  monthlyEntries.forEach(function(entry, i) {
+    desiredOrder[entry.slot] = sortedEntries[i].sheet;
+  });
+
+  desiredOrder.forEach(function(sheet, position) {
+    ss.setActiveSheet(sheet);
+    ss.moveActiveSheet(position + 1);
+  });
 }
 
 function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel) {
