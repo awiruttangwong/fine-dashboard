@@ -67,6 +67,8 @@
 .sidebar__logo-text {
   display: flex;
   flex-direction: column;
+  overflow: hidden;
+  white-space: nowrap;
 }
 
 .sidebar__logo-title {
@@ -114,6 +116,12 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-muted);
   text-align: center;
+}
+
+/* Hidden by default (mobile drawer + tablet); only shown by the desktop
+   hover-expand rules below var(--sidebar-width-collapsed) rail. */
+.sidebar__expand-hint {
+  display: none;
 }
 
 /* ── Mobile Menu Toggle ── */
@@ -432,14 +440,18 @@
 }
 
 /* ── Sidebar Hover-Expand (desktop only — mobile keeps the slide-in drawer above) ──
-   Collapsed state is a fully invisible 8px hot-zone flush against the left edge of
-   the screen — no visible rail, no icon, no background. Only once the pointer
-   actually enters that edge zone (or the sidebar, once open) does everything fade
-   /slide in, and .main's margin-left grows in the exact same transition at the same
-   time (via the ~ sibling selector), so both animate together in lockstep. Inner
-   sidebar content is kept at full expanded width + clipped via the sidebar's own
-   overflow-x: hidden, so text never reflows/wraps mid-transition — only opacity +
-   width/margin animate. */
+   Collapsed = a real, visible 64px icon rail (glass background, border, shadow) with
+   the brand mark centered in it — not the old 8px invisible hot-zone. The logo icon
+   is the one piece of chrome that is always on screen; everything else (title text,
+   module switch, filters, footer) fades in only once expanded. .main's margin-left
+   grows in the same transition (via the ~ sibling selector) so content and rail move
+   in lockstep. Filters/footer/module-switch stay pinned at the full expanded width
+   at all times and are simply clipped by the sidebar's own overflow-x: hidden, so
+   their internal text/grids never reflow mid-transition — only opacity animates.
+   The header is the one exception: its width (and the logo-text's max-width) genuinely
+   animates between the collapsed/expanded rail widths so the brand mark can be
+   perfectly centered in the 64px rail instead of sitting off-centre at a fixed
+   left-padding, which is what made the previous version look unbalanced. */
 @media (min-width: 1025px) {
   .main {
     margin-left: var(--sidebar-width-collapsed);
@@ -453,25 +465,52 @@
 
   .sidebar {
     width: var(--sidebar-width-collapsed);
-    background: transparent;
-    border-right-color: transparent;
-    backdrop-filter: none;
-    -webkit-backdrop-filter: none;
-    transition: width var(--transition-fast), background var(--transition-fast), border-color var(--transition-fast);
+    background: var(--glass-bg-heavy);
+    border-right-color: var(--color-border-light);
+    backdrop-filter: blur(var(--glass-blur));
+    -webkit-backdrop-filter: blur(var(--glass-blur));
+    box-shadow: var(--shadow-sm);
+    transition: width var(--transition-fast), box-shadow var(--transition-fast);
     will-change: width;
   }
 
   .sidebar:hover,
   .sidebar:focus-within {
     width: var(--sidebar-width);
-    background: var(--glass-bg-heavy);
-    backdrop-filter: blur(var(--glass-blur));
-    -webkit-backdrop-filter: blur(var(--glass-blur));
-    border-right-color: var(--color-border-light);
     box-shadow: var(--shadow-lg);
   }
 
-  .sidebar__header,
+  /* Header shrinks/grows with the rail (unlike the sections below, which stay at
+     full width) so the logo mark can sit dead-centre in the 64px collapsed rail. */
+  .sidebar__header {
+    width: var(--sidebar-width-collapsed);
+    padding-left: 14px;
+    padding-right: 14px;
+    transition: width var(--transition-fast), padding var(--transition-fast);
+  }
+
+  .sidebar:hover .sidebar__header,
+  .sidebar:focus-within .sidebar__header {
+    width: var(--sidebar-width);
+    padding-left: var(--space-5);
+    padding-right: var(--space-5);
+  }
+
+  /* Title/subtitle collapse to zero width (not just opacity) so they stop reserving
+     row space and the icon can genuinely centre in the row while collapsed. */
+  .sidebar__logo-text {
+    max-width: 0;
+    opacity: 0;
+    transition: max-width var(--transition-fast), opacity 100ms ease;
+  }
+
+  .sidebar:hover .sidebar__logo-text,
+  .sidebar:focus-within .sidebar__logo-text {
+    max-width: 180px;
+    opacity: 1;
+    transition: max-width var(--transition-fast), opacity 160ms ease 90ms;
+  }
+
   .sidebar__module-switch,
   .sidebar__filters,
   .sidebar__footer {
@@ -479,8 +518,6 @@
     flex-shrink: 0;
   }
 
-  .sidebar__logo-icon,
-  .sidebar__logo-text,
   .sidebar__module-switch,
   .sidebar__filters,
   .sidebar__footer {
@@ -489,19 +526,56 @@
     transition: opacity 120ms ease;
   }
 
-  .sidebar:hover .sidebar__logo-icon,
-  .sidebar:hover .sidebar__logo-text,
   .sidebar:hover .sidebar__module-switch,
   .sidebar:hover .sidebar__filters,
   .sidebar:hover .sidebar__footer,
-  .sidebar:focus-within .sidebar__logo-icon,
-  .sidebar:focus-within .sidebar__logo-text,
   .sidebar:focus-within .sidebar__module-switch,
   .sidebar:focus-within .sidebar__filters,
   .sidebar:focus-within .sidebar__footer {
     opacity: 1;
     pointer-events: auto;
     transition-delay: 80ms;
+  }
+
+  /* Expand affordance: a small pill anchored to the bottom of the rail (grounded,
+     not floating loose in empty mid-air like the previous corner-tick) that fades
+     out once the sidebar is actually open. */
+  .sidebar__expand-hint {
+    position: absolute;
+    left: 50%;
+    bottom: 18px;
+    transform: translateX(-50%);
+    width: 28px;
+    height: 28px;
+    border-radius: var(--radius-full);
+    background: var(--color-surface);
+    border: 1px solid var(--color-border-light);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    pointer-events: none;
+    opacity: 1;
+    transition: opacity var(--transition-fast);
+  }
+
+  .sidebar__expand-hint::before {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-top: 1.5px solid var(--color-text-muted);
+    border-right: 1.5px solid var(--color-text-muted);
+    transform: rotate(45deg) translateX(-1px);
+  }
+
+  .sidebar:hover .sidebar__expand-hint,
+  .sidebar:focus-within .sidebar__expand-hint {
+    opacity: 0;
+  }
+}
+
+@media (max-width: 1024px) {
+  .sidebar__expand-hint {
+    display: none;
   }
 }
 

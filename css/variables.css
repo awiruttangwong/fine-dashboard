@@ -121,7 +121,7 @@
 
   /* ── Layout ── */
   --sidebar-width:           272px;
-  --sidebar-width-collapsed: 8px;
+  --sidebar-width-collapsed: 64px;
   --header-height:           64px;
   --content-max-width:       1440px;
 }
