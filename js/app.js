@@ -48,6 +48,7 @@ const App = (() => {
 
     function renderCurrentState(filterState, { fullRender = false } = {}) {
       updateDataQualityNotification();
+      syncDebtModuleMonth(filterState);
 
       if (filterState.isComparisonMode) {
         setViewMode(filterState);
@@ -192,12 +193,18 @@ const App = (() => {
       if (contentInnerEl) contentInnerEl.classList.toggle('main__content-inner--debt-focus', active);
       if (mainTitleEl) mainTitleEl.textContent = active ? 'ค่าปรับรถไม่เข้ารับงาน' : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
       if (active && sectionDebtEl) window.scrollTo({ top: 0, behavior: 'auto' });
-      // ให้โมดูลนี้แสดงข้อมูลของ "เดือนที่กำลังเลือกดูอยู่" บน dashboard หลัก แทนที่
-      // จะค้างอยู่ที่เดือนล่าสุดที่เคยเปิดโมดูลนี้ครั้งก่อน — sync ทุกครั้งที่เปิด toggle
-      if (active && typeof DebtTracker !== 'undefined' && typeof FineData !== 'undefined') {
-        const targetMonth = FineData.monthLabelFromSelectedMonth(Filters.getState().selectedMonth);
-        if (targetMonth) DebtTracker.setMonth(targetMonth);
-      }
+      // ไม่ต้อง sync เดือนตอนกด toggle แล้ว — โมดูลนี้ผูกกับ month filter ของ dashboard
+      // หลักตลอดเวลาผ่าน syncDebtModuleMonth() ใน renderCurrentState (เลือกเดือนบน
+      // dashboard → ทั้งหน้ารวมถึงค่าปรับรถไม่เข้ารับงานแสดงเดือนเดียวกันเสมอ)
+    }
+
+    // ผูกเดือนของโมดูล "ค่าปรับรถไม่เข้ารับงาน" ให้ตรงกับ month filter ของ dashboard หลัก
+    // เสมอ — setMonth มี guard กันโหลดซ้ำถ้าเดือนไม่เปลี่ยน ("ทุกเดือน" ยังเลือกเองใน
+    // dropdown ของโมดูลได้ แต่จะถูก sync กลับเมื่อผู้ใช้เปลี่ยนเดือนบน dashboard)
+    function syncDebtModuleMonth(filterState) {
+      if (typeof DebtTracker === 'undefined' || typeof FineData === 'undefined') return;
+      const targetMonth = FineData.monthLabelFromSelectedMonth(filterState && filterState.selectedMonth);
+      if (targetMonth) DebtTracker.setMonth(targetMonth);
     }
 
     if (driverModuleToggle) {
@@ -206,8 +213,13 @@ const App = (() => {
       });
     }
 
-    // render the inline debt section once (always visible; independent of fine-data)
-    if (debtViewEl && typeof DebtTracker !== 'undefined') DebtTracker.show(debtViewEl);
+    // render the inline debt section once; start it on the dashboard's default month
+    // so it loads the right month immediately (renderCurrentState re-syncs to the
+    // actual selectedMonth afterwards — setMonth's guard skips a redundant reload)
+    if (debtViewEl && typeof DebtTracker !== 'undefined') {
+      const initialDebtMonth = FineData.monthLabelFromSelectedMonth(FineData.getDefaultMonth());
+      DebtTracker.show(debtViewEl, initialDebtMonth);
+    }
 
     // ── Mobile sidebar toggle ──
     const sidebar = document.querySelector('.sidebar');

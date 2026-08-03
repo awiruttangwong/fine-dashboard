@@ -142,7 +142,9 @@ const DebtTracker = (() => {
   }
 
   // ══ shell ══
-  function show(mountEl) { container = mountEl; container.hidden = false; container.innerHTML = shellHtml(); wireShell(); load(false); }
+  // initialMonth: ให้โมดูลเริ่มที่เดือนของ dashboard หลักเลย (ไม่ต้อง default 'all' แล้ว
+  // โหลดซ้ำอีกรอบ) — โมดูลนี้ sync ตาม month filter ของ dashboard เสมอ (ดู app.js)
+  function show(mountEl, initialMonth) { container = mountEl; if (initialMonth) state.month = initialMonth; container.hidden = false; container.innerHTML = shellHtml(); wireShell(); load(false); }
   function hide() { if (container) container.hidden = true; }
 
   // ให้หน้าอื่น (เช่น toggle เปิดโหมด "ค่าปรับรถไม่เข้ารับงาน" จาก sidebar) สั่งเปลี่ยน
