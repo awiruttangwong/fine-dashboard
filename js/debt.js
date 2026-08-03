@@ -67,7 +67,13 @@ const DebtTracker = (() => {
   async function load(silent) {
     const seq = ++loadSeq;
     const reqMonth = state.month;
-    if (!silent) renderInto('debt-groups', '<div class="debt-loading">กำลังโหลดข้อมูล…</div>');
+    // ระหว่างรอ backend (GAS ตอบช้าได้หลายวินาที) ต้องล้าง "ทั้ง" summary และ groups
+    // เป็นสถานะกำลังโหลด — ไม่งั้นการ์ดสรุปจะค้างแสดงตัวเลขของเดือนก่อนหน้าจนกว่าจะโหลด
+    // เสร็จ ทำให้ดูเหมือนข้อมูลเดือนเก่าโผล่ในเดือนใหม่ (เช่นสลับไป M8 แต่ยังเห็นยอด M6)
+    if (!silent) {
+      renderInto('debt-groups', '<div class="debt-loading">กำลังโหลดข้อมูล…</div>');
+      renderInto('debt-summary', '<div class="debt-loading debt-loading--summary">กำลังโหลดสรุปข้อมูล…</div>');
+    }
     let res;
     try {
       res = await jsonp({ action: 'debt_dashboard', month: reqMonth });
