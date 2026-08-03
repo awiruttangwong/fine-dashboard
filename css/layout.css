@@ -29,9 +29,17 @@
   transition: transform var(--transition-base);
 }
 
+/* min-height + flex-centering (แทน fixed vertical padding) ให้สูงเท่ากับ .main__header
+   เป๊ะ (--header-height ตัวแปรร่วม) — ก่อนหน้านี้ทั้งสองฝั่งใช้ padding บน/ล่างเท่ากัน
+   แต่เนื้อหาข้างในสูงไม่เท่ากัน (โลโก้ 2 บรรทัด vs หัวข้อ 1 บรรทัด) ทำให้เส้นขอบล่างของ
+   sidebar อยู่ต่ำกว่าเส้นขอบล่างของ main header ~8px เห็นเป็นรอยต่อไม่เรียบ */
 .sidebar__header {
-  padding: var(--space-6) var(--space-5);
+  min-height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-5);
   border-bottom: 1px solid var(--color-border-light);
+  box-sizing: border-box;
   flex-shrink: 0;
 }
 
@@ -179,7 +187,10 @@
 }
 
 .main__header {
-  padding: var(--space-6) var(--space-8);
+  min-height: var(--header-height);
+  display: flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-8);
   background: var(--color-surface);
   border-bottom: 1px solid var(--color-border-light);
   position: sticky;
@@ -188,6 +199,11 @@
   backdrop-filter: blur(var(--glass-blur));
   -webkit-backdrop-filter: blur(var(--glass-blur));
   background: var(--glass-bg-heavy);
+  box-sizing: border-box;
+}
+
+.main__header-row {
+  width: 100%;
 }
 
 .main__header-row {

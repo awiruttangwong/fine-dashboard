@@ -122,6 +122,6 @@
   /* ── Layout ── */
   --sidebar-width:           272px;
   --sidebar-width-collapsed: 64px;
-  --header-height:           64px;
+  --header-height:           78px;
   --content-max-width:       1440px;
 }
