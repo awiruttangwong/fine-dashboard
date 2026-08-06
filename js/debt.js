@@ -201,7 +201,7 @@ const DebtTracker = (() => {
             <div class="toolbar__controls">
               <div class="toolbar__search">
                 <svg class="toolbar__search-icon" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
-                <input type="text" id="debt-search" class="toolbar__input" placeholder="ค้นหาชื่อผู้รับโอน / ชื่อ พขร...">
+                <input type="text" id="debt-search" class="toolbar__input" placeholder="ค้นหาชื่อผู้รับโอน / เส้นทาง...">
               </div>
               <select id="debt-type" class="toolbar__select"><option value="">สาเหตุ</option></select>
               <div class="toolbar__month">
@@ -309,7 +309,7 @@ const DebtTracker = (() => {
       // จำนวนรายการในแท็บจึงไม่ตรงกับตัวเลขบนการ์ด กดไล่หาที่มาไม่เจอ
       if (state.statusFilter === 'active' && d.status !== 'กำลังผ่อน') return false;
       if (state.statusFilter === 'done' && d.status === 'กำลังผ่อน') return false;
-      if (state.search) { const hay = ((d.name || '') + ' ' + (d.driverName || '') + ' ' + (d.customer || '')).toLowerCase(); if (!hay.includes(state.search)) return false; }
+      if (state.search) { const hay = ((d.name || '') + ' ' + (d.route || '') + ' ' + (d.customer || '')).toLowerCase(); if (!hay.includes(state.search)) return false; }
       if (state.typeFilter && d.fineType !== state.typeFilter) return false;
       return true;
     });
@@ -336,7 +336,6 @@ const DebtTracker = (() => {
     return `<tr data-row-id="${esc(d.id)}">
       <td>
         <div class="cell-driver__name" title="${esc(d.name)}">${esc(d.name)}</div>
-        ${d.driverName ? `<div class="cell-driver__driver">พขร. ${esc(d.driverName)}</div>` : ''}
         <div class="cell-driver__sub" title="${sub}">${sub}</div>
       </td>
       <td class="cell-center">${badge}</td>
@@ -365,7 +364,7 @@ const DebtTracker = (() => {
         <div class="table-responsive">
           <table class="debt-table">
             <colgroup><col class="col-driver"><col class="col-type">${paidCol}<col class="col-balance"><col class="col-progress"><col class="col-action"></colgroup>
-            <thead><tr><th>ชื่อผู้รับโอน / ชื่อ พขร / เส้นทาง</th><th class="cell-center">สาเหตุ</th>${paidHeader}<th class="cell-center">คงเหลือ</th><th class="cell-center">คืบหน้า</th><th class="cell-center">จัดการ</th></tr></thead>
+            <thead><tr><th>ชื่อผู้รับโอน / เส้นทาง</th><th class="cell-center">สาเหตุ</th>${paidHeader}<th class="cell-center">คงเหลือ</th><th class="cell-center">คืบหน้า</th><th class="cell-center">จัดการ</th></tr></thead>
             <tbody>${body}</tbody>
           </table>
         </div>
@@ -411,7 +410,6 @@ const DebtTracker = (() => {
     const m = modal('เพิ่มรายชื่อ พขร. ใหม่', `
       <div class="ef">
         <div class="ef__field"><label class="ef__label">ชื่อผู้รับโอน *</label><input class="ef__input" id="a-name"></div>
-        <div class="ef__field"><label class="ef__label">ชื่อ พขร</label><input class="ef__input" id="a-driver"></div>
         <div class="ef__field"><label class="ef__label">ลูกค้า *</label><select class="ef__input" id="a-customer">${custOpts('')}</select></div>
         <div class="ef__field"><label class="ef__label">สาเหตุ *</label><select class="ef__input" id="a-type">${typeOpts('')}</select></div>
         <div class="ef__field"><label class="ef__label">สถานะการปรับ</label>
@@ -431,7 +429,7 @@ const DebtTracker = (() => {
       const g = (id) => m.$(id).value.trim();
       const collectible = m.ov.querySelector('input[name=a-col]:checked').value;
       const date = g('a-date');
-      const data = { name: g('a-name'), driverName: g('a-driver'), customer: g('a-customer'), fineType: g('a-type'), route: g('a-route'), date, total: g('a-total') || '0', installments: g('a-inst') || '12', collectible };
+      const data = { name: g('a-name'), customer: g('a-customer'), fineType: g('a-type'), route: g('a-route'), date, total: g('a-total') || '0', installments: g('a-inst') || '12', collectible };
       if (!data.name || !data.customer || !data.fineType) { toast('ชื่อผู้รับโอน, ลูกค้า และสาเหตุ จำเป็นต้องระบุ', 'error'); return; }
       // เดือนปลายทางกำหนดจาก "วันที่เริ่ม" เสมอ — ไม่เดาเดือนปัจจุบันอีกต่อไป (กันข้อมูล
       // ไหลผิดเดือนแบบเดียวกับ import). วันที่จึงจำเป็น และถ้ากำลังดูเดือนเจาะจงอยู่ วันที่
@@ -450,7 +448,6 @@ const DebtTracker = (() => {
     const m = modal('แก้ไขข้อมูล', `
       <div class="ef">
         <div class="ef__field"><label class="ef__label">ชื่อผู้รับโอน *</label><input class="ef__input" id="e-name" value="${esc(d.name)}"></div>
-        <div class="ef__field"><label class="ef__label">ชื่อ พขร</label><input class="ef__input" id="e-driver" value="${esc(d.driverName || '')}"></div>
         <div class="ef__field"><label class="ef__label">ลูกค้า *</label><select class="ef__input" id="e-customer">${custOpts(d.customer || '')}</select></div>
         <div class="ef__field"><label class="ef__label">เส้นทาง</label><input class="ef__input" id="e-route" value="${esc(d.route || '')}"></div>
         <div class="ef__field"><label class="ef__label">สาเหตุ</label><select class="ef__input" id="e-type">${typeOpts(d.fineType || '')}</select></div>
@@ -464,7 +461,7 @@ const DebtTracker = (() => {
       const g = (id) => m.$(id).value.trim();
       if (!g('e-name')) { toast('กรุณากรอกชื่อผู้รับโอน', 'error'); return; }
       if (!g('e-customer')) { toast('กรุณาเลือกลูกค้า', 'error'); return; }
-      submitWrite(m.$('e-ok'), m.close, 'debt_update', { month: monthFromId(d.id), driverId: d.id, name: g('e-name'), driverName: g('e-driver'), customer: g('e-customer'), route: g('e-route'), fineType: g('e-type'), total: g('e-total') || '0', installments: g('e-inst') || '12' }, 'แก้ไขแล้ว', d.id);
+      submitWrite(m.$('e-ok'), m.close, 'debt_update', { month: monthFromId(d.id), driverId: d.id, name: g('e-name'), customer: g('e-customer'), route: g('e-route'), fineType: g('e-type'), total: g('e-total') || '0', installments: g('e-inst') || '12' }, 'แก้ไขแล้ว', d.id);
     };
   }
 

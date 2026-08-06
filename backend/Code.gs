@@ -422,14 +422,14 @@ function buildDataPayload_(params) {
 // ── Driver rows แบบย่อสำหรับการ์ด KPI บน dashboard หลัก ──
 // ส่ง raw rows (พร้อม month_label) แทนยอดสรุปสำเร็จรูป เพื่อให้ frontend กรองตาม
 // ตัวกรองเดือน (selectedMonth) แบบเดียวกับข้อมูลค่าปรับทุกอย่างในระบบ — ใช้ได้เพราะ
-// ยืนยันแล้วว่า month_label ของ Drivers/Payments คือเดือนปฏิทินจริงของข้อมูลข้างใน
+// ยืนยันแล้วว่า month_label ของ Drivers คือเดือนปฏิทินจริงของ "วันที่เริ่มหนี้" ข้างใน
 // เหมือน SUM(Mx)/รอปรับ(Mx)/ปรับได้(Mx)/ปรับไม่ได้(Mx) ทุกประการ (ถ้าไม่ตรง จะโดน
 // ตรวจจับและแจ้งเตือนโดย detectMonthMismatches_ ด้านล่าง ไม่ใช่ปล่อยผ่านเงียบๆ)
+// — หมายเหตุ: Payments(Mx) ไม่เข้ากฎนี้ ดูเหตุผลที่ detectMonthMismatches_
 function buildDebtRowsForDashboard_(driverRows) {
   return driverRows.map(function(row) {
     return {
       month_label: row.month_label,
-      driver_name: row.driver_name,
       route: row.route,
       total: row.total || 0,
       paid: row.paid || 0,
@@ -718,6 +718,70 @@ function repairAllDebtDateFormats() {
   return fixed;
 }
 
+// ── Migration (รันครั้งเดียว): ลบคอลัมน์ 'ชื่อ พขร' ออกจากชีต Drivers(Mx) ทุกใบ ──
+// โค้ดอ่าน/เขียน Drivers ด้วยตำแหน่ง index ตายตัวตาม debtSchema.drivers.headers ซึ่ง
+// ตอนนี้เหลือ 13 คอลัมน์แล้ว ชีตเดิมที่ยังมี 14 คอลัมน์จึงต้องลบคอลัมน์ C ทิ้งให้ตรงกัน
+// ก่อน ไม่งั้นทุกคอลัมน์หลังจากนั้นจะเลื่อนกันคนละช่อง (ยอดเงิน/สถานะเพี้ยนทั้งชีต)
+//
+// ปลอดภัยและ idempotent: ลบเฉพาะเมื่อหัวคอลัมน์ C เป็น 'ชื่อ พขร' จริงเท่านั้น ชีตที่
+// migrate ไปแล้ว (C = 'เส้นทาง') จะถูกข้าม เรียกซ้ำกี่ครั้งก็ไม่ทำอะไรเพิ่ม
+//
+// รันไปแล้วบนคลังกลางจริงเมื่อ 2026-08-06 (Drivers M6/M7/M8 → 13 คอลัมน์ทั้งหมด) ผ่าน
+// action ชั่วคราวที่ถอดออกจาก doGet แล้ว — คงฟังก์ชันไว้สำหรับชีตเดือนใหม่ที่อาจถูก
+// สร้างจาก template เก่า เรียกได้จาก Apps Script editor โดยตรง (Run > migrateDropDriverNameColumn)
+function migrateDropDriverNameColumn() {
+  var ss = openBackendSpreadsheet_();
+  var sheets = ss.getSheets();
+  var result = { migrated: [], skipped: [] };
+
+  for (var i = 0; i < sheets.length; i++) {
+    var sheet = sheets[i];
+    var name = sheet.getName();
+    if (name.indexOf('Drivers(') !== 0) continue;
+    if (sheet.getLastColumn() < 3) { result.skipped.push(name + ' (คอลัมน์ไม่ครบ)'); continue; }
+
+    var headerC = cleanText_(sheet.getRange(1, 3).getDisplayValue());
+    var changed = false;
+    if (headerC === 'ชื่อ พขร') {
+      sheet.deleteColumn(3);
+      changed = true;
+    }
+
+    // เก็บกวาดคอลัมน์ส่วนเกินท้ายชีต เผื่อกรณีที่หัวคอลัมน์ถูก getOrCreateDebtSheet_
+    // เขียนทับด้วย schema ใหม่ (13 ช่อง) ไปก่อนที่ migration จะได้รัน — ชีตจะเหลือ
+    // คอลัมน์ที่ 14 ค้างอยู่พร้อมหัวเก่า ลบทิ้งเฉพาะคอลัมน์ที่ "ไม่มีข้อมูลสักแถว"
+    var want = BACKEND_CONFIG.debtSchema.drivers.headers.length;
+    while (sheet.getLastColumn() > want && debtColumnHasNoData_(sheet, sheet.getLastColumn())) {
+      sheet.deleteColumn(sheet.getLastColumn());
+      changed = true;
+    }
+
+    if (changed) {
+      result.migrated.push(name + ' (เหลือ ' + sheet.getLastColumn() + ' คอลัมน์, ' + Math.max(0, sheet.getLastRow() - 1) + ' แถวข้อมูล)');
+    } else {
+      result.skipped.push(name + ' (C = "' + headerC + '", ' + sheet.getLastColumn() + ' คอลัมน์ — ตรง schema แล้ว)');
+    }
+  }
+
+  // เขียนหัวคอลัมน์ให้ตรง schema ใหม่ + ตั้ง number format ของคอลัมน์วันที่ที่เลื่อนตำแหน่ง
+  BACKEND_CONFIG.monthlySources.forEach(function(source) {
+    if (ss.getSheetByName('Drivers(' + source.label + ')')) getDebtDriversSheet_(ss, source.label);
+  });
+
+  return result;
+}
+
+// คอลัมน์นี้ไม่มีข้อมูลเลยสักแถวหรือไม่ (นับเฉพาะแถวข้อมูล 2..lastRow ไม่นับหัวคอลัมน์)
+function debtColumnHasNoData_(sheet, col) {
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return true;
+  var values = sheet.getRange(2, col, lastRow - 1, 1).getDisplayValues();
+  for (var i = 0; i < values.length; i++) {
+    if (cleanText_(values[i][0]) !== '') return false;
+  }
+  return true;
+}
+
 // แปลง 'YYYY-MM-DD' (จาก <input type=date> ฝั่ง frontend) เป็น Date object เพื่อให้
 // number format dd/mm/yyyy มีผล — สร้างจากส่วนประกอบด้วย new Date(y, m-1, d) กันปัญหา
 // timezone (new Date('2026-06-05') = UTC เที่ยงคืน อาจเลื่อนวันในบาง tz) ถ้าค่าไม่ใช่
@@ -763,10 +827,13 @@ function readDebtMonthDrivers_(ss, monthLabel, createIfMissing) {
     var driverId = cleanText_(row[0]);
     if (!driverId) continue;
 
-    var totalInst = parseInt(row[6], 10) || 12;
-    var balance = Number(rawRow[8]) || 0;
-    var total = Number(rawRow[5]) || 0;
-    var paid = Number(rawRow[7]) || 0;
+    // index อ้างตาม debtSchema.drivers.headers (13 คอลัมน์ หลังถอด 'ชื่อ พขร' ออก):
+    // 0 รหัส | 1 ชื่อผู้รับโอน | 2 เส้นทาง | 3 วันที่เริ่ม | 4 ยอดรวม | 5 จำนวนงวด |
+    // 6 ชำระแล้ว | 7 คงเหลือ | 8 สถานะ | 9 สาเหตุ | 10 ปรับได้/ปรับไม่ได้ | 11 ประวัติการย้าย | 12 ลูกค้า
+    var totalInst = parseInt(row[5], 10) || 12;
+    var balance = Number(rawRow[7]) || 0;
+    var total = Number(rawRow[4]) || 0;
+    var paid = Number(rawRow[6]) || 0;
     var dPayments = payments.filter(function(p) { return String(p[1]) === String(driverId); });
     var remainingInst = totalInst - dPayments.length;
     var suggestedAmount = 0;
@@ -784,10 +851,10 @@ function readDebtMonthDrivers_(ss, monthLabel, createIfMissing) {
     if (balance <= 0 && total > 0) paidInstallments = totalInst;
 
     data.push({
-      id: driverId, month_label: monthLabel, name: row[1], driverName: row[2] || '', route: row[3],
-      startDate: row[4], total: total, paid: paid, balance: balance,
+      id: driverId, month_label: monthLabel, name: row[1], route: row[2],
+      startDate: row[3], total: total, paid: paid, balance: balance,
       totalInst: totalInst, nextInst: dPayments.length + 1, paidInstallments: paidInstallments, suggestedAmount: suggestedAmount,
-      status: row[9], fineType: row[10] || '', collectible: row[11] || 'ปรับได้', log: row[12] || '', customer: row[13] || ''
+      status: row[8], fineType: row[9] || '', collectible: row[10] || 'ปรับได้', log: row[11] || '', customer: row[12] || ''
     });
   }
   return data;
@@ -893,7 +960,7 @@ function debtAddDriver_(driverSheet, monthLabel, p) {
   var id = debtNewDriverId_(driverSheet, monthLabel);
 
   driverSheet.appendRow([
-    id, name, cleanText_(p.driverName), cleanText_(p.route), parseDebtDate_(p.date),
+    id, name, cleanText_(p.route), parseDebtDate_(p.date),
     total, installments, 0, total, 'กำลังผ่อน', fineType, collectible, '', customer
   ]);
   formatAppendedDebtDate_(driverSheet, 'Drivers'); // บังคับ วว/ดด/ปปปป บนแถวใหม่
@@ -915,19 +982,18 @@ function debtUpdateDriver_(driverSheet, p) {
   if (!customer) throw new Error('ต้องระบุลูกค้า');
   if (BACKEND_CONFIG.debtCustomers.indexOf(customer) === -1) throw new Error('ลูกค้าไม่อยู่ในรายการ: ' + customer);
 
-  var paid = Number(found.values[7]) || 0;
+  var paid = Number(found.values[6]) || 0;
   var total = debtNum_(p.total);
   var balance = Math.max(0, total - paid);
   var r = found.rowIndex;
   driverSheet.getRange(r, 2).setValue(cleanText_(p.name));
-  driverSheet.getRange(r, 3).setValue(cleanText_(p.driverName));
-  driverSheet.getRange(r, 4).setValue(cleanText_(p.route));
-  driverSheet.getRange(r, 6).setValue(total);
-  driverSheet.getRange(r, 7).setValue(parseInt(cleanText_(p.installments), 10) || 12);
-  driverSheet.getRange(r, 9).setValue(balance);
-  driverSheet.getRange(r, 10).setValue(balance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
-  driverSheet.getRange(r, 11).setValue(cleanText_(p.fineType));
-  driverSheet.getRange(r, 14).setValue(customer);
+  driverSheet.getRange(r, 3).setValue(cleanText_(p.route));
+  driverSheet.getRange(r, 5).setValue(total);
+  driverSheet.getRange(r, 6).setValue(parseInt(cleanText_(p.installments), 10) || 12);
+  driverSheet.getRange(r, 8).setValue(balance);
+  driverSheet.getRange(r, 9).setValue(balance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
+  driverSheet.getRange(r, 10).setValue(cleanText_(p.fineType));
+  driverSheet.getRange(r, 13).setValue(customer);
   return { ok: true, action: 'debt_update', id: cleanText_(p.driverId) };
 }
 
@@ -936,11 +1002,11 @@ function debtAddMore_(driverSheet, p) {
   if (!found) throw new Error('ไม่พบรหัส ' + cleanText_(p.driverId));
   var amount = debtNum_(p.amount);
   var r = found.rowIndex;
-  var oldTotal = Number(found.values[5]) || 0;
-  var oldBalance = Number(found.values[8]) || 0;
-  driverSheet.getRange(r, 6).setValue(oldTotal + amount);
-  driverSheet.getRange(r, 9).setValue(oldBalance + amount);
-  driverSheet.getRange(r, 10).setValue('กำลังผ่อน');
+  var oldTotal = Number(found.values[4]) || 0;
+  var oldBalance = Number(found.values[7]) || 0;
+  driverSheet.getRange(r, 5).setValue(oldTotal + amount);
+  driverSheet.getRange(r, 8).setValue(oldBalance + amount);
+  driverSheet.getRange(r, 9).setValue('กำลังผ่อน');
   return { ok: true, action: 'debt_addmore', id: cleanText_(p.driverId) };
 }
 
@@ -950,12 +1016,12 @@ function debtSetCollectible_(driverSheet, p) {
   var collectible = cleanText_(p.collectible);
   if (BACKEND_CONFIG.debtCollectibleOptions.indexOf(collectible) === -1) throw new Error('สถานะปรับไม่ถูกต้อง');
   var r = found.rowIndex;
-  var balance = Number(found.values[8]) || 0;
+  var balance = Number(found.values[7]) || 0;
   var line = '[' + cleanText_(p.date) + '] → ' + collectible + ' (คงเหลือ ' + balance + ')' + (cleanText_(p.note) ? ' ' + cleanText_(p.note) : '');
-  var old = cleanText_(found.values[12]);
-  driverSheet.getRange(r, 12).setValue(collectible);
-  driverSheet.getRange(r, 13).setValue(old ? old + '\n' + line : line);
-  if (cleanText_(p.installments)) driverSheet.getRange(r, 7).setValue(parseInt(cleanText_(p.installments), 10));
+  var old = cleanText_(found.values[11]);
+  driverSheet.getRange(r, 11).setValue(collectible);
+  driverSheet.getRange(r, 12).setValue(old ? old + '\n' + line : line);
+  if (cleanText_(p.installments)) driverSheet.getRange(r, 6).setValue(parseInt(cleanText_(p.installments), 10));
   return { ok: true, action: 'debt_setcollectible', id: cleanText_(p.driverId), collectible: collectible };
 }
 
@@ -965,8 +1031,8 @@ function debtPay_(ss, driverSheet, monthLabel, p) {
   var payAmt = debtNum_(p.amount);
   if (!(payAmt > 0)) throw new Error('จำนวนเงินไม่ถูกต้อง');
 
-  var totalFine = Number(found.values[5]) || 0;
-  var currentPaid = Number(found.values[7]) || 0;
+  var totalFine = Number(found.values[4]) || 0;
+  var currentPaid = Number(found.values[6]) || 0;
   var newPaid = currentPaid + payAmt;
   var newBalance = Math.max(0, totalFine - newPaid);
   var r = found.rowIndex;
@@ -974,9 +1040,9 @@ function debtPay_(ss, driverSheet, monthLabel, p) {
   var paymentSheet = getDebtPaymentsSheet_(ss, monthLabel);
   paymentSheet.appendRow(['P-' + new Date().getTime(), cleanText_(p.driverId), cleanText_(p.nextInst), payAmt, new Date(), 'WebApp']);
   formatAppendedDebtDate_(paymentSheet, 'Payments'); // บังคับ วว/ดด/ปปปป hh:mm บนแถวใหม่
-  driverSheet.getRange(r, 8).setValue(newPaid);
-  driverSheet.getRange(r, 9).setValue(newBalance);
-  driverSheet.getRange(r, 10).setValue(newBalance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
+  driverSheet.getRange(r, 7).setValue(newPaid);
+  driverSheet.getRange(r, 8).setValue(newBalance);
+  driverSheet.getRange(r, 9).setValue(newBalance <= 0 ? 'ชำระครบแล้ว' : 'กำลังผ่อน');
   return { ok: true, action: 'debt_pay', id: cleanText_(p.driverId), new_balance: newBalance };
 }
 
@@ -1110,7 +1176,6 @@ function normalizeDebtRow_(sheetName, values, displayValues, headerMap, monthLab
       month_label: monthLabel,
       id: id,
       receiver_name: blankToNull_(getCellByField_(values, displayValues, headerMap, 'receiver_name')),
-      driver_name: blankToNull_(getCellByField_(values, displayValues, headerMap, 'driver_name')),
       route: blankToNull_(getCellByField_(values, displayValues, headerMap, 'route')),
       start_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'start_date')),
       // ค่า derived แบบทนทานต่อ format (คำนวณจาก Date object ดิบตั้งแต่ตอนอ่าน) เพื่อให้
