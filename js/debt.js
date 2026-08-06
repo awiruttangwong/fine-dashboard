@@ -519,7 +519,10 @@ const DebtTracker = (() => {
   }
 
   // ══ import ══
-  const IMPORT_HEADER = ['ลูกค้า', 'ชื่อผู้รับโอน', 'ชื่อ พขร', 'เส้นทาง', 'วันที่เริ่ม (YYYY-MM-DD)', 'ยอดรวม', 'งวด', 'สาเหตุ', 'ปรับได้/ปรับไม่ได้'];
+  // คอลัมน์ "ชื่อ พขร" ถูกถอดออกจากเทมเพลตแล้ว (ผู้ใช้ไม่ต้องกรอก) — ดู normalizeImportRow_
+  // สำหรับการรองรับไฟล์เทมเพลตรุ่นเก่าที่ยังมีคอลัมน์นี้อยู่
+  const IMPORT_HEADER = ['ลูกค้า', 'ชื่อผู้รับโอน', 'เส้นทาง', 'วันที่เริ่ม (YYYY-MM-DD)', 'ยอดรวม', 'งวด', 'สาเหตุ', 'ปรับได้/ปรับไม่ได้'];
+  const IMPORT_WIDTHS = [16, 22, 30, 22, 12, 8, 22, 16];
   function openImportModal() {
     const foot = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-primary" id="i-ok" style="flex:1">เริ่มการนำเข้า</button>';
     const m = modal('Import ข้อมูลหลายรายการ', `
@@ -543,10 +546,10 @@ const DebtTracker = (() => {
       const wb = new ExcelJS.Workbook();
       const ws = wb.addWorksheet('Import'); ws.addRow(IMPORT_HEADER); ws.getRow(1).font = { bold: true };
       ws.dataValidations.add('A2:A1001', { type: 'list', allowBlank: false, formulae: ['"' + state.customers.join(',') + '"'], showErrorMessage: true, errorStyle: 'stop', errorTitle: 'ลูกค้าไม่ถูกต้อง', error: 'กรุณาเลือกลูกค้าจากรายการเท่านั้น' });
-      ws.columns.forEach((c, i) => { c.width = [16, 22, 18, 30, 22, 12, 8, 22, 16][i] || 14; });
+      ws.columns.forEach((c, i) => { c.width = IMPORT_WIDTHS[i] || 14; });
       const sm = wb.addWorksheet('ตัวอย่าง'); sm.addRow(IMPORT_HEADER); sm.getRow(1).font = { bold: true };
-      sm.addRow(['FLASH', 'สมชาย ใจดี', 'วิชัย ขับดี', 'สาย1', '2026-07-21', 5000, 12, 'ค่าปรับจราจร', 'ปรับได้']);
-      sm.columns.forEach((c, i) => { c.width = [16, 22, 18, 30, 22, 12, 8, 22, 16][i] || 14; });
+      sm.addRow(['FLASH', 'สมชาย ใจดี', 'สาย1', '2026-07-21', 5000, 12, 'ค่าปรับจราจร', 'ปรับได้']);
+      sm.columns.forEach((c, i) => { c.width = IMPORT_WIDTHS[i] || 14; });
       const buf = await wb.xlsx.writeBuffer();
       const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([buf], { type: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet' }));
       a.download = 'import-template.xlsx'; document.body.appendChild(a); a.click(); document.body.removeChild(a); URL.revokeObjectURL(a.href);
@@ -564,13 +567,19 @@ const DebtTracker = (() => {
       // พึ่ง cellDates:true ของ XLSX.js ที่พิสูจน์แล้วว่าเพี้ยนวันบนโซนเวลานี้
       const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, blankrows: false });
-      const data = rows.slice(1).filter(r => r[1] && String(r[1]).trim() !== '').map(r => ({
-        customer: String(r[0] || '').trim(), name: String(r[1] || '').trim(), driverName: String(r[2] || '').trim(),
-        route: String(r[3] || '').trim(),
-        date: importCellToIso_(r[4]),
-        dateRaw: String(r[4] == null ? '' : r[4]).trim(),
-        total: String(r[5] == null ? '' : r[5]).trim(),
-        installments: String(r[6] == null ? '' : r[6]).trim() || '12', fineType: String(r[7] || '').trim(), collectible: String(r[8] || '').trim() || 'ปรับได้'
+      // เทมเพลตรุ่นเก่ามีคอลัมน์ C = "ชื่อ พขร" ซึ่งถอดออกแล้ว ถ้าผู้ใช้ยังอัปโหลดไฟล์เก่าอยู่
+      // ให้เลื่อน index ของคอลัมน์ที่เหลือไป 1 ช่อง เพื่อไม่ให้ข้อมูลเข้าผิดคอลัมน์แบบเงียบๆ
+      const legacy = (rows[0] || []).some(h => String(h == null ? '' : h).indexOf('พขร') !== -1);
+      const C = legacy
+        ? { customer: 0, name: 1, route: 3, date: 4, total: 5, inst: 6, fineType: 7, collectible: 8 }
+        : { customer: 0, name: 1, route: 2, date: 3, total: 4, inst: 5, fineType: 6, collectible: 7 };
+      const data = rows.slice(1).filter(r => r[C.name] && String(r[C.name]).trim() !== '').map(r => ({
+        customer: String(r[C.customer] || '').trim(), name: String(r[C.name] || '').trim(),
+        route: String(r[C.route] || '').trim(),
+        date: importCellToIso_(r[C.date]),
+        dateRaw: String(r[C.date] == null ? '' : r[C.date]).trim(),
+        total: String(r[C.total] == null ? '' : r[C.total]).trim(),
+        installments: String(r[C.inst] == null ? '' : r[C.inst]).trim() || '12', fineType: String(r[C.fineType] || '').trim(), collectible: String(r[C.collectible] || '').trim() || 'ปรับได้'
       }));
       if (!data.length) { toast('ไม่พบข้อมูลในไฟล์', 'error'); return; }
       const validSet = new Set(state.customers);
