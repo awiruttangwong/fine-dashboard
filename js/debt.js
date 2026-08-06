@@ -42,16 +42,28 @@ const DebtTracker = (() => {
   function fmtDate(v) { const m = String(v || '').match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : (v || ''); }
 
   // แปลงค่าวันที่จากไฟล์ import ให้เป็น 'YYYY-MM-DD' อย่างแม่นยำ:
-  // - เซลล์วันที่ของ Excel อ่านด้วย cellDates:true เป็น Date object ที่ยึด UTC-midnight
-  //   (Excel เก็บวันที่เป็น serial ไร้ timezone) จึงใช้ getUTC* เพื่อได้วันที่ตรงเป๊ะ ไม่
-  //   เลื่อนข้ามวัน/ข้ามเดือนจาก timezone. เดิมใช้ sheet_to_json raw:false + dateNF ซึ่ง
-  //   ไม่ format เซลล์วันที่จริงตามที่สั่ง (ได้ "6/14/26") ทำให้ตัดสินเดือนเพี้ยน
+  // - เดิมอ่านด้วย cellDates:true แล้วดึงผ่าน getUTC* โดยเข้าใจว่า XLSX.js สร้าง Date
+  //   object แบบยึด UTC-midnight เสมอ — พิสูจน์แล้วว่าไม่จริง: XLSX.js สร้าง epoch
+  //   ฐาน (1899-12-30) ผ่าน local Date constructor ซึ่งบนเครื่อง/เบราว์เซอร์โซนเวลา
+  //   Asia/Bangkok จะเพี้ยนไปเกือบ 7 ชม. (ทดสอบจริงกับไฟล์ import: serial ของวันที่
+  //   1 มิ.ย. 2026 กลายเป็น Date เวลา 2026-05-31T16:59:56Z แทนที่จะเป็น
+  //   2026-06-01T00:00:00Z) ทำให้ getUTCDate() อ่านได้ "31 พ.ค." แทน "1 มิ.ย." จริง —
+  //   ผิดทั้ง local และ UTC getter เพราะค่า timestamp เพี้ยนตั้งแต่ต้น ไม่ใช่ปัญหาที่
+  //   getter เลือกผิด
+  // - แก้โดยอ่านด้วย cellDates:false (ได้ Excel serial number ดิบ) แล้วคำนวณ
+  //   วันที่ปฏิทินเองด้วยเลขคณิตล้วน ไม่พึ่ง Date constructor ที่อิง timezone เลย:
+  //   utcMs = (serial - 25569) * 86400000 คือ 25569 = จำนวนวันจาก Excel epoch
+  //   (1899-12-30) ถึง Unix epoch (1970-01-01) เป็นค่าคงที่ที่ไม่ขึ้นกับ timezone
   // - ถ้าเป็น string รองรับ 'YYYY-M-D' และ 'DD/MM/YYYY' (ธรรมเนียมไทย)
   // - parse ไม่ได้ → คืน '' (ผู้เรียกต้องบล็อก ห้ามเดาเดือน)
   function importCellToIso_(v) {
     if (v == null || v === '') return '';
     const pad = (n) => String(n).padStart(2, '0');
-    if (v instanceof Date) return isNaN(v.getTime()) ? '' : (v.getUTCFullYear() + '-' + pad(v.getUTCMonth() + 1) + '-' + pad(v.getUTCDate()));
+    if (typeof v === 'number' && isFinite(v)) {
+      const utcMs = Math.round((v - 25569) * 86400000);
+      const d = new Date(utcMs);
+      return isNaN(d.getTime()) ? '' : (d.getUTCFullYear() + '-' + pad(d.getUTCMonth() + 1) + '-' + pad(d.getUTCDate()));
+    }
     const s = String(v).trim();
     let m;
     if ((m = s.match(/^(\d{4})-(\d{1,2})-(\d{1,2})/))) return m[1] + '-' + pad(+m[2]) + '-' + pad(+m[3]);
@@ -547,16 +559,16 @@ const DebtTracker = (() => {
     if (typeof XLSX === 'undefined') { toast('ตัวอ่าน .xlsx ยังโหลดไม่เสร็จ', 'error'); return; }
     const reader = new FileReader();
     reader.onload = async (e) => {
-      // raw:true → เซลล์วันที่คืนเป็น Date object (แปลงเดือน/วันแม่นยำผ่าน importCellToIso_)
-      // แทน raw:false เดิมที่คืน string รูปแบบ locale เพี้ยน. เก็บ dateRaw ไว้โชว์ใน error
-      // เฉพาะตอน parse ไม่ได้ (ไม่ส่งขึ้น backend)
-      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: true });
+      // cellDates:false → เซลล์วันที่คืนเป็น Excel serial number ดิบ แปลงวันที่เองใน
+      // importCellToIso_ ด้วยเลขคณิตล้วน (ดูเหตุผลที่คอมเมนต์ของฟังก์ชันนั้น) แทนการ
+      // พึ่ง cellDates:true ของ XLSX.js ที่พิสูจน์แล้วว่าเพี้ยนวันบนโซนเวลานี้
+      const wb = XLSX.read(e.target.result, { type: 'array', cellDates: false });
       const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1, raw: true, blankrows: false });
       const data = rows.slice(1).filter(r => r[1] && String(r[1]).trim() !== '').map(r => ({
         customer: String(r[0] || '').trim(), name: String(r[1] || '').trim(), driverName: String(r[2] || '').trim(),
         route: String(r[3] || '').trim(),
         date: importCellToIso_(r[4]),
-        dateRaw: (r[4] instanceof Date) ? importCellToIso_(r[4]) : String(r[4] == null ? '' : r[4]).trim(),
+        dateRaw: String(r[4] == null ? '' : r[4]).trim(),
         total: String(r[5] == null ? '' : r[5]).trim(),
         installments: String(r[6] == null ? '' : r[6]).trim() || '12', fineType: String(r[7] || '').trim(), collectible: String(r[8] || '').trim() || 'ปรับได้'
       }));
