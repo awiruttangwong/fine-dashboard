@@ -107,10 +107,15 @@ const App = (() => {
       })[ch]);
 
       dataQualityList.innerHTML = alerts.items.map(item => {
+        // backend ส่ง headline มาเองได้แล้วสำหรับ alert ชนิดที่ไม่ใช่ "เดือนไม่ตรง"
+        // (เช่น วันที่จ่ายก่อนวันเริ่มหนี้) — ยังคง fallback เดิมไว้ เผื่อ endpoint
+        // เวอร์ชันเก่าที่ยังไม่มีฟิลด์นี้
         const hasMonths = item.expected_month !== null && item.expected_month !== undefined;
-        const headline = hasMonths
-          ? `คาดว่าเป็นเดือน ${escapeHtml(item.expected_month)} แต่พบวันที่จริงเดือน ${escapeHtml(item.actual_month)}`
-          : 'พบรหัสซ้ำข้ามไฟล์เดือน';
+        const headline = item.headline
+          ? escapeHtml(item.headline)
+          : hasMonths
+            ? `คาดว่าเป็นเดือน ${escapeHtml(item.expected_month)} แต่พบวันที่จริงเดือน ${escapeHtml(item.actual_month)}`
+            : 'พบรหัสซ้ำข้ามไฟล์เดือน';
         return `
           <li>
             <strong>${escapeHtml(item.source)}</strong> — ${headline}<br>

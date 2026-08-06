@@ -174,7 +174,11 @@ const ComparisonView = (() => {
     const { months, monthlyData, yearly } = model;
 
     const rows = monthlyData.map(m => {
-      const isCurrentMonth = m.index === new Date().getMonth() + 1;
+      // ต้องใช้เวลาไทย (UTC+7) เหมือนทุกจุดที่ตัดสิน "เดือนปัจจุบัน" ในแอป —
+      // new Date() ดิบอิงโซนเวลาเครื่องผู้ใช้ จึงไฮไลต์ผิดแถวช่วงคาบเกี่ยวสิ้นเดือน
+      // เมื่อเปิดจากเครื่อง/เบราว์เซอร์ที่ตั้งโซนเวลาอื่น
+      const nowTh = (window.FineData && FineData.nowInThailand) ? FineData.nowInThailand() : new Date();
+      const isCurrentMonth = m.index === nowTh.getMonth() + 1;
       const rowClasses = [isCurrentMonth ? 'row--current-month' : '', !m.count ? 'row--empty' : ''].filter(Boolean).join(' ');
       return `
         <tr class="${rowClasses}">

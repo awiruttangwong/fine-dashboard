@@ -528,17 +528,30 @@ function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
     }
   });
 
+  // ── Payments: ห้ามเทียบ "เดือนของ timestamp" กับ "เดือนของชีต" ──
+  // Payments(Mx) = ประวัติการจ่ายของ "หนี้เดือน Mx" ไม่ใช่ "เงินที่รับในเดือน Mx":
+  // debtPay_ เขียนแถวลง Payments(<เดือนของหนี้>) พร้อม new Date() ของตอนกดจ่ายเสมอ
+  // ดังนั้นหนี้เดือน มิ.ย. ที่ผ่อน 12 งวด ย่อมมีแถวลงวันที่ ก.ค./ส.ค./ก.ย. อยู่ใน
+  // Payments(M6) เป็นเรื่องปกติที่ถูกต้อง เช็คเดิมจึงยิง alert ทุกครั้งที่จ่ายข้ามเดือน
+  // และเป็น false positive ที่ผู้ใช้ "แก้ที่ต้นทางไม่ได้" (ข้อมูลไม่ได้ผิด) — ตัดออก
+  // เหลือเงื่อนไขที่ผิดปกติจริงคือ "จ่ายก่อนวันที่เริ่มหนี้" (ย้อนเวลา) ซึ่งเทียบด้วย
+  // ISO เต็ม yyyy-mm-dd จึงไม่พังตอนข้ามปี (หนี้ ธ.ค. จ่าย ม.ค. ปีถัดไป = ปกติ)
+  var driverStartIso = {};
+  driverRows.forEach(function(row) {
+    if (row.id && row.start_iso) driverStartIso[row.id] = row.start_iso;
+  });
+
   paymentRows.forEach(function(row) {
-    var expected = extractMonthNumberFromLabel_(row.month_label);
-    var actual = row.payment_month;
-    if (expected && actual && expected !== actual) {
-      items.push({
-        source: 'Payments(' + row.month_label + ')',
-        expected_month: expected,
-        actual_month: actual,
-        detail: 'รหัสจ่าย ' + row.payment_id + ' วันที่ ' + (row.payment_date || '-')
-      });
-    }
+    var startIso = driverStartIso[row.driver_id];
+    if (!startIso || !row.payment_iso) return;
+    if (row.payment_iso >= startIso) return;
+    items.push({
+      source: 'Payments(' + row.month_label + ')',
+      expected_month: null,
+      actual_month: null,
+      headline: 'วันที่จ่ายอยู่ก่อนวันที่เริ่มหนี้',
+      detail: 'รหัสจ่าย ' + row.payment_id + ' วันที่ ' + (row.payment_date || '-') + ' แต่ พขร. ' + row.driver_id + ' เริ่มหนี้ ' + startIso
+    });
   });
 
   return items;
@@ -1129,8 +1142,10 @@ function normalizeDebtRow_(sheetName, values, displayValues, headerMap, monthLab
     installment_no: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'installment_no')),
     amount: toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'amount')),
     payment_date: cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date')),
-    // เดือนที่แท้จริงแบบทนทานต่อ format (คำนวณจาก Date object ดิบ) — detector ใช้ตัวนี้
-    payment_month: debtActualMonthFromCell_(getRawValueByField_(values, headerMap, 'payment_date'), cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date'))),
+    // วันที่จ่ายแบบ ISO เต็ม (ทนทานต่อ format เพราะคำนวณจาก Date object ดิบ) — detector
+    // ใช้ตัวนี้เทียบกับ start_iso ของ พขร. โดยตรง ไม่เทียบ "เดือน" ลอยๆ อีกต่อไป
+    // (เดือนอย่างเดียวเทียบข้ามปีไม่ได้ ดู detectMonthMismatches_)
+    payment_iso: debtCellToIso_(getRawValueByField_(values, headerMap, 'payment_date'), cleanText_(getCellByField_(values, displayValues, headerMap, 'payment_date'))),
 
     source: blankToNull_(getCellByField_(values, displayValues, headerMap, 'source'))
   };
