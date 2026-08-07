@@ -392,23 +392,26 @@ const App = (() => {
       `;
     }
 
-    // ── KPI Cards Skeleton ──
-    const kpiGrid = document.getElementById('kpi-grid');
-    if (kpiGrid) {
-      const skeletonCards = Array.from({ length: 6 }, () => `
-        <div class="skeleton-kpi">
-          <div>
-            <div class="skeleton skeleton-icon"></div>
-            <div class="skeleton skeleton-text--sm"></div>
-          </div>
-          <div>
-            <div class="skeleton skeleton-text--lg"></div>
-            <div class="skeleton skeleton-text--sm"></div>
-          </div>
+    // ── KPI Cards Skeleton (eyebrow icon+label above a value card, matching
+    // the real .kpi-tile markup in kpi.js so nothing jumps shape on load) ──
+    const buildKpiSkeleton = (count) => Array.from({ length: count }, () => `
+      <div class="skeleton-kpi">
+        <div class="skeleton-kpi__eyebrow">
+          <div class="skeleton skeleton-icon"></div>
+          <div class="skeleton skeleton-text--sm" style="width: 45%;"></div>
         </div>
-      `).join('');
-      kpiGrid.innerHTML = skeletonCards;
-    }
+        <div class="skeleton-kpi__card">
+          <div class="skeleton skeleton-text--lg"></div>
+          <div class="skeleton skeleton-text--sm" style="width: 40%;"></div>
+        </div>
+      </div>
+    `).join('');
+
+    const kpiGrandGrid = document.getElementById('kpi-grand-grid');
+    if (kpiGrandGrid) kpiGrandGrid.innerHTML = buildKpiSkeleton(2);
+
+    const kpiGrid = document.getElementById('kpi-grid');
+    if (kpiGrid) kpiGrid.innerHTML = buildKpiSkeleton(6);
 
     // ── Chart list-cards Skeleton ──
     // canvas-based charts (bar/doughnut) already start as an empty, correctly-

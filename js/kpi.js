@@ -147,7 +147,7 @@ const KPICards = (() => {
     },
     {
       id: 'paid-amount',
-      label: 'ชำระค่าปรับแล้ว',
+      label: 'ชำระค่าปรับอื่นๆแล้ว',
       icon: ICONS.checkCircle,
       iconClass: 'kpi-card__icon--green',
       getValue: (agg) => agg.paidCompletedAmount,
@@ -159,7 +159,7 @@ const KPICards = (() => {
     },
     {
       id: 'remaining-amount',
-      label: 'ยอดคงเหลือ',
+      label: 'ยอดคงเหลือค่าปรับอื่นๆ',
       icon: ICONS.alertTriangle,
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.totalRemaining,
@@ -179,7 +179,7 @@ const KPICards = (() => {
       // scrollWidth > clientWidth ที่ 1400px) จึงแยกเป็น 2 การ์ดคนละตัวเลขหลักไปเลย
       // แทนที่จะพยายามยัดทั้ง 2 สถานะไว้ในบรรทัดเดียว
       id: 'installment-active',
-      label: 'กำลังผ่อน',
+      label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--blue',
       getValue: (agg) => agg.installment.totalRemainingAmount,
@@ -191,14 +191,14 @@ const KPICards = (() => {
     },
     {
       id: 'installment-done',
-      label: 'ผ่อนเสร็จแล้ว',
+      label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว',
       icon: ICONS.checkCircle,
       iconClass: 'kpi-card__icon--mint',
       getValue: (agg) => agg.installment.doneAmount,
       format: formatCurrency,
       getDetail: (agg) => {
         const { doneCases } = agg.installment;
-        return doneCases > 0 ? `${formatNumber(doneCases)} รายการ` : 'ยังไม่มีรายการผ่อนเสร็จ';
+        return doneCases > 0 ? `${formatNumber(doneCases)} รายการ` : 'ยังไม่มีรายการที่ชำระครบแล้ว';
       }
     },
     {
@@ -206,8 +206,8 @@ const KPICards = (() => {
       // (1) ค่าปรับลูกค้าที่เก็บไม่ได้ จากชีต ปรับไม่ได้(Mx) และ (2) หนี้ พขร.
       // ที่ตัดเป็นปรับไม่ได้ จาก Drivers(Mx) — ทั้งสองกรองตามตัวกรองเดือนเดียวกัน
       // (month_label ของ Drivers/Payments ยืนยันแล้วว่าคือเดือนปฏิทินจริง เหมือน
-      // fine_date) รายละเอียดแสดงยอดรวมเดียว (ไม่แยกที่มา) ตามที่ตกลง — ดูรายละเอียด
-      // แยกที่มาได้จากตารางอยู่แล้ว ไม่จำเป็นต้องพูดซ้ำในการ์ดสรุป
+      // fine_date) การ์ดแสดงยอดรวมเดียว แต่กดดูที่มาแยก 2 ส่วนได้ผ่าน getBreakdown
+      // (เหมือนการ์ด "ยอดปรับรวม") แทนที่จะต้องไปงมหาในตาราง
       id: 'non-collectible',
       label: 'ปรับไม่ได้',
       icon: ICONS.alertTriangle,
@@ -217,33 +217,140 @@ const KPICards = (() => {
       getDetail: (agg) => {
         const total = (agg.statusBreakdown.uncollectibleCount || 0) + (agg.nonCollectibleDebt.totalCases || 0);
         return total > 0 ? `${formatNumber(total)} รายการ` : 'ไม่มีรายการปรับไม่ได้';
+      },
+      getBreakdown: (agg) => {
+        const fineAmount = agg.statusBreakdown.uncollectibleAmount || 0;
+        const fineCount = agg.statusBreakdown.uncollectibleCount || 0;
+        const debtAmount = agg.nonCollectibleDebt.totalAmount || 0;
+        const debtCount = agg.nonCollectibleDebt.totalCases || 0;
+        return {
+          title: 'ที่มาของยอดปรับไม่ได้',
+          rows: [
+            { label: 'ค่าปรับอื่นๆที่ปรับไม่ได้', hint: 'จากสถานะ "ปรับไม่ได้"', amount: fineAmount, count: fineCount, tone: 'red' },
+            { label: 'ค่าปรับรถไม่เข้ารับงานที่ปรับไม่ได้', hint: 'จากสถานะ "ปรับไม่ได้"', amount: debtAmount, count: debtCount, tone: 'blue' }
+          ],
+          total: fineAmount + debtAmount
+        };
       }
     }
   ];
 
-  function render(aggregates) {
-    if (!container) container = document.getElementById('kpi-grid');
-    if (!container) return;
-    lastAgg = aggregates;
+  // ── การ์ดสรุปยอดใหญ่ (เหนือ "สรุปภาพรวม") — รวม 2 แหล่งแบบ "เต็มจำนวน" ไม่หักลบ
+  // อะไรออก ต่างจากการ์ด "ยอดปรับรวม"/"ยอดคงเหลือ" ด้านล่างที่หัก "ปรับไม่ได้" ออก
+  // เพื่อให้เห็นยอดที่เก็บได้จริง — การ์ดชุดนี้ตอบคำถาม "ยอดทั้งหมดในระบบมีเท่าไหร่"
+  // และ "เก็บมาแล้วเท่าไหร่" แบบไม่แยกว่าเก็บได้จริงหรือไม่
+  const grandConfigs = [
+    {
+      id: 'grand-total',
+      label: 'ค่าปรับทั้งหมด',
+      icon: ICONS.money,
+      iconClass: 'kpi-card__icon--red',
+      getValue: (agg) => {
+        const fineRaw = agg.totalFine;
+        const debtRaw = (agg.debtGrandTotal ? agg.debtGrandTotal.amount + agg.debtGrandTotal.deducted : 0);
+        return fineRaw + debtRaw;
+      },
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
+        return `จาก ${formatNumber(agg.count + debtCount)} รายการ`;
+      },
+      getBreakdown: (agg) => {
+        const fineRaw = agg.totalFine;
+        const uncollectibleAmount = agg.statusBreakdown.uncollectibleAmount || 0;
+        const uncollectibleCount = agg.statusBreakdown.uncollectibleCount || 0;
+        const paidAmount = agg.statusBreakdown.paidAmount || 0;
+        const paidCount = agg.statusBreakdown.paidCount || 0;
+        const pendingAmount = agg.statusBreakdown.pendingAmount || 0;
+        const pendingCount = agg.statusBreakdown.pendingCount || 0;
 
-    container.innerHTML = cardConfigs.map(config => {
+        const debtGrand = agg.debtGrandTotal || {};
+        const debtCount = debtGrand.count || 0;
+        const debtDeducted = debtGrand.deducted || 0;
+        const debtNet = debtGrand.amount || 0;
+        const debtRaw = debtNet + debtDeducted;
+
+        return {
+          title: 'ที่มาของค่าปรับทั้งหมด',
+          rows: [
+            {
+              label: 'ค่าปรับอื่นๆ', amount: fineRaw, count: agg.count, tone: 'red',
+              subRows: [
+                { label: 'ปรับได้', amount: paidAmount, count: paidCount },
+                { label: 'รอปรับ', amount: pendingAmount, count: pendingCount },
+                { label: 'ปรับไม่ได้', amount: uncollectibleAmount, count: uncollectibleCount }
+              ]
+            },
+            {
+              label: 'ค่าปรับรถไม่เข้ารับงาน', amount: debtRaw, count: debtCount, tone: 'blue',
+              // ใช้ตัวเลขชุดเดียวกับการ์ด "ชำระค่าปรับรถไม่เข้ารับงานแล้ว"/"กำลังผ่อนชำระ
+              // รถไม่เข้ารับงาน" (agg.installment) ตรงๆ แทนที่จะคำนวณแยกชุดใหม่ — กันไม่ให้
+              // ตัวเลขใน popup นี้เพี้ยนไปจากการ์ดจริงถ้า logic การคำนวณเปลี่ยนในอนาคต
+              subRows: [
+                { label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว', amount: agg.installment.doneAmount, count: agg.installment.doneCases },
+                { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', amount: agg.installment.totalRemainingAmount, count: agg.installment.activeCases },
+                { label: 'ปรับไม่ได้', amount: debtDeducted, count: agg.nonCollectibleDebt.totalCases || 0 }
+              ]
+            }
+          ],
+          total: fineRaw + debtRaw
+        };
+      }
+    },
+    {
+      id: 'grand-paid',
+      label: 'ชำระค่าปรับแล้วทั้งหมด',
+      icon: ICONS.checkCircle,
+      iconClass: 'kpi-card__icon--green',
+      getValue: (agg) => agg.paidCompletedAmount + agg.installment.doneAmount,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const paidCount = (agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0;
+        const doneCount = agg.installment.doneCases || 0;
+        return `จาก ${formatNumber(paidCount + doneCount)} รายการ`;
+      },
+      getBreakdown: (agg) => {
+        const paidAmount = agg.paidCompletedAmount;
+        const paidCount = (agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0;
+        const doneAmount = agg.installment.doneAmount;
+        const doneCount = agg.installment.doneCases || 0;
+        return {
+          title: 'ที่มาของยอดชำระแล้วทั้งหมด',
+          totalLabel: 'ยอดชำระรวมทั้งหมด',
+          rows: [
+            { label: 'ชำระค่าปรับอื่นๆแล้ว', hint: 'จากสถานะ "ปรับได้"', amount: paidAmount, count: paidCount, tone: 'blue' },
+            { label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว', hint: 'จากรายการที่ชำระเสร็จสิ้นแล้ว ไม่รวมผ่อน', amount: doneAmount, count: doneCount, tone: 'red' }
+          ],
+          total: paidAmount + doneAmount
+        };
+      }
+    }
+  ];
+
+  function renderGrid(containerId, configs, aggregates) {
+    const el = document.getElementById(containerId);
+    if (!el) return;
+
+    el.innerHTML = configs.map(config => {
       const value = config.getValue(aggregates);
       const clickable = typeof config.getBreakdown === 'function';
       return `
-        <div class="kpi-card${clickable ? ' kpi-card--clickable' : ''}" id="kpi-${config.id}"${clickable ? ' role="button" tabindex="0" aria-haspopup="dialog" title="ดูที่มาของยอด"' : ''}>
-          <div class="kpi-card__header-row">
-            <span class="kpi-card__label">${config.label}</span>
+        <div class="kpi-tile${clickable ? ' kpi-tile--clickable' : ''}" id="kpi-${config.id}"${clickable ? ' role="button" tabindex="0" aria-haspopup="dialog" title="ดูที่มาของยอด"' : ''}>
+          <div class="kpi-tile__eyebrow">
             <div class="kpi-card__icon ${config.iconClass}">${config.icon}</div>
+            <span class="kpi-card__label">${config.label}</span>
           </div>
-          <div class="kpi-card__content">
-            <div class="kpi-card__value" data-value="${value}">${buildMetricValueMarkup(config.format(0))}</div>
-            <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
+          <div class="kpi-card">
+            <div class="kpi-card__content">
+              <div class="kpi-card__value" data-value="${value}">${buildMetricValueMarkup(config.format(0))}</div>
+              <div class="kpi-card__detail">${config.getDetail(aggregates)}</div>
+            </div>
           </div>
         </div>
       `;
     }).join('');
 
-    cardConfigs.forEach((config) => {
+    configs.forEach((config) => {
       if (typeof config.getBreakdown !== 'function') return;
       const card = document.getElementById(`kpi-${config.id}`);
       if (!card) return;
@@ -253,20 +360,16 @@ const KPICards = (() => {
     });
 
     requestAnimationFrame(() => {
-      container.querySelectorAll('.kpi-card__value').forEach((el, idx) => {
-        const target = parseFloat(el.dataset.value);
-        const config = cardConfigs[idx];
-        animateValue(el, 0, target, 800, config.format);
+      el.querySelectorAll('.kpi-card__value').forEach((valueEl, idx) => {
+        const target = parseFloat(valueEl.dataset.value);
+        const config = configs[idx];
+        animateValue(valueEl, 0, target, 800, config.format);
       });
     });
   }
 
-  function update(aggregates) {
-    if (!container) container = document.getElementById('kpi-grid');
-    if (!container) return;
-    lastAgg = aggregates;
-
-    cardConfigs.forEach((config) => {
+  function updateGrid(configs, aggregates) {
+    configs.forEach((config) => {
       const card = document.getElementById(`kpi-${config.id}`);
       if (!card) return;
 
@@ -280,6 +383,24 @@ const KPICards = (() => {
 
       animateValue(valueEl, oldValue, newValue, 500, config.format);
     });
+  }
+
+  function render(aggregates) {
+    if (!container) container = document.getElementById('kpi-grid');
+    if (!container) return;
+    lastAgg = aggregates;
+
+    renderGrid('kpi-grand-grid', grandConfigs, aggregates);
+    renderGrid('kpi-grid', cardConfigs, aggregates);
+  }
+
+  function update(aggregates) {
+    if (!container) container = document.getElementById('kpi-grid');
+    if (!container) return;
+    lastAgg = aggregates;
+
+    updateGrid(grandConfigs, aggregates);
+    updateGrid(cardConfigs, aggregates);
   }
 
   // ── Popup แยกที่มาของยอด (breakdown) — เปิดเมื่อกดการ์ดที่มี getBreakdown ──
@@ -297,6 +418,11 @@ const KPICards = (() => {
         <div class="kpi-bd__info">
           <span class="kpi-bd__label">${escHtml(r.label)}</span>
           ${r.hint ? `<span class="kpi-bd__hint">${escHtml(r.hint)}</span>` : ''}
+          ${r.subRows && r.subRows.length ? `
+            <div class="kpi-bd__sub">
+              ${r.subRows.map(s => `<span class="kpi-bd__sub-item">${escHtml(s.label)} ${formatCurrency(s.amount)} · ${formatNumber(s.count)} รายการ</span>`).join('')}
+            </div>
+          ` : ''}
         </div>
         <div class="kpi-bd__figures">
           <span class="kpi-bd__amount">${formatCurrency(r.amount)}</span>
@@ -316,7 +442,7 @@ const KPICards = (() => {
         <div class="kpi-bd__body">
           ${rowsHtml}
           <div class="kpi-bd__total">
-            <span class="kpi-bd__total-label">ยอดปรับรวมทั้งหมด</span>
+            <span class="kpi-bd__total-label">${escHtml(data.totalLabel || 'ยอดปรับรวมทั้งหมด')}</span>
             <span class="kpi-bd__total-amount">${formatCurrency(data.total)}</span>
           </div>
         </div>

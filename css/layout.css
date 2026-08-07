@@ -387,9 +387,18 @@
   gap: var(--space-5);
 }
 
+/* Grand summary row — only 2 cards, always 2 columns down to mobile */
+.kpi-grid--grand {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
 @media (max-width: 1200px) {
   .kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .kpi-grid--grand {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 

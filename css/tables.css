@@ -79,6 +79,64 @@
   max-width: 720px;
 }
 
+/* ── Status filter toggle (ทั้งหมด / ปรับได้ / ปรับไม่ได้ / รอปรับ) ── */
+.table-status-filter {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  padding: 3px;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-full);
+  width: fit-content;
+}
+
+.table-status-filter__btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  border-radius: var(--radius-full);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all var(--transition-fast);
+}
+
+.table-status-filter__btn:hover {
+  color: var(--color-text-primary);
+}
+
+.table-status-filter__btn.is-active {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.08);
+}
+
+.table-status-filter__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: var(--color-text-muted);
+}
+
+.table-status-filter__btn--paid.is-active  { color: var(--color-success); }
+.table-status-filter__btn--paid.is-active .table-status-filter__dot  { background: var(--color-success); }
+.table-status-filter__btn--error.is-active { color: var(--color-danger); }
+.table-status-filter__btn--error.is-active .table-status-filter__dot { background: var(--color-danger); }
+.table-status-filter__btn--open.is-active  { color: var(--color-accent); }
+.table-status-filter__btn--open.is-active .table-status-filter__dot  { background: var(--color-accent); }
+
+.table-status-filter__count {
+  font-weight: var(--font-weight-semibold);
+  opacity: 0.65;
+}
+
 .table-card__actions {
   display: flex;
   align-items: center;

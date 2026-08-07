@@ -3,70 +3,117 @@
    KPI cards, filter controls, badges, buttons, tooltips
    ============================================================ */
 
-/* ── KPI Card ── */
+/* ── KPI Tile: eyebrow (icon + label) above a value card — the grid item ── */
+.kpi-tile {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  animation: fadeIn 0.5s ease forwards;
+  opacity: 0;
+}
+
+.kpi-tile:nth-child(1) { animation-delay: 0.05s; }
+.kpi-tile:nth-child(2) { animation-delay: 0.10s; }
+.kpi-tile:nth-child(3) { animation-delay: 0.15s; }
+.kpi-tile:nth-child(4) { animation-delay: 0.20s; }
+.kpi-tile:nth-child(5) { animation-delay: 0.25s; }
+.kpi-tile:nth-child(6) { animation-delay: 0.30s; }
+
+.kpi-tile--clickable { cursor: pointer; }
+.kpi-tile--clickable:focus-visible {
+  outline: 2px solid var(--color-accent);
+  outline-offset: 3px;
+  border-radius: var(--radius-xl);
+}
+
+.kpi-tile:hover .kpi-card {
+  transform: translateY(-5px);
+}
+
+/* ── Eyebrow: small icon badge + label, sits above the value card ── */
+.kpi-tile__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 2px;
+}
+
+.kpi-tile__eyebrow .kpi-card__icon {
+  width: 28px;
+  height: 28px;
+}
+
+.kpi-tile__eyebrow .kpi-card__icon svg {
+  width: 15px;
+  height: 15px;
+}
+
+.kpi-tile:hover .kpi-card__icon {
+  transform: scale(1.10) rotate(-5deg);
+}
+
+/* ── Value card ── */
 .kpi-card {
   background: #ffffff;
   border-radius: var(--radius-xl);
-  padding: var(--space-5) var(--space-5) var(--space-5) var(--space-6);
+  padding: calc(var(--space-5) + 2px) var(--space-5) var(--space-5) var(--space-6);
   box-shadow: 0 2px 14px rgba(0, 0, 0, 0.06);
   border: 1px solid var(--color-border-light);
   transition: box-shadow var(--transition-spring), transform var(--transition-spring), border-color var(--transition-base);
   position: relative;
   overflow: hidden;
-  animation: fadeIn 0.5s ease forwards;
-  opacity: 0;
-  min-height: 166px;
+  min-height: 108px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
-  gap: var(--space-4);
+  justify-content: center;
 }
 
-/* Neutral flat theme — no gradient accent bar, no decorative glow circle */
-.kpi-card::before,
+/* Thin colour-coded accent bar along the top edge — ties each value card back to
+   its eyebrow icon colour, and gives every card the same "finished" silhouette
+   regardless of how short or long its number/chip content is */
+.kpi-card::before {
+  content: '';
+  position: absolute;
+  top: 0; left: 0; right: 0;
+  height: 3px;
+  background: var(--kpi-accent, transparent);
+}
 .kpi-card::after {
   content: none;
 }
 
-/* ── Card fill: neutral Apple white/grey, matches system theme ── */
-#kpi-total-fine,
-#kpi-paid-amount,
-#kpi-remaining-amount,
-#kpi-installment-active,
-#kpi-installment-done,
-#kpi-non-collectible {
+/* ── Card fill + accent colour: neutral Apple white/grey base, subtle colour
+   identity per card so all 6 read as one consistent family ── */
+#kpi-total-fine .kpi-card,
+#kpi-paid-amount .kpi-card,
+#kpi-remaining-amount .kpi-card,
+#kpi-installment-active .kpi-card,
+#kpi-installment-done .kpi-card,
+#kpi-non-collectible .kpi-card,
+#kpi-grand-total .kpi-card,
+#kpi-grand-paid .kpi-card {
   background: var(--color-surface-alt);
   border-color: var(--color-border);
 }
-#kpi-total-fine:hover,
-#kpi-paid-amount:hover,
-#kpi-remaining-amount:hover,
-#kpi-installment-active:hover,
-#kpi-installment-done:hover,
-#kpi-non-collectible:hover {
+#kpi-total-fine .kpi-card       { --kpi-accent: #FF3B30; }
+#kpi-paid-amount .kpi-card      { --kpi-accent: #34C759; }
+#kpi-remaining-amount .kpi-card { --kpi-accent: #FF9500; }
+#kpi-installment-active .kpi-card { --kpi-accent: #4A9FDB; }
+#kpi-installment-done .kpi-card { --kpi-accent: #00C7BE; }
+#kpi-non-collectible .kpi-card  { --kpi-accent: #FF3B30; }
+#kpi-grand-total .kpi-card      { --kpi-accent: #FF3B30; }
+#kpi-grand-paid .kpi-card       { --kpi-accent: #34C759; }
+
+#kpi-total-fine:hover .kpi-card,
+#kpi-paid-amount:hover .kpi-card,
+#kpi-remaining-amount:hover .kpi-card,
+#kpi-installment-active:hover .kpi-card,
+#kpi-installment-done:hover .kpi-card,
+#kpi-non-collectible:hover .kpi-card,
+#kpi-grand-total:hover .kpi-card,
+#kpi-grand-paid:hover .kpi-card {
   border-color: var(--color-border);
   box-shadow: var(--shadow-card-hover);
-}
-
-/* ── Animation delays ── */
-.kpi-card:nth-child(1) { animation-delay: 0.05s; }
-.kpi-card:nth-child(2) { animation-delay: 0.10s; }
-.kpi-card:nth-child(3) { animation-delay: 0.15s; }
-.kpi-card:nth-child(4) { animation-delay: 0.20s; }
-.kpi-card:nth-child(5) { animation-delay: 0.25s; }
-.kpi-card:nth-child(6) { animation-delay: 0.30s; }
-
-.kpi-card:hover {
-  transform: translateY(-5px);
-}
-
-/* ── Header row ── */
-.kpi-card__header-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  width: 100%;
-  gap: var(--space-2);
 }
 
 /* ── Icon: gradient circle with glow ── */
@@ -80,10 +127,6 @@
   flex-shrink: 0;
   color: #ffffff;
   transition: transform var(--transition-spring), box-shadow var(--transition-base);
-}
-
-.kpi-card:hover .kpi-card__icon {
-  transform: scale(1.10) rotate(-5deg);
 }
 
 .kpi-card__icon svg {
@@ -189,6 +232,8 @@
 #kpi-installment-active .kpi-card__value-suffix     { color: #4A9FDB; }
 #kpi-installment-done .kpi-card__value-suffix       { color: #00C7BE; }
 #kpi-non-collectible .kpi-card__value-suffix        { color: #FF3B30; }
+#kpi-grand-total .kpi-card__value-suffix            { color: #FF3B30; }
+#kpi-grand-paid .kpi-card__value-suffix             { color: #34C759; }
 
 .kpi-card__value--small {
   font-size: var(--font-size-xl);
@@ -206,6 +251,15 @@
   line-height: 1.2;
   min-width: 0;
   color: var(--color-text-muted);
+}
+
+.kpi-card__detail:not(:empty)::before {
+  content: '';
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  flex-shrink: 0;
+  background: currentColor;
 }
 
 .kpi-card__detail:not(:empty) {
@@ -253,11 +307,17 @@
   border-color: rgba(255, 59, 48, 0.18);
   color: #c0392b;
 }
+#kpi-grand-total .kpi-card__detail:not(:empty) {
+  background: rgba(255, 59, 48, 0.06);
+  border-color: rgba(255, 59, 48, 0.18);
+  color: #c0392b;
+}
+#kpi-grand-paid .kpi-card__detail:not(:empty) {
+  background: rgba(52, 199, 89, 0.06);
+  border-color: rgba(52, 199, 89, 0.18);
+  color: #1a8a40;
+}
 
-/* ── Clickable KPI card → เปิด popup แยกที่มาของยอด (ไม่มีป้ายบอก คลิกได้เลย) ── */
-.kpi-card--clickable { cursor: pointer; }
-.kpi-card--clickable:hover { transform: translateY(-2px); }
-.kpi-card--clickable:focus-visible { outline: 2px solid var(--color-accent); outline-offset: 2px; }
 
 /* ── Breakdown popup (executive-facing money-source dialog) ── */
 .kpi-bd-overlay {
@@ -281,14 +341,33 @@
 .kpi-bd__x { border: none; background: none; font-size: 1.5rem; line-height: 1; cursor: pointer; color: var(--color-text-muted); padding: 0 4px; }
 .kpi-bd__x:hover { color: var(--color-text-primary); }
 .kpi-bd__body { padding: 20px 22px 22px; }
-.kpi-bd__row { display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--color-surface-alt); border: 1px solid var(--color-border-light); }
-.kpi-bd__dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: var(--color-text-muted); }
+.kpi-bd__row { display: flex; align-items: flex-start; gap: 12px; padding: 12px 14px; border-radius: var(--radius-lg); background: var(--color-surface-alt); border: 1px solid var(--color-border-light); }
+.kpi-bd__dot { width: 10px; height: 10px; border-radius: 50%; flex: 0 0 auto; background: var(--color-text-muted); margin-top: 5px; }
 .kpi-bd__row--red .kpi-bd__dot { background: var(--color-danger); }
 .kpi-bd__row--blue .kpi-bd__dot { background: var(--color-accent); }
-.kpi-bd__info { display: flex; flex-direction: column; gap: 2px; flex: 1; min-width: 0; }
+.kpi-bd__info { display: flex; flex-direction: column; gap: 4px; flex: 1; min-width: 0; }
 .kpi-bd__label { font-size: 0.88rem; font-weight: var(--font-weight-medium); color: var(--color-text-primary); }
-.kpi-bd__hint { font-size: 0.72rem; color: var(--color-text-muted); }
-.kpi-bd__figures { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; }
+/* Same pill treatment as .kpi-card__detail (the KPI card chips) — bounded width,
+   ellipsis instead of running text, so long hints never spill past the row */
+.kpi-bd__hint {
+  display: inline-flex;
+  align-items: center;
+  width: fit-content;
+  max-width: 100%;
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border-light);
+  font-size: 0.68rem;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-muted);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.kpi-bd__sub { display: flex; flex-wrap: wrap; align-items: center; gap: 5px; margin-top: 2px; }
+.kpi-bd__sub-item { font-size: 0.68rem; color: var(--color-text-muted); background: var(--color-surface); border: 1px solid var(--color-border-light); border-radius: var(--radius-full); padding: 2px 8px; white-space: nowrap; }
+.kpi-bd__figures { display: flex; flex-direction: column; align-items: flex-end; gap: 2px; flex-shrink: 0; }
 .kpi-bd__amount { font-size: 0.98rem; font-weight: var(--font-weight-bold); color: var(--color-text-primary); font-variant-numeric: tabular-nums; white-space: nowrap; }
 .kpi-bd__count { font-size: 0.72rem; color: var(--color-text-muted); white-space: nowrap; }
 .kpi-bd__plus { text-align: center; font-size: 1.1rem; color: var(--color-text-muted); font-weight: var(--font-weight-semibold); margin: 6px 0; }

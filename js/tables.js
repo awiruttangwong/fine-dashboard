@@ -24,7 +24,7 @@ const Tables = (() => {
   const STATUS_WEIGHT = { 'รอปรับ': 1, 'ปรับไม่ได้': 2, 'ปรับได้': 3, unclassified: 4 };
 
   let tableState = {
-    [SUMMARY_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '' }
+    [SUMMARY_TAB]: { page: 1, perPage: 12, sortField: 'total_remaining', sortDir: 'desc', search: '', statusFilter: 'all' }
   };
 
   let currentData = [];
@@ -100,6 +100,34 @@ const Tables = (() => {
   function getStatusBadge(status) {
     const info = getStatusMeta(status);
     return `<span class="status-badge ${info.class}"><span class="status-dot"></span><span class="status-label">${info.label}</span></span>`;
+  }
+
+  const STATUS_FILTER_OPTIONS = [
+    { key: 'all', label: 'ทั้งหมด', className: '' },
+    { key: 'ปรับได้', label: 'ปรับได้', className: 'table-status-filter__btn--paid' },
+    { key: 'ปรับไม่ได้', label: 'ปรับไม่ได้', className: 'table-status-filter__btn--error' },
+    { key: 'รอปรับ', label: 'รอปรับ', className: 'table-status-filter__btn--open' }
+  ];
+
+  function renderStatusFilter(tabId, activeFilter, counts) {
+    if (!counts) return '';
+    return `
+      <div class="table-status-filter" role="tablist" aria-label="กรองตามสถานะ">
+        ${STATUS_FILTER_OPTIONS.map(opt => `
+          <button
+            type="button"
+            role="tab"
+            aria-selected="${activeFilter === opt.key}"
+            class="table-status-filter__btn ${opt.className} ${activeFilter === opt.key ? 'is-active' : ''}"
+            data-tab="${tabId}"
+            data-status-filter="${opt.key}">
+            ${opt.key !== 'all' ? '<span class="table-status-filter__dot"></span>' : ''}
+            <span>${opt.label}</span>
+            <span class="table-status-filter__count">${counts[opt.key] ?? 0}</span>
+          </button>
+        `).join('')}
+      </div>
+    `;
   }
 
   function getColumnClass(col, target = 'td') {
@@ -308,7 +336,9 @@ const Tables = (() => {
       rowCountLabel = 'ผู้รับโอน',
       rowCountValue = null,
       summaryNote = '',
-      searchPlaceholder = 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
+      searchPlaceholder = 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...',
+      statusFilter = null,
+      statusFilterCounts = null
     } = options;
     const state = tableState[tabId];
     const searchedGroups = filterGroupsBySearch(data, state.search);
@@ -360,6 +390,7 @@ const Tables = (() => {
             <span class="table-card__row-count">${resolvedRowCountValue} ${rowCountLabel}</span>
           </div>
           ${summaryNote ? `<div class="table-card__summary-note">${summaryNote}</div>` : ''}
+          ${renderStatusFilter(tabId, statusFilter, statusFilterCounts)}
         </div>
         <div class="table-card__actions">
           <div class="table-search">
@@ -519,9 +550,23 @@ const Tables = (() => {
     if (event.key === 'Escape' && detailState.receiverKey) closeDetail();
   }
 
+  function getStatusFilterCounts(summaryRows) {
+    const counts = { all: summaryRows.length, 'ปรับได้': 0, 'ปรับไม่ได้': 0, 'รอปรับ': 0 };
+    summaryRows.forEach(row => {
+      const key = row.record_status_type;
+      if (key && counts[key] !== undefined) counts[key] += 1;
+    });
+    return counts;
+  }
+
   function render(data) {
     currentData = data;
-    const summaryRows = data.filter(isSummaryRow);
+    const allSummaryRows = data.filter(isSummaryRow);
+    const state = tableState[SUMMARY_TAB];
+    const statusFilterCounts = getStatusFilterCounts(allSummaryRows);
+    const summaryRows = state.statusFilter === 'all'
+      ? allSummaryRows
+      : allSummaryRows.filter(row => row.record_status_type === state.statusFilter);
     const summaryItemCount = summaryRows.length;
     currentSummaryGroups = buildReceiverGroups(summaryRows);
     currentGroups = currentSummaryGroups;
@@ -541,7 +586,9 @@ const Tables = (() => {
           rowCountLabel: 'รายการปรับ',
           rowCountValue: summaryItemCount,
           summaryNote: 'รายการปรับจากสาเหตุ ค่ายยกเลิก ตกเวลาต้นทาง ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ',
-          searchPlaceholder: 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...'
+          searchPlaceholder: 'ค้นหาผู้รับโอน, ลูกค้า, บาร์โค้ด...',
+          statusFilter: state.statusFilter,
+          statusFilterCounts
         })}
       </div>
     `;
@@ -551,6 +598,17 @@ const Tables = (() => {
   }
 
   function bindEvents() {
+    document.querySelectorAll('[data-status-filter]').forEach(btn => {
+      btn.addEventListener('click', () => {
+        const tabId = btn.dataset.tab;
+        const filter = btn.dataset.statusFilter;
+        if (tableState[tabId].statusFilter === filter) return;
+        tableState[tabId].statusFilter = filter;
+        tableState[tabId].page = 1;
+        render(currentData);
+      });
+    });
+
     document.querySelectorAll('.table-search__input').forEach(input => {
       input.addEventListener('input', debounce((event) => {
         const tabId = event.target.dataset.tab;

@@ -208,15 +208,14 @@ button {
   width: 50%;
 }
 
+/* Mirrors the real .kpi-tile shape: a small eyebrow (icon + label) sitting
+   above a separate value card — kept in sync with css/components.css so the
+   loading state doesn't flash/jump into a differently-shaped card once real
+   data lands */
 .skeleton-kpi {
-  background: var(--color-surface);
-  border-radius: var(--radius-xl);
-  padding: var(--space-5);
-  border: 1px solid var(--color-border-light);
-  min-height: 166px;
   display: flex;
   flex-direction: column;
-  justify-content: space-between;
+  gap: var(--space-3);
   animation: fadeIn 0.5s var(--transition-base) forwards;
   opacity: 0;
 }
@@ -228,11 +227,30 @@ button {
 .skeleton-kpi:nth-child(5) { animation-delay: 0.25s; }
 .skeleton-kpi:nth-child(6) { animation-delay: 0.30s; }
 
+.skeleton-kpi__eyebrow {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 0 2px;
+}
+
 .skeleton-kpi .skeleton-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: var(--radius-md);
-  margin-bottom: var(--space-4);
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.skeleton-kpi__card {
+  background: var(--color-surface);
+  border-radius: var(--radius-xl);
+  padding: calc(var(--space-5) + 2px) var(--space-5) var(--space-5) var(--space-6);
+  border: 1px solid var(--color-border-light);
+  min-height: 108px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  gap: 10px;
 }
 
 .skeleton-table-row {
