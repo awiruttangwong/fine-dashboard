@@ -418,14 +418,20 @@
   border-color: var(--color-border);
 }
 
+/* Badge, not just coloured text — a plain label read as part of the panel
+   background (too "กลมกลืน"/blended-in per feedback); a filled pill with its
+   own border reads as an actual section heading at a glance. */
 .kpi-panel__label {
-  display: flex;
+  display: inline-flex;
+  align-self: flex-start;
   align-items: center;
   gap: var(--space-2);
   font-size: var(--font-size-sm);
   font-weight: 700;
   letter-spacing: .01em;
-  color: var(--color-text-secondary);
+  padding: 6px 14px;
+  border-radius: var(--radius-full);
+  border: 1px solid transparent;
 }
 
 .kpi-panel__label::before {
@@ -434,6 +440,17 @@
   height: 8px;
   border-radius: 50%;
   flex: 0 0 auto;
+}
+
+.kpi-panel--fine .kpi-panel__label {
+  background: rgba(255, 59, 48, 0.08);
+  border-color: rgba(255, 59, 48, 0.22);
+  color: #c0392b;
+}
+.kpi-panel--debt .kpi-panel__label {
+  background: rgba(74, 159, 219, 0.10);
+  border-color: rgba(74, 159, 219, 0.24);
+  color: #2271b8;
 }
 
 .kpi-panel--fine .kpi-panel__label::before { background: var(--color-danger); }
