@@ -259,34 +259,6 @@ const App = (() => {
       });
     }
 
-    // ── First-visit sidebar hint ──
-    // The collapsed rail's only affordance is a 28px chevron dot that's easy
-    // to miss entirely — new users often never discover the sidebar expands
-    // on hover. Pulse it once (with a text tooltip) a couple seconds after
-    // load, gated on localStorage so it never shows again after the first
-    // time, and cancelled immediately if the user finds it themselves first.
-    if (sidebar && window.matchMedia('(min-width: 1025px)').matches) {
-      const HINT_KEY = 'fineDashboard_sidebarHintShown';
-      let hintAlreadyShown = false;
-      try { hintAlreadyShown = localStorage.getItem(HINT_KEY) === '1'; } catch (e) { /* private mode etc. */ }
-
-      if (!hintAlreadyShown) {
-        const markHintSeen = () => {
-          try { localStorage.setItem(HINT_KEY, '1'); } catch (e) { /* ignore */ }
-        };
-        const hintTimer = setTimeout(() => {
-          sidebar.classList.add('sidebar--hint-pulse');
-          markHintSeen();
-          setTimeout(() => sidebar.classList.remove('sidebar--hint-pulse'), 3800);
-        }, 1500);
-
-        sidebar.addEventListener('mouseenter', () => {
-          clearTimeout(hintTimer);
-          markHintSeen();
-        }, { once: true });
-      }
-    }
-
     // Google Apps Script cold-starts intermittently (the endpoint sleeps
     // after inactivity), which can make the very first JSONP request time
     // out even though the data is fine. Without a retry, that single
