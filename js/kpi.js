@@ -143,7 +143,7 @@ const KPICards = (() => {
     },
     {
       id: 'remaining-amount',
-      label: 'ยอดคงเหลือค่าปรับอื่นๆ',
+      label: 'คงเหลือค่าปรับอื่นๆ',
       icon: ICONS.alertTriangle,
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.totalRemaining,
