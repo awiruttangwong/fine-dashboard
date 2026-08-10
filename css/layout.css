@@ -452,6 +452,21 @@
   color: #ffffff;
 }
 
+/* Loading state (app.js toggles this while data.fetch is in flight) — the
+   pill keeps its real border-radius/padding so it's already the right shape
+   and there's no layout shift when the shimmer swaps back to real text. */
+.kpi-panel__label.is-loading {
+  color: transparent;
+  border-color: transparent;
+  background: linear-gradient(90deg, var(--color-border) 25%, var(--color-bg) 37%, var(--color-border) 63%);
+  background-size: 200% 100%;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+
+.kpi-panel__label.is-loading .kpi-panel__label-icon {
+  visibility: hidden;
+}
+
 /* auto-fit + collapsing empty tracks so the "ค่าปรับอื่นๆ" panel (4 cards)
    and "ค่าปรับรถไม่เข้ารับงาน" panel (3 cards) each fill their own row width
    evenly without needing a separate column-count modifier per panel. */

@@ -314,6 +314,7 @@ const App = (() => {
       lastRefreshAt = Date.now();
       aggregates = FineData.getAggregates(allData);
       isLoaded = true;
+      document.querySelectorAll('.kpi-panel__label').forEach((el) => el.classList.remove('is-loading'));
     } catch (err) {
       renderLoadError(err);
       console.error('[Fine Dashboard] Data load failed', err);
@@ -442,6 +443,13 @@ const App = (() => {
     if (kpiGridFine) kpiGridFine.innerHTML = buildKpiSkeleton(4);
     const kpiGridDebt = document.getElementById('kpi-grid-debt');
     if (kpiGridDebt) kpiGridDebt.innerHTML = buildKpiSkeleton(4);
+
+    // Panel group labels ("ค่าปรับอื่นๆ" / "ค่าปรับรถไม่เข้ารับงาน") are static
+    // markup in index.html, never re-rendered by kpi.js — so unlike the cards
+    // above they'd otherwise appear instantly while everything else is still
+    // shimmering. Shimmer them too for the loading state; cleared once real
+    // data is ready (see isLoaded = true below).
+    document.querySelectorAll('.kpi-panel__label').forEach((el) => el.classList.add('is-loading'));
 
     // ── Chart list-cards Skeleton ──
     // canvas-based charts (bar/doughnut) already start as an empty, correctly-
