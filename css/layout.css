@@ -660,16 +660,18 @@
     /* Absolutely positioned (not a normal flex child) so it never reserves
        layout space — without this, the icons still occupied their full
        height at opacity:0 while expanded, leaving a large blank gap above
-       the module-switch toggle. */
+       the module-switch toggle. Vertically centred in the rail (below the
+       header) instead of stacked right under it, so the 4 icons sit evenly
+       balanced within the empty rail instead of clumped at the top. */
     position: absolute;
-    top: var(--header-height);
+    top: calc(var(--header-height) + (100vh - var(--header-height)) / 2);
     left: 0;
+    transform: translateY(-50%);
     display: flex;
     flex-direction: column;
     align-items: center;
     gap: var(--space-8);
     width: var(--sidebar-width-collapsed);
-    padding: var(--space-6) 0;
     opacity: 1;
     transition: opacity 100ms ease;
   }
