@@ -434,26 +434,21 @@
   border: 1px solid transparent;
 }
 
-.kpi-panel__label::before {
-  content: "";
-  width: 8px;
-  height: 8px;
-  border-radius: 50%;
+/* Group icon (replaces the old bullet dot) — sized down to sit comfortably
+   inside the label pill next to the text, not a full 24px UI icon. */
+.kpi-panel__label-icon {
+  width: 15px;
+  height: 15px;
   flex: 0 0 auto;
 }
 
-/* Neutral instead of red/blue per group — dark gray fill, black text and dot
+/* Neutral instead of red/blue per group — dark gray fill, black text and icon
    on both panels, same treatment regardless of ค่าปรับอื่นๆ vs รถไม่เข้ารับงาน. */
 .kpi-panel--fine .kpi-panel__label,
 .kpi-panel--debt .kpi-panel__label {
   background: rgba(0, 0, 0, 0.12);
   border-color: rgba(0, 0, 0, 0.18);
   color: #1a1a1a;
-}
-
-.kpi-panel--fine .kpi-panel__label::before,
-.kpi-panel--debt .kpi-panel__label::before {
-  background: #1a1a1a;
 }
 
 /* auto-fit + collapsing empty tracks so the "ค่าปรับอื่นๆ" panel (4 cards)
