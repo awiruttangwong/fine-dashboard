@@ -101,19 +101,32 @@ const KPICards = (() => {
 
   const cardConfigs = [
     {
-      // "ยอดค่าปรับอื่นๆรวม" = เฉพาะฝั่งค่าปรับอื่นๆเท่านั้น (เดิมการ์ดนี้บวกรวม
-      // ค่าปรับรถไม่เข้ารับงานเข้าไปด้วย — ตอนนี้ตัดออก ให้แต่ละกลุ่มแสดงเฉพาะยอด
-      // ของกลุ่มตัวเอง เหมือนการ์ดอื่นๆ ในกลุ่มนี้แล้ว) หัก "ปรับไม่ได้" ออกแล้ว
-      // เพราะเก็บเงินก้อนนั้นไม่ได้จริง (ก้อนนั้นแยกไปมีการ์ด "ปรับไม่ได้" ของตัวเอง)
+      // "ยอดรวมค่าปรับอื่นๆ" = เฉพาะฝั่งค่าปรับอื่นๆเท่านั้น (ไม่รวมรถไม่เข้ารับงาน)
+      // แต่รวม "ปรับไม่ได้" กลับเข้ามาแล้ว (agg.totalFine ดิบ = ปรับได้+รอปรับ+ปรับไม่ได้
+      // ครบทุกสถานะ) — กดการ์ดดูที่มาแยก 3 สถานะได้ผ่าน getBreakdown
       id: 'total-fine',
       label: 'ยอดรวมค่าปรับอื่นๆ',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0),
+      getValue: (agg) => agg.totalFine,
       format: formatCurrency,
-      getDetail: (agg) => {
-        const netCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
-        return `จาก ${formatNumber(netCount)} รายการ`;
+      getDetail: (agg) => `จาก ${formatNumber(agg.count)} รายการ`,
+      getBreakdown: (agg) => {
+        const paidAmount = agg.statusBreakdown.paidAmount || 0;
+        const paidCount = agg.statusBreakdown.paidCount || 0;
+        const pendingAmount = agg.statusBreakdown.pendingAmount || 0;
+        const pendingCount = agg.statusBreakdown.pendingCount || 0;
+        const uncollectibleAmount = agg.statusBreakdown.uncollectibleAmount || 0;
+        const uncollectibleCount = agg.statusBreakdown.uncollectibleCount || 0;
+        return {
+          title: 'ที่มาของยอดรวมค่าปรับอื่นๆ',
+          rows: [
+            { label: 'ปรับได้ (ชำระแล้ว)', amount: paidAmount, count: paidCount, tone: 'blue' },
+            { label: 'รอปรับ', amount: pendingAmount, count: pendingCount, tone: 'blue' },
+            { label: 'ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดรวม', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
+          ],
+          total: paidAmount + pendingAmount + uncollectibleAmount
+        };
       }
     },
     {
@@ -161,18 +174,36 @@ const KPICards = (() => {
       }
     },
     {
-      // "ยอดรวมค่าปรับรถไม่เข้ารับงาน" — สมมาตรกับการ์ด "ยอดรวมค่าปรับอื่นๆ" ในกลุ่ม
-      // บน: รวมเฉพาะ 2 การ์ดที่ยังตามเก็บได้ในกลุ่มนี้ (กำลังผ่อนชำระ + ชำระแล้ว) ไม่รวม
-      // การ์ด "ปรับไม่ได้" ข้างล่าง เพราะเก็บเงินก้อนนั้นไม่ได้จริงเหมือนกัน
+      // "ยอดรวมค่าปรับรถไม่เข้ารับงาน" — สมมาตรกับการ์ด "ยอดรวมค่าปรับอื่นๆ" ในกลุ่มบน:
+      // รวมทั้ง 3 สถานะในกลุ่มนี้ (กำลังผ่อนชำระ + ชำระแล้ว + ปรับไม่ได้) getValue รวม
+      // จาก field เดียวกับที่ใช้ใน getBreakdown ตรงๆ การันตีว่าป๊อปอัปรวมได้เท่ากับ
+      // ตัวเลขบนการ์ดเป๊ะๆ เสมอ
       id: 'debt-total',
       label: 'ยอดรวมค่าปรับรถไม่เข้ารับงาน',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => agg.installment.totalRemainingAmount + agg.installment.doneAmount,
+      getValue: (agg) => agg.installment.totalRemainingAmount + agg.installment.doneAmount + (agg.nonCollectibleDebt.totalAmount || 0),
       format: formatCurrency,
       getDetail: (agg) => {
-        const count = (agg.installment.activeCases || 0) + (agg.installment.doneCases || 0);
+        const count = (agg.installment.activeCases || 0) + (agg.installment.doneCases || 0) + (agg.nonCollectibleDebt.totalCases || 0);
         return `จาก ${formatNumber(count)} รายการ`;
+      },
+      getBreakdown: (agg) => {
+        const activeAmount = agg.installment.totalRemainingAmount;
+        const activeCount = agg.installment.activeCases || 0;
+        const doneAmount = agg.installment.doneAmount;
+        const doneCount = agg.installment.doneCases || 0;
+        const uncollectibleAmount = agg.nonCollectibleDebt.totalAmount || 0;
+        const uncollectibleCount = agg.nonCollectibleDebt.totalCases || 0;
+        return {
+          title: 'ที่มาของยอดรวมค่าปรับรถไม่เข้ารับงาน',
+          rows: [
+            { label: 'กำลังผ่อนชำระ', amount: activeAmount, count: activeCount, tone: 'blue' },
+            { label: 'ชำระแล้ว', amount: doneAmount, count: doneCount, tone: 'blue' },
+            { label: 'ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดรวม', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
+          ],
+          total: activeAmount + doneAmount + uncollectibleAmount
+        };
       }
     },
     {
