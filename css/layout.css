@@ -652,19 +652,21 @@
     transition-delay: 80ms;
   }
 
-  /* Expand affordance: a small pill anchored to the bottom of the rail (grounded,
-     not floating loose in empty mid-air like the previous corner-tick) that fades
-     out once the sidebar is actually open. */
+  /* Expand affordance: a small pill vertically centred on the rail (easier to
+     notice than tucked down at the bottom edge) that fades out once the
+     sidebar is actually open. Dark navy fill (matches the panel-label badge
+     colour) instead of a near-invisible white-on-white circle. */
   .sidebar__expand-hint {
     position: absolute;
     left: 50%;
-    bottom: 18px;
-    transform: translateX(-50%);
+    top: 50%;
+    transform: translate(-50%, -50%);
     width: 28px;
     height: 28px;
     border-radius: var(--radius-full);
-    background: var(--color-surface);
-    border: 1px solid var(--color-border-light);
+    background: #1e3a5f;
+    border: 1px solid #1e3a5f;
+    box-shadow: var(--shadow-sm);
     display: flex;
     align-items: center;
     justify-content: center;
@@ -677,8 +679,8 @@
     content: '';
     width: 6px;
     height: 6px;
-    border-top: 1.5px solid var(--color-text-muted);
-    border-right: 1.5px solid var(--color-text-muted);
+    border-top: 1.5px solid #ffffff;
+    border-right: 1.5px solid #ffffff;
     transform: rotate(45deg) translateX(-1px);
   }
 
@@ -695,7 +697,8 @@
     display: block;
     position: absolute;
     left: calc(100% + 10px);
-    bottom: 14px;
+    top: 50%;
+    transform: translateY(-50%) translateX(-6px);
     background: #1e3a5f;
     color: #ffffff;
     font-size: 0.72rem;
@@ -705,7 +708,6 @@
     white-space: nowrap;
     box-shadow: var(--shadow-md);
     opacity: 0;
-    transform: translateX(-6px);
     pointer-events: none;
     transition: opacity 0.25s ease, transform 0.25s ease;
     z-index: 50;
@@ -715,11 +717,11 @@
     content: '';
     position: absolute;
     left: -4px;
-    bottom: 12px;
+    top: 50%;
     width: 8px;
     height: 8px;
     background: #1e3a5f;
-    transform: rotate(45deg);
+    transform: translateY(-50%) rotate(45deg);
   }
 
   @keyframes sidebarHintPulse {
@@ -733,7 +735,7 @@
 
   .sidebar--hint-pulse .sidebar__expand-tooltip {
     opacity: 1;
-    transform: translateX(0);
+    transform: translateY(-50%) translateX(0);
   }
 
   .sidebar:hover .sidebar__expand-tooltip,
