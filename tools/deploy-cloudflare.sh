@@ -1,0 +1,23 @@
+#!/usr/bin/env bash
+# Deploy Fine Dashboard to Cloudflare Pages (project: 2kfine-dashboard).
+#
+# Cloudflare Pages' _redirects "force" (!) does NOT override an existing
+# static file the way Netlify's forced redirects do — a real file at
+# /backend/live-gas/Code.gs is served as-is regardless of any _redirects
+# rule pointed at it. So instead of trying to block sensitive paths after
+# upload, this script only ever uploads the files the public site needs:
+# index.html, css/, js/, icons/, _headers. Everything else in the repo
+# (backend/, docs/, tools/, references/, skills/, Code.gs, etc.) never
+# leaves the machine.
+set -euo pipefail
+cd "$(dirname "$0")/.."
+
+STAGE_DIR="$(mktemp -d)"
+trap 'rm -rf "$STAGE_DIR"' EXIT
+
+cp -r index.html css js icons _headers "$STAGE_DIR/"
+
+npx --yes wrangler pages deploy "$STAGE_DIR" \
+  --project-name 2kfine-dashboard \
+  --branch main \
+  --commit-dirty=true
