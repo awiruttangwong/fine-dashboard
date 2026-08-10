@@ -332,35 +332,51 @@ const KPICards = (() => {
       }
     },
     {
-      // ยอดคงเหลือระดับภาพรวม = "รอปรับ" (ค่าปรับอื่นๆ) + "กำลังผ่อนชำระ" (รถไม่เข้ารับงาน)
-      // เท่านั้น — ไม่รวม "ปรับไม่ได้" เพราะเก็บเงินก้อนนั้นไม่ได้จริง จะไม่มีวันกลับมา
-      // เป็น "คงเหลือที่ยังตามเก็บได้" อีก ตรงกับความหมายเดียวกับการ์ด "ยอดคงเหลือ
-      // ค่าปรับอื่นๆ" (remaining-amount, agg.totalRemaining) ในกลุ่มด้านล่าง
+      // ยอดคงเหลือระดับภาพรวม = รอปรับ + ปรับไม่ได้ (ค่าปรับอื่นๆ) + กำลังผ่อนชำระ +
+      // ปรับไม่ได้ (รถไม่เข้ารับงาน) รวมทั้ง 4 ก้อน — ครั้งก่อนตัด "ปรับไม่ได้" ออกไป
+      // แต่ผู้ใช้ต้องการเห็นยอดรวมทั้งหมดจริงๆ พร้อมคำอธิบายในป๊อปอัปว่าก้อนไหนคือ
+      // ปรับไม่ได้ (เก็บเงินจริงไม่ได้) เพื่อไม่ให้เข้าใจผิดว่าทั้งก้อนตามเก็บได้หมด.
+      // getValue รวมจาก 4 field ตรงๆ (ไม่ใช้ grandTotal-grandPaid) เพราะฝั่งรถไม่เข้า
+      // รับงานมีรายการที่ผ่อนจ่ายบางส่วนแล้ว — total-paid จะขาดหักยอดที่จ่ายบางส่วนนั้น
+      // ออกไป ทำให้ตัวเลขเพี้ยนสูงกว่าความเป็นจริง
       id: 'grand-remaining',
       label: 'ค่าปรับคงเหลือทั้งหมด',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--orange',
-      getValue: (agg) => agg.totalRemaining + agg.installment.totalRemainingAmount,
+      getValue: (agg) => {
+        const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
+        const uncollectibleAmount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
+        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
+        return pendingAmount + uncollectibleAmount + agg.installment.totalRemainingAmount + debtDeducted;
+      },
       format: formatCurrency,
       getDetail: (agg) => {
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
+        const uncollectibleCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
         const activeCases = agg.installment.activeCases || 0;
-        return `จาก ${formatNumber(pendingCount + activeCases)} รายการ`;
+        const debtNonCollectibleCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
+        return `จาก ${formatNumber(pendingCount + uncollectibleCount + activeCases + debtNonCollectibleCount)} รายการ`;
       },
       getBreakdown: (agg) => {
         const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
+        const uncollectibleAmount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
+        const uncollectibleCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
         const installmentAmount = agg.installment.totalRemainingAmount;
         const installmentCount = agg.installment.activeCases || 0;
+        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
+        const debtNonCollectibleCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
 
         return {
           title: 'ที่มาของยอดคงเหลือทั้งหมด',
           totalLabel: 'ยอดคงเหลือรวมทั้งหมด',
           rows: [
-            { label: 'ค่าปรับอื่นๆที่รอปรับ', hint: 'ไม่รวม "ปรับไม่ได้"', amount: pendingAmount, count: pendingCount, tone: 'blue' },
-            { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', hint: 'ไม่รวม "ปรับไม่ได้"', amount: installmentAmount, count: installmentCount, tone: 'red' }
+            { label: 'ค่าปรับอื่นๆที่รอปรับ', hint: 'ยังไม่ชำระ', amount: pendingAmount, count: pendingCount, tone: 'blue' },
+            { label: 'ค่าปรับอื่นๆที่ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดคงเหลือ', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' },
+            { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', hint: 'ยังไม่ชำระ', amount: installmentAmount, count: installmentCount, tone: 'blue' },
+            { label: 'ค่าปรับรถไม่เข้ารับงานที่ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดคงเหลือ', amount: debtDeducted, count: debtNonCollectibleCount, tone: 'red' }
           ],
-          total: pendingAmount + installmentAmount
+          total: pendingAmount + uncollectibleAmount + installmentAmount + debtDeducted
         };
       }
     }
