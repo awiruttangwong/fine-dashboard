@@ -332,46 +332,35 @@ const KPICards = (() => {
       }
     },
     {
-      // ยอดคงเหลือระดับภาพรวม = ค่าปรับทั้งหมด - ชำระแล้วทั้งหมด (การ์ด 2 ใบด้านบนนี้เป๊ะๆ)
-      // รวมทั้ง "รอปรับ" + "ปรับไม่ได้" + "กำลังผ่อนชำระ" เข้าด้วยกัน เพราะทั้งหมดคือ
-      // ส่วนที่ยังไม่ถูกเก็บเข้ามาจริง ต่างจากการ์ด "ยอดคงเหลือค่าปรับอื่นๆ" ในกลุ่มด้านล่าง
-      // ที่หัก "ปรับไม่ได้" ออกไปแล้ว (เพราะเก็บเงินก้อนนั้นไม่ได้จริง)
+      // ยอดคงเหลือระดับภาพรวม = "รอปรับ" (ค่าปรับอื่นๆ) + "กำลังผ่อนชำระ" (รถไม่เข้ารับงาน)
+      // เท่านั้น — ไม่รวม "ปรับไม่ได้" เพราะเก็บเงินก้อนนั้นไม่ได้จริง จะไม่มีวันกลับมา
+      // เป็น "คงเหลือที่ยังตามเก็บได้" อีก ตรงกับความหมายเดียวกับการ์ด "ยอดคงเหลือ
+      // ค่าปรับอื่นๆ" (remaining-amount, agg.totalRemaining) ในกลุ่มด้านล่าง
       id: 'grand-remaining',
       label: 'ค่าปรับคงเหลือทั้งหมด',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--orange',
-      getValue: (agg) => grandTotalValue(agg) - grandPaidValue(agg),
+      getValue: (agg) => agg.totalRemaining + agg.installment.totalRemainingAmount,
       format: formatCurrency,
       getDetail: (agg) => {
-        const totalCount = agg.count + ((agg.debtGrandTotal && agg.debtGrandTotal.count) || 0);
-        const paidCount = ((agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0) + (agg.installment.doneCases || 0);
-        return `จาก ${formatNumber(Math.max(totalCount - paidCount, 0))} รายการ`;
+        const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
+        const activeCases = agg.installment.activeCases || 0;
+        return `จาก ${formatNumber(pendingCount + activeCases)} รายการ`;
       },
-      // หัก paid ออกจากแต่ละหมวดตรงๆ (ไม่ไปแยกย่อยเป็นรอปรับ/ปรับไม่ได้/กำลังผ่อน) —
-      // ผลรวม 2 แถวนี้จึงเท่ากับ grandTotalValue - grandPaidValue (ค่าบนการ์ด) เป๊ะๆ
-      // เสมอ ไม่ต้องพึ่ง field ย่อยที่อาจนิยาม "ยอดคงเหลือ" ไม่ตรงกับผลลบตรงๆ
       getBreakdown: (agg) => {
-        const fineRaw = agg.totalFine;
-        const paidAmount = agg.paidCompletedAmount;
-        const paidCount = (agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0;
-        const fineRemaining = fineRaw - paidAmount;
-        const fineRemainingCount = Math.max(agg.count - paidCount, 0);
-
-        const debtRaw = (agg.debtGrandTotal ? agg.debtGrandTotal.amount + agg.debtGrandTotal.deducted : 0);
-        const doneAmount = agg.installment.doneAmount;
-        const doneCount = agg.installment.doneCases || 0;
-        const debtRemaining = debtRaw - doneAmount;
-        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
-        const debtRemainingCount = Math.max(debtCount - doneCount, 0);
+        const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
+        const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
+        const installmentAmount = agg.installment.totalRemainingAmount;
+        const installmentCount = agg.installment.activeCases || 0;
 
         return {
           title: 'ที่มาของยอดคงเหลือทั้งหมด',
           totalLabel: 'ยอดคงเหลือรวมทั้งหมด',
           rows: [
-            { label: 'ค่าปรับอื่นๆที่ยังไม่ได้ชำระ', hint: 'รวมรอปรับ + ปรับไม่ได้', amount: fineRemaining, count: fineRemainingCount, tone: 'blue' },
-            { label: 'ค่าปรับรถไม่เข้ารับงานที่ยังไม่ได้ชำระ', hint: 'รวมกำลังผ่อนชำระ + ปรับไม่ได้', amount: debtRemaining, count: debtRemainingCount, tone: 'red' }
+            { label: 'ค่าปรับอื่นๆที่รอปรับ', hint: 'ไม่รวม "ปรับไม่ได้"', amount: pendingAmount, count: pendingCount, tone: 'blue' },
+            { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', hint: 'ไม่รวม "ปรับไม่ได้"', amount: installmentAmount, count: installmentCount, tone: 'red' }
           ],
-          total: fineRemaining + debtRemaining
+          total: pendingAmount + installmentAmount
         };
       }
     }
