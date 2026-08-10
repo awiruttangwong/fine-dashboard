@@ -442,13 +442,13 @@
   flex: 0 0 auto;
 }
 
-/* Neutral instead of red/blue per group — dark gray fill, black text and icon
-   on both panels, same treatment regardless of ค่าปรับอื่นๆ vs รถไม่เข้ารับงาน. */
+/* Solid navy instead of gray/red/blue — same colour on both panels, white
+   text + icon on top for contrast. */
 .kpi-panel--fine .kpi-panel__label,
 .kpi-panel--debt .kpi-panel__label {
-  background: rgba(0, 0, 0, 0.12);
-  border-color: rgba(0, 0, 0, 0.18);
-  color: #1a1a1a;
+  background: #1e3a5f;
+  border-color: #1e3a5f;
+  color: #ffffff;
 }
 
 /* auto-fit + collapsing empty tracks so the "ค่าปรับอื่นๆ" panel (4 cards)
