@@ -129,7 +129,8 @@
 /* Hidden by default (mobile drawer + tablet); only shown by the desktop
    hover-expand rules below var(--sidebar-width-collapsed) rail. */
 .sidebar__expand-hint,
-.sidebar__expand-tooltip {
+.sidebar__expand-tooltip,
+.sidebar__rail-icons {
   display: none;
 }
 
@@ -650,6 +651,36 @@
     opacity: 1;
     pointer-events: auto;
     transition-delay: 80ms;
+  }
+
+  /* Collapsed-rail preview icons — a visual teaser of "there's stuff behind
+     this rail" beyond just the expand-hint dot. Opposite lifecycle from the
+     sections above: visible while collapsed, fades out once hover/focus
+     reveals the real content so the two states never show at once. */
+  .sidebar__rail-icons {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: var(--space-5);
+    width: var(--sidebar-width-collapsed);
+    flex-shrink: 0;
+    padding: var(--space-5) 0;
+    opacity: 1;
+    transition: opacity 100ms ease;
+  }
+
+  .sidebar__rail-icons svg {
+    width: 20px;
+    height: 20px;
+    color: #999999;
+    flex: 0 0 auto;
+  }
+
+  .sidebar:hover .sidebar__rail-icons,
+  .sidebar:focus-within .sidebar__rail-icons {
+    opacity: 0;
+    pointer-events: none;
+    transition-delay: 0ms;
   }
 
   /* Expand affordance: a small pill vertically centred on the rail (easier to
