@@ -88,6 +88,7 @@
 #kpi-paid-amount .kpi-card,
 #kpi-remaining-amount .kpi-card,
 #kpi-non-collectible-fine .kpi-card,
+#kpi-debt-total .kpi-card,
 #kpi-installment-active .kpi-card,
 #kpi-installment-done .kpi-card,
 #kpi-non-collectible .kpi-card,
@@ -101,6 +102,7 @@
 #kpi-paid-amount .kpi-card      { --kpi-accent: #34C759; }
 #kpi-remaining-amount .kpi-card { --kpi-accent: #FF9500; }
 #kpi-non-collectible-fine .kpi-card { --kpi-accent: #FF3B30; }
+#kpi-debt-total .kpi-card       { --kpi-accent: #FF3B30; }
 #kpi-installment-active .kpi-card { --kpi-accent: #4A9FDB; }
 #kpi-installment-done .kpi-card { --kpi-accent: #00C7BE; }
 #kpi-non-collectible .kpi-card  { --kpi-accent: #FF3B30; }
@@ -112,6 +114,7 @@
 #kpi-paid-amount:hover .kpi-card,
 #kpi-remaining-amount:hover .kpi-card,
 #kpi-non-collectible-fine:hover .kpi-card,
+#kpi-debt-total:hover .kpi-card,
 #kpi-installment-active:hover .kpi-card,
 #kpi-installment-done:hover .kpi-card,
 #kpi-non-collectible:hover .kpi-card,
@@ -244,6 +247,7 @@
 #kpi-paid-amount .kpi-card__value-suffix            { color: #34C759; }
 #kpi-remaining-amount .kpi-card__value-suffix       { color: #FF7000; }
 #kpi-non-collectible-fine .kpi-card__value-suffix   { color: #FF3B30; }
+#kpi-debt-total .kpi-card__value-suffix             { color: #FF3B30; }
 #kpi-installment-active .kpi-card__value-suffix     { color: #4A9FDB; }
 #kpi-installment-done .kpi-card__value-suffix       { color: #00C7BE; }
 #kpi-non-collectible .kpi-card__value-suffix        { color: #FF3B30; }
@@ -309,6 +313,11 @@
   color: #a06300;
 }
 #kpi-non-collectible-fine .kpi-card__detail:not(:empty) {
+  background: rgba(255, 59, 48, 0.06);
+  border-color: rgba(255, 59, 48, 0.18);
+  color: #c0392b;
+}
+#kpi-debt-total .kpi-card__detail:not(:empty) {
   background: rgba(255, 59, 48, 0.06);
   border-color: rgba(255, 59, 48, 0.18);
   color: #c0392b;

@@ -161,6 +161,21 @@ const KPICards = (() => {
       }
     },
     {
+      // "ยอดรวมค่าปรับรถไม่เข้ารับงาน" — สมมาตรกับการ์ด "ยอดรวมค่าปรับอื่นๆ" ในกลุ่ม
+      // บน: รวมเฉพาะ 2 การ์ดที่ยังตามเก็บได้ในกลุ่มนี้ (กำลังผ่อนชำระ + ชำระแล้ว) ไม่รวม
+      // การ์ด "ปรับไม่ได้" ข้างล่าง เพราะเก็บเงินก้อนนั้นไม่ได้จริงเหมือนกัน
+      id: 'debt-total',
+      label: 'ยอดรวมค่าปรับรถไม่เข้ารับงาน',
+      icon: ICONS.money,
+      iconClass: 'kpi-card__icon--red',
+      getValue: (agg) => agg.installment.totalRemainingAmount + agg.installment.doneAmount,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const count = (agg.installment.activeCases || 0) + (agg.installment.doneCases || 0);
+        return `จาก ${formatNumber(count)} รายการ`;
+      }
+    },
+    {
       // เดิมเป็นการ์ดเดียว "ผ่อนชำระ" ที่รวม 2 สถานะ (กำลังผ่อน/เสร็จแล้ว) ไว้ในบรรทัด
       // detail เดียวกัน — พอมีทั้งคู่พร้อมกัน ข้อความยาวจนล้นออกนอกกล่อง (วัดจริงแล้ว
       // scrollWidth > clientWidth ที่ 1400px) จึงแยกเป็น 2 การ์ดคนละตัวเลขหลักไปเลย
