@@ -387,9 +387,9 @@
   gap: var(--space-5);
 }
 
-/* Grand summary row — only 2 cards, always 2 columns down to mobile */
+/* Grand summary row — 3 cards, collapses via the shared .kpi-grid breakpoints below */
 .kpi-grid--grand {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(0, 1fr));
 }
 
 /* ── KPI groups: "ค่าปรับอื่นๆ" vs "ค่าปรับรถไม่เข้ารับงาน" as two distinct
@@ -451,7 +451,7 @@
   }
 
   .kpi-grid--grand {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
   /* Side-by-side panels get cramped once each needs room for 3 cards —
