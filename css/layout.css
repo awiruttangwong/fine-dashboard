@@ -392,6 +392,59 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+/* ── KPI groups: "ค่าปรับอื่นๆ" vs "ค่าปรับรถไม่เข้ารับงาน" as two distinct
+   panels (neutral gray background + border) side by side, each with its own
+   3-card grid. Panels — not a thin divider line — are what actually reads as
+   "these are two separate groups" at a glance; the colored dot on each label
+   is what tells the groups apart, not the panel background. ── */
+.kpi-groups {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: var(--space-5);
+}
+
+.kpi-panel {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-5);
+  border-radius: var(--radius-xl);
+  border: 1px solid transparent;
+}
+
+.kpi-panel--fine,
+.kpi-panel--debt {
+  background: rgba(0, 0, 0, .035);
+  border-color: var(--color-border);
+}
+
+.kpi-panel__label {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+  font-weight: 700;
+  letter-spacing: .01em;
+  color: var(--color-text-secondary);
+}
+
+.kpi-panel__label::before {
+  content: "";
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+}
+
+.kpi-panel--fine .kpi-panel__label::before { background: var(--color-danger); }
+.kpi-panel--debt .kpi-panel__label::before { background: #4A9FDB; }
+
+.kpi-panel__grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: var(--space-4);
+}
+
 @media (max-width: 1200px) {
   .kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
@@ -399,6 +452,12 @@
 
   .kpi-grid--grand {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  /* Side-by-side panels get cramped once each needs room for 3 cards —
+     stack them instead of shrinking cards further. */
+  .kpi-groups {
+    grid-template-columns: 1fr;
   }
 }
 
@@ -610,6 +669,15 @@
     gap: var(--space-3);
   }
 
+  .kpi-panel__grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: var(--space-3);
+  }
+
+  .kpi-panel {
+    padding: var(--space-4);
+  }
+
   .main__header {
     padding: var(--space-4) var(--space-4) var(--space-4) calc(var(--space-4) + 48px);
   }
@@ -621,6 +689,10 @@
 
 @media (max-width: 480px) {
   .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .kpi-panel__grid {
     grid-template-columns: 1fr;
   }
 }

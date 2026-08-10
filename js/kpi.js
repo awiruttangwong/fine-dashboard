@@ -391,7 +391,10 @@ const KPICards = (() => {
     lastAgg = aggregates;
 
     renderGrid('kpi-grand-grid', grandConfigs, aggregates);
-    renderGrid('kpi-grid', cardConfigs, aggregates);
+    // คนละกลุ่มข้อมูล ("ค่าปรับอื่นๆ" vs "ค่าปรับรถไม่เข้ารับงาน") จึงแยกเรนเดอร์คนละ
+    // panel — ลำดับใน cardConfigs คงเดิม แค่แบ่งเป็น 2 container ตาม index
+    renderGrid('kpi-grid-fine', cardConfigs.slice(0, 3), aggregates);
+    renderGrid('kpi-grid-debt', cardConfigs.slice(3), aggregates);
   }
 
   function update(aggregates) {

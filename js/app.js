@@ -410,8 +410,10 @@ const App = (() => {
     const kpiGrandGrid = document.getElementById('kpi-grand-grid');
     if (kpiGrandGrid) kpiGrandGrid.innerHTML = buildKpiSkeleton(2);
 
-    const kpiGrid = document.getElementById('kpi-grid');
-    if (kpiGrid) kpiGrid.innerHTML = buildKpiSkeleton(6);
+    const kpiGridFine = document.getElementById('kpi-grid-fine');
+    if (kpiGridFine) kpiGridFine.innerHTML = buildKpiSkeleton(3);
+    const kpiGridDebt = document.getElementById('kpi-grid-debt');
+    if (kpiGridDebt) kpiGridDebt.innerHTML = buildKpiSkeleton(3);
 
     // ── Chart list-cards Skeleton ──
     // canvas-based charts (bar/doughnut) already start as an empty, correctly-
