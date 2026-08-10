@@ -439,9 +439,12 @@
 .kpi-panel--fine .kpi-panel__label::before { background: var(--color-danger); }
 .kpi-panel--debt .kpi-panel__label::before { background: #4A9FDB; }
 
+/* auto-fit + collapsing empty tracks so the "ค่าปรับอื่นๆ" panel (4 cards)
+   and "ค่าปรับรถไม่เข้ารับงาน" panel (3 cards) each fill their own row width
+   evenly without needing a separate column-count modifier per panel. */
 .kpi-panel__grid {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
   gap: var(--space-4);
 }
 

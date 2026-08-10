@@ -411,7 +411,7 @@ const App = (() => {
     if (kpiGrandGrid) kpiGrandGrid.innerHTML = buildKpiSkeleton(3);
 
     const kpiGridFine = document.getElementById('kpi-grid-fine');
-    if (kpiGridFine) kpiGridFine.innerHTML = buildKpiSkeleton(3);
+    if (kpiGridFine) kpiGridFine.innerHTML = buildKpiSkeleton(4);
     const kpiGridDebt = document.getElementById('kpi-grid-debt');
     if (kpiGridDebt) kpiGridDebt.innerHTML = buildKpiSkeleton(3);
 

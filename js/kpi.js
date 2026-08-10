@@ -174,6 +174,22 @@ const KPICards = (() => {
       }
     },
     {
+      // แยกออกมาเป็นการ์ดของตัวเองในกลุ่ม "ค่าปรับอื่นๆ" — เดิมยอดนี้ถูกรวมเข้ากับ
+      // "ปรับไม่ได้" ฝั่งรถไม่เข้ารับงานเป็นการ์ดเดียว (ดูการ์ด non-collectible ด้านล่าง
+      // ซึ่งตอนนี้เหลือเฉพาะฝั่งรถไม่เข้ารับงานแล้ว) เพื่อให้แต่ละกลุ่มเห็นยอดปรับไม่ได้
+      // ของตัวเองชัดเจน ไม่ต้องกดดู breakdown ถึงจะรู้สัดส่วน
+      id: 'non-collectible-fine',
+      label: 'ปรับไม่ได้',
+      icon: ICONS.alertTriangle,
+      iconClass: 'kpi-card__icon--red',
+      getValue: (agg) => agg.statusBreakdown.uncollectibleAmount || 0,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const count = agg.statusBreakdown.uncollectibleCount || 0;
+        return count > 0 ? `${formatNumber(count)} รายการ` : 'ไม่มีรายการปรับไม่ได้';
+      }
+    },
+    {
       // เดิมเป็นการ์ดเดียว "ผ่อนชำระ" ที่รวม 2 สถานะ (กำลังผ่อน/เสร็จแล้ว) ไว้ในบรรทัด
       // detail เดียวกัน — พอมีทั้งคู่พร้อมกัน ข้อความยาวจนล้นออกนอกกล่อง (วัดจริงแล้ว
       // scrollWidth > clientWidth ที่ 1400px) จึงแยกเป็น 2 การ์ดคนละตัวเลขหลักไปเลย
@@ -202,35 +218,18 @@ const KPICards = (() => {
       }
     },
     {
-      // "ปรับไม่ได้" รวม 2 แหล่งที่เป็นความหมายเดียวกัน (ยอดเก็บไม่ได้) เข้าด้วยกัน:
-      // (1) ค่าปรับลูกค้าที่เก็บไม่ได้ จากชีต ปรับไม่ได้(Mx) และ (2) หนี้ พขร.
-      // ที่ตัดเป็นปรับไม่ได้ จาก Drivers(Mx) — ทั้งสองกรองตามตัวกรองเดือนเดียวกัน
-      // (month_label ของ Drivers/Payments ยืนยันแล้วว่าคือเดือนปฏิทินจริง เหมือน
-      // fine_date) การ์ดแสดงยอดรวมเดียว แต่กดดูที่มาแยก 2 ส่วนได้ผ่าน getBreakdown
-      // (เหมือนการ์ด "ยอดปรับรวม") แทนที่จะต้องไปงมหาในตาราง
+      // เดิมการ์ดนี้รวมยอดปรับไม่ได้ทั้ง 2 แหล่ง (ค่าปรับอื่นๆ + รถไม่เข้ารับงาน) เข้า
+      // ด้วยกัน — ตอนนี้ฝั่งค่าปรับอื่นๆ แยกไปเป็นการ์ด non-collectible-fine ของตัวเอง
+      // ในกลุ่มด้านบนแล้ว การ์ดนี้จึงเหลือเฉพาะยอดปรับไม่ได้ของหนี้ พขร. (รถไม่เข้ารับงาน)
       id: 'non-collectible',
       label: 'ปรับไม่ได้',
       icon: ICONS.alertTriangle,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => (agg.statusBreakdown.uncollectibleAmount || 0) + (agg.nonCollectibleDebt.totalAmount || 0),
+      getValue: (agg) => agg.nonCollectibleDebt.totalAmount || 0,
       format: formatCurrency,
       getDetail: (agg) => {
-        const total = (agg.statusBreakdown.uncollectibleCount || 0) + (agg.nonCollectibleDebt.totalCases || 0);
-        return total > 0 ? `${formatNumber(total)} รายการ` : 'ไม่มีรายการปรับไม่ได้';
-      },
-      getBreakdown: (agg) => {
-        const fineAmount = agg.statusBreakdown.uncollectibleAmount || 0;
-        const fineCount = agg.statusBreakdown.uncollectibleCount || 0;
-        const debtAmount = agg.nonCollectibleDebt.totalAmount || 0;
-        const debtCount = agg.nonCollectibleDebt.totalCases || 0;
-        return {
-          title: 'ที่มาของยอดปรับไม่ได้',
-          rows: [
-            { label: 'ค่าปรับอื่นๆที่ปรับไม่ได้', hint: 'จากสถานะ "ปรับไม่ได้"', amount: fineAmount, count: fineCount, tone: 'red' },
-            { label: 'ค่าปรับรถไม่เข้ารับงานที่ปรับไม่ได้', hint: 'จากสถานะ "ปรับไม่ได้"', amount: debtAmount, count: debtCount, tone: 'blue' }
-          ],
-          total: fineAmount + debtAmount
-        };
+        const count = agg.nonCollectibleDebt.totalCases || 0;
+        return count > 0 ? `${formatNumber(count)} รายการ` : 'ไม่มีรายการปรับไม่ได้';
       }
     }
   ];
@@ -448,8 +447,8 @@ const KPICards = (() => {
     renderGrid('kpi-grand-grid', grandConfigs, aggregates);
     // คนละกลุ่มข้อมูล ("ค่าปรับอื่นๆ" vs "ค่าปรับรถไม่เข้ารับงาน") จึงแยกเรนเดอร์คนละ
     // panel — ลำดับใน cardConfigs คงเดิม แค่แบ่งเป็น 2 container ตาม index
-    renderGrid('kpi-grid-fine', cardConfigs.slice(0, 3), aggregates);
-    renderGrid('kpi-grid-debt', cardConfigs.slice(3), aggregates);
+    renderGrid('kpi-grid-fine', cardConfigs.slice(0, 4), aggregates);
+    renderGrid('kpi-grid-debt', cardConfigs.slice(4), aggregates);
   }
 
   function update(aggregates) {
