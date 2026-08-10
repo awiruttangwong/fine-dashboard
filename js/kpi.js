@@ -106,7 +106,7 @@ const KPICards = (() => {
       // ของกลุ่มตัวเอง เหมือนการ์ดอื่นๆ ในกลุ่มนี้แล้ว) หัก "ปรับไม่ได้" ออกแล้ว
       // เพราะเก็บเงินก้อนนั้นไม่ได้จริง (ก้อนนั้นแยกไปมีการ์ด "ปรับไม่ได้" ของตัวเอง)
       id: 'total-fine',
-      label: 'ยอดค่าปรับอื่นๆรวม',
+      label: 'ยอดรวมค่าปรับอื่นๆ',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0),

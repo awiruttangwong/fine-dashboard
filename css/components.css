@@ -223,6 +223,14 @@
   line-height: 1;
 }
 
+/* Panel cards (4-per-row "ค่าปรับอื่นๆ" / 3-per-row "ค่าปรับรถไม่เข้ารับงาน") are
+   narrower than the wide grand-summary cards — the default 1.95rem clips numbers
+   like "30,000 ฿" against the card edge, so scale down just for this context. */
+.kpi-panel__grid .kpi-card__value {
+  font-size: 1.4rem;
+  min-height: 2.1rem;
+}
+
 /* Coloured suffix per card */
 .kpi-card__value-suffix {
   display: inline-block;
