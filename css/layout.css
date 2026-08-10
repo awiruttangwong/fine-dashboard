@@ -128,7 +128,8 @@
 
 /* Hidden by default (mobile drawer + tablet); only shown by the desktop
    hover-expand rules below var(--sidebar-width-collapsed) rail. */
-.sidebar__expand-hint {
+.sidebar__expand-hint,
+.sidebar__expand-tooltip {
   display: none;
 }
 
@@ -668,6 +669,60 @@
 
   .sidebar:hover .sidebar__expand-hint,
   .sidebar:focus-within .sidebar__expand-hint {
+    opacity: 0;
+  }
+
+  /* First-visit attract state (app.js toggles .sidebar--hint-pulse once,
+     gated on localStorage so returning users never see it again): a pulsing
+     ring around the hint circle plus a text tooltip poking out past the
+     64px rail — the hint alone was too easy to miss as just a small dot. */
+  .sidebar__expand-tooltip {
+    display: block;
+    position: absolute;
+    left: calc(100% + 10px);
+    bottom: 14px;
+    background: #1e3a5f;
+    color: #ffffff;
+    font-size: 0.72rem;
+    font-weight: 600;
+    padding: 6px 12px;
+    border-radius: var(--radius-md);
+    white-space: nowrap;
+    box-shadow: var(--shadow-md);
+    opacity: 0;
+    transform: translateX(-6px);
+    pointer-events: none;
+    transition: opacity 0.25s ease, transform 0.25s ease;
+    z-index: 50;
+  }
+
+  .sidebar__expand-tooltip::before {
+    content: '';
+    position: absolute;
+    left: -4px;
+    bottom: 12px;
+    width: 8px;
+    height: 8px;
+    background: #1e3a5f;
+    transform: rotate(45deg);
+  }
+
+  @keyframes sidebarHintPulse {
+    0%, 100% { box-shadow: 0 0 0 0 rgba(30, 58, 95, 0.35); }
+    50% { box-shadow: 0 0 0 8px rgba(30, 58, 95, 0); }
+  }
+
+  .sidebar--hint-pulse .sidebar__expand-hint {
+    animation: sidebarHintPulse 1.2s ease-in-out 3;
+  }
+
+  .sidebar--hint-pulse .sidebar__expand-tooltip {
+    opacity: 1;
+    transform: translateX(0);
+  }
+
+  .sidebar:hover .sidebar__expand-tooltip,
+  .sidebar:focus-within .sidebar__expand-tooltip {
     opacity: 0;
   }
 }
