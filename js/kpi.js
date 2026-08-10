@@ -101,48 +101,19 @@ const KPICards = (() => {
 
   const cardConfigs = [
     {
-      // "ยอดปรับรวม" = ภาพรวมเงินทั้งหมดของทั้ง 2 ชุดข้อมูลที่แยกกันในระบบ:
-      //   (1) ค่าปรับปกติ (หัก "ปรับไม่ได้" ออกแล้ว เพราะเก็บเงินก้อนนั้นไม่ได้จริง)
-      //   (2) ค่าปรับรถไม่เข้ารับงาน "ยอดปรับรวมทั้งหมด" (agg.debtGrandTotal — สูตรเดียว
-      //       กับหน้าโมดูล debt: กลุ่มปรับได้เต็มยอด + กลุ่มปรับไม่ได้เฉพาะที่จ่ายแล้ว)
-      // ทั้งคู่เป็น "ยอดทั้งหมด" คนละชุด ไม่ทับซ้อน จึงบวกรวมเป็นภาพเดียวได้ (agg.totalFine
-      // ดิบยังเก็บยอดค่าปรับปกติทั้งหมดไว้ ใช้ต่อใน collectionRate/comparison ไม่กระทบ)
+      // "ยอดค่าปรับอื่นๆรวม" = เฉพาะฝั่งค่าปรับอื่นๆเท่านั้น (เดิมการ์ดนี้บวกรวม
+      // ค่าปรับรถไม่เข้ารับงานเข้าไปด้วย — ตอนนี้ตัดออก ให้แต่ละกลุ่มแสดงเฉพาะยอด
+      // ของกลุ่มตัวเอง เหมือนการ์ดอื่นๆ ในกลุ่มนี้แล้ว) หัก "ปรับไม่ได้" ออกแล้ว
+      // เพราะเก็บเงินก้อนนั้นไม่ได้จริง (ก้อนนั้นแยกไปมีการ์ด "ปรับไม่ได้" ของตัวเอง)
       id: 'total-fine',
-      label: 'ยอดปรับรวม',
+      label: 'ยอดค่าปรับอื่นๆรวม',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
-      getValue: (agg) => {
-        const fineNet = agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0);
-        const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
-        return fineNet + debtTotal;
-      },
+      getValue: (agg) => agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0),
       format: formatCurrency,
       getDetail: (agg) => {
-        // แสดงจำนวนรายการรวมทั้ง 2 ส่วน (ค่าปรับปกติ + รถไม่เข้ารับงาน) แบบเดิม —
-        // ส่วนที่มาของยอดเงินแยกละเอียดไปอยู่ใน popup ที่กดจากการ์ดแทน
         const netCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
-        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
-        return `จาก ${formatNumber(netCount + debtCount)} รายการ`;
-      },
-      // กดการ์ดนี้แล้วเด้ง popup แยกที่มาของยอดปรับรวม (ให้ผู้บริหารเห็นว่าประกอบจากอะไร)
-      getBreakdown: (agg) => {
-        const fineNet = agg.totalFine - (agg.statusBreakdown.uncollectibleAmount || 0);
-        const fineCount = agg.count - (agg.statusBreakdown.uncollectibleCount || 0);
-        const debtTotal = (agg.debtGrandTotal && agg.debtGrandTotal.amount) || 0;
-        const debtCount = (agg.debtGrandTotal && agg.debtGrandTotal.count) || 0;
-        // hint ของแถวรถไม่เข้ารับงาน บอกว่ามีการหัก "ปรับไม่ได้" ออกแล้วหรือไม่ —
-        // ใช้เงื่อนไขเดียวกับการ์ด "ยอดปรับรวมทั้งหมด" ในหน้าโมดูล debt ทุกประการ
-        // (deducted > 0 คือมีการหักจริง ไม่ใช่แค่มีกลุ่มปรับไม่ได้เฉยๆ)
-        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
-        const debtHint = 'ยอดปรับรวมทั้งหมด' + (debtDeducted > 0 ? ' (หัก "ปรับไม่ได้" ออกแล้ว)' : '');
-        return {
-          title: 'ที่มาของยอดปรับรวม',
-          rows: [
-            { label: 'ค่าปรับอื่นๆ', hint: 'ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ', amount: fineNet, count: fineCount, tone: 'red' },
-            { label: 'ค่าปรับรถไม่เข้ารับงาน', hint: debtHint, amount: debtTotal, count: debtCount, tone: 'blue' }
-          ],
-          total: fineNet + debtTotal
-        };
+        return `จาก ${formatNumber(netCount)} รายการ`;
       }
     },
     {
