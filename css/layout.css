@@ -442,19 +442,19 @@
   flex: 0 0 auto;
 }
 
-.kpi-panel--fine .kpi-panel__label {
-  background: rgba(255, 59, 48, 0.08);
-  border-color: rgba(255, 59, 48, 0.22);
-  color: #c0392b;
-}
+/* Neutral instead of red/blue per group — dark gray fill, black text and dot
+   on both panels, same treatment regardless of ค่าปรับอื่นๆ vs รถไม่เข้ารับงาน. */
+.kpi-panel--fine .kpi-panel__label,
 .kpi-panel--debt .kpi-panel__label {
-  background: rgba(74, 159, 219, 0.10);
-  border-color: rgba(74, 159, 219, 0.24);
-  color: #2271b8;
+  background: rgba(0, 0, 0, 0.12);
+  border-color: rgba(0, 0, 0, 0.18);
+  color: #1a1a1a;
 }
 
-.kpi-panel--fine .kpi-panel__label::before { background: var(--color-danger); }
-.kpi-panel--debt .kpi-panel__label::before { background: #4A9FDB; }
+.kpi-panel--fine .kpi-panel__label::before,
+.kpi-panel--debt .kpi-panel__label::before {
+  background: #1a1a1a;
+}
 
 /* auto-fit + collapsing empty tracks so the "ค่าปรับอื่นๆ" panel (4 cards)
    and "ค่าปรับรถไม่เข้ารับงาน" panel (3 cards) each fill their own row width
