@@ -347,6 +347,10 @@
   background: rgba(0, 199, 190, 0.08);
   border-color: rgba(0, 199, 190, 0.22);
   color: #0a8f88;
+  /* "ยังไม่มีรายการที่ชำระครบแล้ว" is long enough to clip against the card's
+     right edge (.kpi-card has overflow:hidden) — nudge just this one chip
+     left so the full text clears it. Scoped to this card only. */
+  margin-left: -8px;
 }
 #kpi-non-collectible .kpi-card__detail:not(:empty) {
   background: rgba(255, 59, 48, 0.06);
