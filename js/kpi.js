@@ -15,7 +15,8 @@ const KPICards = (() => {
     checkCircle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>`,
     clock: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>`,
     trendUp: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 7 13.5 15.5 8.5 10.5 2 17"/><polyline points="16 7 22 7 22 13"/></svg>`,
-    alertTriangle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`
+    alertTriangle: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
+    ban: `<svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg>`
   };
 
   function formatNumber(num) {
@@ -105,7 +106,7 @@ const KPICards = (() => {
       // แต่รวม "ปรับไม่ได้" กลับเข้ามาแล้ว (agg.totalFine ดิบ = ปรับได้+รอปรับ+ปรับไม่ได้
       // ครบทุกสถานะ) — กดการ์ดดูที่มาแยก 3 สถานะได้ผ่าน getBreakdown
       id: 'total-fine',
-      label: 'ยอดรวมค่าปรับอื่นๆ',
+      label: 'ค่าปรับทั้งหมด',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.totalFine,
@@ -131,20 +132,20 @@ const KPICards = (() => {
     },
     {
       id: 'paid-amount',
-      label: 'ชำระค่าปรับอื่นๆแล้ว',
+      label: 'ค่าปรับชำระแล้ว',
       icon: ICONS.checkCircle,
       iconClass: 'kpi-card__icon--green',
       getValue: (agg) => agg.paidCompletedAmount,
       format: formatCurrency,
       getDetail: (agg) => {
         const paidCount = (agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0;
-        return `${paidCount} รายการที่ปรับได้`;
+        return paidCount > 0 ? `${paidCount} รายการที่ปรับได้` : 'ไม่มีรายการชำระ';
       }
     },
     {
       id: 'remaining-amount',
-      label: 'คงเหลือค่าปรับอื่นๆ',
-      icon: ICONS.alertTriangle,
+      label: 'ค่าปรับรอชำระ',
+      icon: ICONS.clock,
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.totalRemaining,
       format: formatCurrency,
@@ -154,7 +155,7 @@ const KPICards = (() => {
         const parts = [];
         if (pendingCount > 0) parts.push(`${pendingCount} รายการรอปรับ`);
         if (errorCount > 0) parts.push(`${errorCount} รายการต้องตรวจสอบ`);
-        return parts.join(' • ') || 'ไม่มีรายการที่ต้องติดตาม';
+        return parts.join(' • ') || 'ไม่มีรายการที่รอปรับ';
       }
     },
     {
@@ -164,7 +165,7 @@ const KPICards = (() => {
       // ของตัวเองชัดเจน ไม่ต้องกดดู breakdown ถึงจะรู้สัดส่วน
       id: 'non-collectible-fine',
       label: 'ปรับไม่ได้',
-      icon: ICONS.alertTriangle,
+      icon: ICONS.ban,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.statusBreakdown.uncollectibleAmount || 0,
       format: formatCurrency,
@@ -179,7 +180,7 @@ const KPICards = (() => {
       // จาก field เดียวกับที่ใช้ใน getBreakdown ตรงๆ การันตีว่าป๊อปอัปรวมได้เท่ากับ
       // ตัวเลขบนการ์ดเป๊ะๆ เสมอ
       id: 'debt-total',
-      label: 'ยอดรวมค่าปรับรถไม่เข้ารับงาน',
+      label: 'ค่าปรับทั้งหมด',
       icon: ICONS.money,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.installment.totalRemainingAmount + agg.installment.doneAmount + (agg.nonCollectibleDebt.totalAmount || 0),
@@ -207,14 +208,29 @@ const KPICards = (() => {
       }
     },
     {
+      // สลับมาไว้ลำดับที่ 2 ต่อจาก "ยอดรวมค่าปรับรถไม่เข้ารับงาน" ตามที่ผู้ใช้ขอ — สี
+      // เปลี่ยนจาก mint เป็น green ให้ตรงกับการ์ด "ชำระค่าปรับอื่นๆแล้ว" (paid-amount)
+      // เพราะทั้งคู่สื่อความหมายเดียวกัน (ชำระ/ปิดยอดแล้ว)
+      id: 'installment-done',
+      label: 'ค่าปรับชำระแล้ว',
+      icon: ICONS.checkCircle,
+      iconClass: 'kpi-card__icon--green',
+      getValue: (agg) => agg.installment.doneAmount,
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const { doneCases } = agg.installment;
+        return doneCases > 0 ? `${formatNumber(doneCases)} รายการ` : 'ไม่มีรายการชำระ';
+      }
+    },
+    {
       // เดิมเป็นการ์ดเดียว "ผ่อนชำระ" ที่รวม 2 สถานะ (กำลังผ่อน/เสร็จแล้ว) ไว้ในบรรทัด
       // detail เดียวกัน — พอมีทั้งคู่พร้อมกัน ข้อความยาวจนล้นออกนอกกล่อง (วัดจริงแล้ว
       // scrollWidth > clientWidth ที่ 1400px) จึงแยกเป็น 2 การ์ดคนละตัวเลขหลักไปเลย
       // แทนที่จะพยายามยัดทั้ง 2 สถานะไว้ในบรรทัดเดียว
       id: 'installment-active',
-      label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน',
+      label: 'ค่าปรับผ่อนชำระ',
       icon: ICONS.clock,
-      iconClass: 'kpi-card__icon--blue',
+      iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => agg.installment.totalRemainingAmount,
       format: formatCurrency,
       getDetail: (agg) => {
@@ -223,24 +239,12 @@ const KPICards = (() => {
       }
     },
     {
-      id: 'installment-done',
-      label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว',
-      icon: ICONS.checkCircle,
-      iconClass: 'kpi-card__icon--mint',
-      getValue: (agg) => agg.installment.doneAmount,
-      format: formatCurrency,
-      getDetail: (agg) => {
-        const { doneCases } = agg.installment;
-        return doneCases > 0 ? `${formatNumber(doneCases)} รายการ` : 'ยังไม่มีรายการที่ชำระครบแล้ว';
-      }
-    },
-    {
       // เดิมการ์ดนี้รวมยอดปรับไม่ได้ทั้ง 2 แหล่ง (ค่าปรับอื่นๆ + รถไม่เข้ารับงาน) เข้า
       // ด้วยกัน — ตอนนี้ฝั่งค่าปรับอื่นๆ แยกไปเป็นการ์ด non-collectible-fine ของตัวเอง
       // ในกลุ่มด้านบนแล้ว การ์ดนี้จึงเหลือเฉพาะยอดปรับไม่ได้ของหนี้ พขร. (รถไม่เข้ารับงาน)
       id: 'non-collectible',
       label: 'ปรับไม่ได้',
-      icon: ICONS.alertTriangle,
+      icon: ICONS.ban,
       iconClass: 'kpi-card__icon--red',
       getValue: (agg) => agg.nonCollectibleDebt.totalAmount || 0,
       format: formatCurrency,
@@ -298,8 +302,8 @@ const KPICards = (() => {
             {
               label: 'ค่าปรับอื่นๆ', amount: fineRaw, count: agg.count, tone: 'red',
               subRows: [
-                { label: 'ปรับได้', amount: paidAmount, count: paidCount },
-                { label: 'รอปรับ', amount: pendingAmount, count: pendingCount },
+                { label: 'ค่าปรับชำระแล้ว', amount: paidAmount, count: paidCount },
+                { label: 'ค่าปรับรอชำระ', amount: pendingAmount, count: pendingCount },
                 { label: 'ปรับไม่ได้', amount: uncollectibleAmount, count: uncollectibleCount }
               ]
             },
@@ -309,8 +313,8 @@ const KPICards = (() => {
               // รถไม่เข้ารับงาน" (agg.installment) ตรงๆ แทนที่จะคำนวณแยกชุดใหม่ — กันไม่ให้
               // ตัวเลขใน popup นี้เพี้ยนไปจากการ์ดจริงถ้า logic การคำนวณเปลี่ยนในอนาคต
               subRows: [
-                { label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว', amount: agg.installment.doneAmount, count: agg.installment.doneCases },
-                { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', amount: agg.installment.totalRemainingAmount, count: agg.installment.activeCases },
+                { label: 'ค่าปรับรถไม่เข้ารับงานชำระแล้ว', amount: agg.installment.doneAmount, count: agg.installment.doneCases },
+                { label: 'ค่าปรับผ่อนชำระรถไม่เข้ารับงาน', amount: agg.installment.totalRemainingAmount, count: agg.installment.activeCases },
                 { label: 'ปรับไม่ได้', amount: debtDeducted, count: agg.nonCollectibleDebt.totalCases || 0 }
               ]
             }
@@ -321,7 +325,7 @@ const KPICards = (() => {
     },
     {
       id: 'grand-paid',
-      label: 'ชำระค่าปรับแล้วทั้งหมด',
+      label: 'ค่าปรับชำระแล้ว',
       icon: ICONS.checkCircle,
       iconClass: 'kpi-card__icon--green',
       getValue: grandPaidValue,
@@ -337,62 +341,87 @@ const KPICards = (() => {
         const doneAmount = agg.installment.doneAmount;
         const doneCount = agg.installment.doneCases || 0;
         return {
-          title: 'ที่มาของยอดชำระแล้วทั้งหมด',
-          totalLabel: 'ยอดชำระรวมทั้งหมด',
+          title: 'ที่มาของยอดค่าปรับชำระแล้ว',
+          totalLabel: 'ยอดค่าปรับชำระแล้วทั้งหมด',
           rows: [
-            { label: 'ชำระค่าปรับอื่นๆแล้ว', hint: 'จากสถานะ "ปรับได้"', amount: paidAmount, count: paidCount, tone: 'blue' },
-            { label: 'ชำระค่าปรับรถไม่เข้ารับงานแล้ว', hint: 'จากรายการที่ชำระเสร็จสิ้นแล้ว ไม่รวมผ่อน', amount: doneAmount, count: doneCount, tone: 'red' }
+            { label: 'ค่าปรับอื่นๆชำระแล้ว', hint: 'จากสถานะ "ปรับได้"', amount: paidAmount, count: paidCount, tone: 'blue' },
+            { label: 'ค่าปรับรถไม่เข้ารับงานชำระแล้ว', hint: 'จากรายการค่าปรับชำระแล้ว (ไม่รวมรายการค่าปรับผ่อนชำระ)', amount: doneAmount, count: doneCount, tone: 'red' }
           ],
           total: paidAmount + doneAmount
         };
       }
     },
     {
-      // ยอดคงเหลือระดับภาพรวม = รอปรับ + ปรับไม่ได้ (ค่าปรับอื่นๆ) + กำลังผ่อนชำระ +
-      // ปรับไม่ได้ (รถไม่เข้ารับงาน) รวมทั้ง 4 ก้อน — ครั้งก่อนตัด "ปรับไม่ได้" ออกไป
-      // แต่ผู้ใช้ต้องการเห็นยอดรวมทั้งหมดจริงๆ พร้อมคำอธิบายในป๊อปอัปว่าก้อนไหนคือ
-      // ปรับไม่ได้ (เก็บเงินจริงไม่ได้) เพื่อไม่ให้เข้าใจผิดว่าทั้งก้อนตามเก็บได้หมด.
-      // getValue รวมจาก 4 field ตรงๆ (ไม่ใช้ grandTotal-grandPaid) เพราะฝั่งรถไม่เข้า
+      // ยอดคงเหลือระดับภาพรวม = รอปรับ (ค่าปรับอื่นๆ) + กำลังผ่อนชำระ (รถไม่เข้ารับงาน)
+      // เท่านั้น — เฉพาะยอดที่ยังมีลุ้นเก็บได้จริง "ปรับไม่ได้" ทั้ง 2 แหล่งถูกแยกออกไป
+      // อยู่การ์ด "ปรับไม่ได้ทั้งหมด" (grand-uncollectible) ต่างหากแล้ว จึงไม่นับซ้ำที่นี่
+      // getValue รวมจาก 2 field ตรงๆ (ไม่ใช้ grandTotal-grandPaid) เพราะฝั่งรถไม่เข้า
       // รับงานมีรายการที่ผ่อนจ่ายบางส่วนแล้ว — total-paid จะขาดหักยอดที่จ่ายบางส่วนนั้น
       // ออกไป ทำให้ตัวเลขเพี้ยนสูงกว่าความเป็นจริง
       id: 'grand-remaining',
-      label: 'ค่าปรับคงเหลือทั้งหมด',
+      label: 'ค่าปรับคงเหลือ',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--orange',
       getValue: (agg) => {
         const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
-        const uncollectibleAmount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
-        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
-        return pendingAmount + uncollectibleAmount + agg.installment.totalRemainingAmount + debtDeducted;
+        return pendingAmount + agg.installment.totalRemainingAmount;
       },
       format: formatCurrency,
       getDetail: (agg) => {
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
-        const uncollectibleCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
         const activeCases = agg.installment.activeCases || 0;
-        const debtNonCollectibleCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
-        return `จาก ${formatNumber(pendingCount + uncollectibleCount + activeCases + debtNonCollectibleCount)} รายการ`;
+        return `จาก ${formatNumber(pendingCount + activeCases)} รายการ`;
       },
       getBreakdown: (agg) => {
         const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
-        const uncollectibleAmount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
-        const uncollectibleCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
         const installmentAmount = agg.installment.totalRemainingAmount;
         const installmentCount = agg.installment.activeCases || 0;
-        const debtDeducted = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
-        const debtNonCollectibleCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
 
         return {
-          title: 'ที่มาของยอดคงเหลือทั้งหมด',
-          totalLabel: 'ยอดคงเหลือรวมทั้งหมด',
+          title: 'ที่มาของยอดคงเหลือ',
+          totalLabel: 'ยอดค่าปรับคงเหลือทั้งหมด',
           rows: [
-            { label: 'ค่าปรับอื่นๆที่รอปรับ', hint: 'ยังไม่ชำระ', amount: pendingAmount, count: pendingCount, tone: 'blue' },
-            { label: 'ค่าปรับอื่นๆที่ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดคงเหลือ', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' },
-            { label: 'กำลังผ่อนชำระรถไม่เข้ารับงาน', hint: 'ยังไม่ชำระ', amount: installmentAmount, count: installmentCount, tone: 'blue' },
-            { label: 'ค่าปรับรถไม่เข้ารับงานที่ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดคงเหลือ', amount: debtDeducted, count: debtNonCollectibleCount, tone: 'red' }
+            { label: 'ค่าปรับรอชำระอื่นๆ', amount: pendingAmount, count: pendingCount, tone: 'orange' },
+            { label: 'ค่าปรับผ่อนชำระรถไม่เข้ารับงาน', amount: installmentAmount, count: installmentCount, tone: 'orange' }
           ],
-          total: pendingAmount + uncollectibleAmount + installmentAmount + debtDeducted
+          total: pendingAmount + installmentAmount
+        };
+      }
+    },
+    {
+      // การ์ดแยกเฉพาะยอด "ปรับไม่ได้" ทั้งระบบ — ตัวเลขนี้ถูกนับรวมอยู่ใน
+      // "ค่าปรับคงเหลือทั้งหมด" อยู่แล้ว (ดูคอมเมนต์ grand-remaining ด้านบน) การ์ดนี้
+      // แค่ดึงออกมาโชว์แยกให้เห็นชัดว่าปรับไม่ได้มีเท่าไหร่ ไม่ใช่การหักลบหรือคำนวณใหม่
+      id: 'grand-uncollectible',
+      label: 'ปรับไม่ได้',
+      icon: ICONS.ban,
+      iconClass: 'kpi-card__icon--red',
+      getValue: (agg) => {
+        const fineUncollectible = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
+        const debtUncollectible = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
+        return fineUncollectible + debtUncollectible;
+      },
+      format: formatCurrency,
+      getDetail: (agg) => {
+        const fineCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
+        const debtCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
+        return `จาก ${formatNumber(fineCount + debtCount)} รายการ`;
+      },
+      getBreakdown: (agg) => {
+        const fineAmount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleAmount) || 0;
+        const fineCount = (agg.statusBreakdown && agg.statusBreakdown.uncollectibleCount) || 0;
+        const debtAmount = (agg.debtGrandTotal && agg.debtGrandTotal.deducted) || 0;
+        const debtCount = (agg.nonCollectibleDebt && agg.nonCollectibleDebt.totalCases) || 0;
+
+        return {
+          title: 'ที่มาของยอดปรับไม่ได้ทั้งหมด',
+          totalLabel: 'ยอดปรับไม่ได้รวมทั้งหมด',
+          rows: [
+            { label: 'ค่าปรับอื่นๆที่ปรับไม่ได้', amount: fineAmount, count: fineCount, tone: 'red' },
+            { label: 'ค่าปรับรถไม่เข้ารับงานที่ปรับไม่ได้', amount: debtAmount, count: debtCount, tone: 'red' }
+          ],
+          total: fineAmount + debtAmount
         };
       }
     }

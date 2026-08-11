@@ -727,21 +727,21 @@ const Charts = (() => {
     // รายการค่าปรับ) — ผสานอยู่ในวงเดียวกันตามที่ตกลง แต่แยก slice + สีชัดเจน
     // ไม่ให้ปนกับของเดิม
     const statusColors = {
-      'ปรับได้': COLORS.green,
-      'รอปรับ': COLORS.blue,
+      'ค่าปรับชำระแล้ว': COLORS.green,
+      'ค่าปรับรอชำระ': COLORS.blue,
       'ปรับไม่ได้': COLORS.red,
-      'กำลังผ่อน (รถไม่เข้ารับงาน)': COLORS.indigo,
-      'ชำระครบแล้ว (รถไม่เข้ารับงาน)': COLORS.mint,
+      'ค่าปรับผ่อนชำระ (รถไม่เข้ารับงาน)': COLORS.indigo,
+      'ค่าปรับชำระแล้ว (รถไม่เข้ารับงาน)': COLORS.mint,
       'ปรับไม่ได้ (รถไม่เข้ารับงาน)': COLORS.orange
     };
     const breakdown = aggregates.statusBreakdown || {};
     const driverCounts = aggregates.driverStatusCounts || {};
     const counts = {
-      'ปรับได้': breakdown.paidCount || 0,
-      'รอปรับ': breakdown.pendingCount || 0,
+      'ค่าปรับชำระแล้ว': breakdown.paidCount || 0,
+      'ค่าปรับรอชำระ': breakdown.pendingCount || 0,
       'ปรับไม่ได้': breakdown.uncollectibleCount || 0,
-      'กำลังผ่อน (รถไม่เข้ารับงาน)': driverCounts.active || 0,
-      'ชำระครบแล้ว (รถไม่เข้ารับงาน)': driverCounts.done || 0,
+      'ค่าปรับผ่อนชำระ (รถไม่เข้ารับงาน)': driverCounts.active || 0,
+      'ค่าปรับชำระแล้ว (รถไม่เข้ารับงาน)': driverCounts.done || 0,
       'ปรับไม่ได้ (รถไม่เข้ารับงาน)': driverCounts.nonCollectible || 0
     };
 
@@ -750,7 +750,12 @@ const Charts = (() => {
     const data = entries.map(([, v]) => v);
     const colors = entries.map(([k]) => statusColors[k] || COLORS.gray);
 
-    const labelUnit = (key) => key.endsWith('(รถไม่เข้ารับงาน)') ? 'คน' : 'รายการ';
+    // driverCounts (active/done/nonCollectible) นับจากจำนวนแถวข้อมูลหนี้ พขร. ตรงๆ
+    // (data.js:getDriverStatusCounts) ไม่ได้ทำ dedupe ตามชื่อคนขับ — พขร. คนเดียวมี
+    // หนี้ได้มากกว่า 1 รายการ นับซ้ำเป็นคนได้ถ้าใช้หน่วย "คน" หน่วยที่ถูกต้องคือ
+    // "รายการ" เหมือนกับการ์ด KPI อื่นๆ ที่ใช้ตัวเลขชุดเดียวกัน (activeCases/
+    // doneCases/totalCases ล้วนแปะป้าย "รายการ" ทั้งหมด)
+    const labelUnit = () => 'รายการ';
 
     const existingChart = chartInstances['paymentStatus'];
     if (existingChart) {

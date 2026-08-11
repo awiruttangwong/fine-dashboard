@@ -271,10 +271,10 @@ const DebtTracker = (() => {
           <span class="pill pill--muted">${all.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
-          <div><span class="stat-card__metric-label">ยอดปรับรวมทั้งหมด${deductedHint}</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - nonCollectibleBalance)} ฿</span></div>
+          <div><span class="stat-card__metric-label">ค่าปรับรวมทั้งหมด${deductedHint}</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - nonCollectibleBalance)} ฿</span></div>
         </div>
       </div>
-      <div class="stat-card">
+      <div class="stat-card stat-card--clickable" data-scroll-target="debt-group-yes" role="button" tabindex="0">
         <div class="stat-card__head">
           <div class="stat-card__title">
             <span class="stat-card__icon stat-card__icon--green"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg></span>
@@ -283,11 +283,11 @@ const DebtTracker = (() => {
           <span class="pill pill--green">${yes.length} รายการ</span>
         </div>
         <div class="stat-card__metrics">
-          <div><span class="stat-card__metric-label">ยอดคงเหลือ</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(yes, 'balance'))} ฿</span></div>
-          <div><span class="stat-card__metric-label">ชำระค่าปรับแล้ว</span><span class="stat-card__metric-value stat-card__metric-value--success">${num(sum(yes, 'paid'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ค่าปรับคงเหลือ</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(yes, 'balance'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ค่าปรับชำระแล้ว</span><span class="stat-card__metric-value stat-card__metric-value--success">${num(sum(yes, 'paid'))} ฿</span></div>
         </div>
       </div>
-      <div class="stat-card stat-card--danger">
+      <div class="stat-card stat-card--danger stat-card--clickable" data-scroll-target="debt-group-no" role="button" tabindex="0">
         <div class="stat-card__head">
           <div class="stat-card__title">
             <span class="stat-card__icon stat-card__icon--danger"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"/></svg></span>
@@ -296,9 +296,18 @@ const DebtTracker = (() => {
           <span class="pill pill--danger">${no.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
-          <div><span class="stat-card__metric-label">ยอดปรับไม่ได้</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(no, 'balance'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">ปรับไม่ได้</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(no, 'balance'))} ฿</span></div>
         </div>
       </div>`;
+
+    el.querySelectorAll('[data-scroll-target]').forEach(card => {
+      const scrollToTarget = () => {
+        const target = document.getElementById(card.dataset.scrollTarget);
+        if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      };
+      card.addEventListener('click', scrollToTarget);
+      card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); scrollToTarget(); } });
+    });
   }
 
   function filtered() {
@@ -353,7 +362,7 @@ const DebtTracker = (() => {
     const paidCol = showPaid ? '<col class="col-balance">' : '';
     const paidHeader = showPaid ? '<th class="cell-center">ชำระแล้ว</th>' : '';
     return `
-      <div class="table-block">
+      <div class="table-block" id="debt-group-${cls}">
         <div class="table-group-title table-group-title--${mod}">
           <div class="table-group-title__left">
             <span class="table-group-title__icon">${iconSvg}</span>
@@ -364,7 +373,7 @@ const DebtTracker = (() => {
         <div class="table-responsive">
           <table class="debt-table">
             <colgroup><col class="col-driver"><col class="col-type">${paidCol}<col class="col-balance"><col class="col-progress"><col class="col-action"></colgroup>
-            <thead><tr><th>ชื่อผู้รับโอน / เส้นทาง</th><th class="cell-center">สาเหตุ</th>${paidHeader}<th class="cell-center">คงเหลือ</th><th class="cell-center">คืบหน้า</th><th class="cell-center">จัดการ</th></tr></thead>
+            <thead><tr><th>ชื่อผู้รับโอน / เส้นทาง</th><th class="cell-center">สาเหตุ</th>${paidHeader}<th class="cell-center">คงเหลือ</th><th class="cell-center">จำนวนงวด</th><th class="cell-center">จัดการ</th></tr></thead>
             <tbody>${body}</tbody>
           </table>
         </div>

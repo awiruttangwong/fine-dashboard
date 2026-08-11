@@ -129,8 +129,8 @@
 .table-status-filter__btn--paid.is-active .table-status-filter__dot  { background: var(--color-success); }
 .table-status-filter__btn--error.is-active { color: var(--color-danger); }
 .table-status-filter__btn--error.is-active .table-status-filter__dot { background: var(--color-danger); }
-.table-status-filter__btn--open.is-active  { color: var(--color-accent); }
-.table-status-filter__btn--open.is-active .table-status-filter__dot  { background: var(--color-accent); }
+.table-status-filter__btn--open.is-active  { color: var(--color-warning); }
+.table-status-filter__btn--open.is-active .table-status-filter__dot  { background: var(--color-warning); }
 
 .table-status-filter__count {
   font-weight: var(--font-weight-semibold);
@@ -429,7 +429,7 @@
   line-height: 1.2;
 }
 
-.status-badge--open     { background: var(--color-accent-light); color: var(--color-accent); }
+.status-badge--open     { background: var(--color-warning-light); color: var(--color-warning); }
 .status-badge--paid     { background: var(--color-success-light); color: var(--color-success); }
 .status-badge--partial  { background: var(--color-warning-light); color: var(--color-warning); }
 .status-badge--error    { background: var(--color-danger-light); color: var(--color-danger); }
@@ -441,7 +441,7 @@
   flex-shrink: 0;
 }
 
-.status-badge--open .status-dot     { background: var(--color-accent); }
+.status-badge--open .status-dot     { background: var(--color-warning); }
 .status-badge--paid .status-dot     { background: var(--color-success); }
 .status-badge--partial .status-dot  { background: var(--color-warning); }
 .status-badge--error .status-dot    { background: var(--color-danger); }

@@ -357,7 +357,7 @@ const Tables = (() => {
       },
       {
         field: 'total_fine',
-        label: 'ยอดปรับ',
+        label: 'ค่าปรับ',
         width: '19%',
         align: 'center',
         className: 'column-financial',
@@ -365,7 +365,7 @@ const Tables = (() => {
       },
       {
         field: 'total_paid',
-        label: 'ชำระค่าปรับแล้ว',
+        label: 'ค่าปรับชำระแล้ว',
         width: '19%',
         align: 'center',
         className: 'column-financial column-paid',
@@ -435,8 +435,8 @@ const Tables = (() => {
       { field: 'barcode', label: 'บาร์โค้ด', width: '150px', align: 'left', render: row => `<span class="cell-mono">${escapeHtml(row.barcode)}</span>` },
       { field: 'route_raw', label: 'เส้นทาง', width: '320px', align: 'left', render: row => `<code class="cell-mono table-inline-code">${escapeHtml(row.route_raw)}</code>` },
       { field: 'driver_name', label: 'ชื่อ พขร', width: '180px', align: 'left', render: row => row.driver_name ? escapeHtml(row.driver_name) : `<span class="cell-muted">ไม่ระบุ</span>` },
-      { field: 'fine_amount', label: 'ยอดปรับ', width: '110px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
-      { field: 'paid_amount', label: 'ชำระค่าปรับแล้ว', width: '150px', align: 'right', className: 'column-financial column-paid', render: row => `<span class="cell-amount ${row.paid_amount > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(row.paid_amount || 0)}</span>` },
+      { field: 'fine_amount', label: 'ค่าปรับ', width: '110px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount">${formatCurrency(row.fine_amount)}</span>` },
+      { field: 'paid_amount', label: 'ค่าปรับชำระแล้ว', width: '150px', align: 'right', className: 'column-financial column-paid', render: row => `<span class="cell-amount ${row.paid_amount > 0 ? 'cell-amount--positive' : ''}">${formatCurrency(row.paid_amount || 0)}</span>` },
       { field: 'computed_remaining', label: 'คงเหลือ', width: '120px', align: 'right', className: 'column-financial', render: row => `<span class="cell-amount ${getRemainingAmountClass(row.fine_amount, row.computed_remaining)}">${formatCurrency(row.computed_remaining)}</span>` },
       { field: 'record_status_type', label: 'สถานะ', width: '136px', align: 'center', className: 'cell-status column-status column-status-detail', render: row => getStatusBadge(row.record_status_type) }
     ];
@@ -494,11 +494,11 @@ const Tables = (() => {
               <div class="table-modal__stat-value">${activeGroup.item_count}</div>
             </div>
             <div class="table-modal__stat">
-              <div class="table-modal__stat-label">ยอดปรับ</div>
+              <div class="table-modal__stat-label">ค่าปรับ</div>
               <div class="table-modal__stat-value">${formatCurrency(activeGroup.total_fine)}</div>
             </div>
             <div class="table-modal__stat">
-              <div class="table-modal__stat-label">ชำระค่าปรับแล้ว</div>
+              <div class="table-modal__stat-label">ค่าปรับชำระแล้ว</div>
               <div class="table-modal__stat-value table-modal__stat-value--positive">${formatCurrency(activeGroup.total_paid)}</div>
             </div>
             <div class="table-modal__stat">
