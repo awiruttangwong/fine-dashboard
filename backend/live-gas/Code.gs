@@ -505,6 +505,10 @@ function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
 
   fineRows.forEach(function(row) {
     if (!row.fine_month || !row.source_sheet_month) return;
+    // SPX พิเศษ: ยืนยันกับผู้ใช้แล้วว่าวันที่จริงข้ามเดือนจากชื่อชีตเป็นเรื่องปกติ
+    // เฉพาะ courier นี้ (ไม่ใช่ human error) — frontend เองก็นับ SPX เป็นของเดือนตาม
+    // ชื่อชีตแล้ว (ดู effective_month_key ใน js/data.js) จึงไม่ต้อง alert ให้ตรวจสอบ
+    if (row.customer === 'SPX') return;
     if (row.fine_month !== row.source_sheet_month) {
       items.push({
         source: row.source_sheet,

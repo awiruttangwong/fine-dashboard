@@ -185,6 +185,21 @@ const FineData = (() => {
     row.fine_day = date.fine_day ?? toNumber(row.fine_day, null);
 
     row.customer = cleanText(row.customer).toUpperCase();
+
+    // ── SPX พิเศษ: "วันที่จริง" ในไฟล์บางแถวข้ามเดือนจากชื่อชีต (เช่น อยู่ในชีต
+    // SUM(M7) แต่วันที่จริงเป็น มิ.ย.) — ยืนยันกับผู้ใช้แล้วว่าเป็นเรื่องปกติเฉพาะ SPX
+    // เท่านั้น (courier อื่นถือเป็นข้อมูลผิดพลาดจริง ยัง alert ตามเดิม) จึงนับ SPX เป็น
+    // ของเดือนตามชื่อชีตเสมอสำหรับ "ตัดสินใจว่าอยู่เดือนไหน" (กรอง/การ์ด/กราฟ) โดยไม่แตะ
+    // fine_date ที่แสดงผลในตาราง — วันที่จริงยังคงเดิมตามที่กรอกมา ปีไม่เปลี่ยนตาม
+    // (ปัญหาจริงที่เจอคือเดือนเลื่อน ไม่ใช่ข้ามปี)
+    row.effective_month = (row.customer === 'SPX' && row.source_sheet_month)
+      ? row.source_sheet_month
+      : row.fine_month;
+    row.effective_year = row.fine_year;
+    row.effective_month_key = (row.effective_year && row.effective_month)
+      ? `${row.effective_year}-${String(row.effective_month).padStart(2, '0')}`
+      : (row.fine_date ? row.fine_date.slice(0, 7) : null);
+
     row.barcode = cleanText(row.barcode);
     row.route_raw = cleanText(row.route_raw);
 
@@ -304,7 +319,7 @@ const FineData = (() => {
   function rebuildIndexes(rows) {
     dataByMonth = new Map();
     rows.forEach(row => {
-      const monthKey = row.fine_date ? String(row.fine_date).slice(0, 7) : '';
+      const monthKey = row.effective_month_key || '';
       if (!monthKey) return;
       if (!dataByMonth.has(monthKey)) dataByMonth.set(monthKey, []);
       dataByMonth.get(monthKey).push(row);
@@ -420,9 +435,7 @@ const FineData = (() => {
       : allData;
 
     return baseRows.filter(row => {
-      if (filters.selectedMonth && row.fine_date) {
-        if (!row.fine_date.startsWith(filters.selectedMonth)) return false;
-      }
+      if (filters.selectedMonth && row.effective_month_key !== filters.selectedMonth) return false;
 
       if (filters.customers && filters.customers.length > 0 && !filters.customers.includes(row.customer)) return false;
       if (filters.driver && filters.driver.trim() !== '') {
@@ -502,7 +515,7 @@ const FineData = (() => {
 
   function filterStatusRowsByMonth(rows, selectedMonth) {
     if (!selectedMonth) return rows;
-    return rows.filter(row => row.fine_date && row.fine_date.startsWith(selectedMonth));
+    return rows.filter(row => row.effective_month_key === selectedMonth);
   }
 
   function getStatusAggregates(selectedMonth) {
@@ -806,7 +819,7 @@ const FineData = (() => {
       shortLabel: THAI_MONTHS_FULL[i].slice(0, 3) + '.'
     }));
 
-    const yearData = allData.filter(row => row.fine_year === year);
+    const yearData = allData.filter(row => row.effective_year === year);
 
     // ต่อเดือน: ใช้สูตรเดียวกับโหมดปกติเป๊ะ (getAggregates/kpi.js) แทนของเดิมที่ใช้
     // fine_amount ดิบ + computed_remaining_amount ต่อแถว ซึ่งไม่ตรงกับตัวเลขที่แอปแสดง
@@ -814,7 +827,7 @@ const FineData = (() => {
     // (agg.totalFine - uncollectible + debtGrandTotal, ดู kpi.js:114-118), "ชำระแล้ว"/
     // "คงเหลือ" มาจากชีตสถานะ ไม่ใช่ยอดในไฟล์ค่าปรับดิบ
     const monthlyData = months.map(month => {
-      const rows = yearData.filter(row => row.fine_month === month.index);
+      const rows = yearData.filter(row => row.effective_month === month.index);
       const fineRaw = rows.reduce((sum, r) => sum + (r.fine_amount || 0), 0);
       const statusAgg = getStatusAggregates(month.key);
       const debtSummary = getDebtGrandTotalSummary(month.key);
@@ -855,7 +868,7 @@ const FineData = (() => {
     const customerMonthlyBreakdown = {};
     yearData.forEach(row => {
       const customer = row.customer || '(ไม่ระบุ)';
-      const monthKey = row.fine_month;
+      const monthKey = row.effective_month;
       if (!customerMonthlyBreakdown[customer]) customerMonthlyBreakdown[customer] = {};
       if (!customerMonthlyBreakdown[customer][monthKey]) {
         customerMonthlyBreakdown[customer][monthKey] = { count: 0, fineTotal: 0, paidTotal: 0 };
