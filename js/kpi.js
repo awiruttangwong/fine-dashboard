@@ -120,11 +120,12 @@ const KPICards = (() => {
         const uncollectibleAmount = agg.statusBreakdown.uncollectibleAmount || 0;
         const uncollectibleCount = agg.statusBreakdown.uncollectibleCount || 0;
         return {
-          title: 'ที่มาของยอดรวมค่าปรับอื่นๆ',
+          title: 'ที่มาของค่าปรับทั้งหมด',
+          totalLabel: 'ยอดค่าปรับทั้งหมด',
           rows: [
-            { label: 'ปรับได้ (ชำระแล้ว)', amount: paidAmount, count: paidCount, tone: 'blue' },
-            { label: 'รอปรับ', amount: pendingAmount, count: pendingCount, tone: 'blue' },
-            { label: 'ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดรวม', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
+            { label: 'ค่าปรับชำระแล้ว', amount: paidAmount, count: paidCount, tone: 'blue' },
+            { label: 'ค่าปรับรอชำระ', amount: pendingAmount, count: pendingCount, tone: 'blue' },
+            { label: 'ปรับไม่ได้', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
           ],
           total: paidAmount + pendingAmount + uncollectibleAmount
         };
@@ -197,11 +198,12 @@ const KPICards = (() => {
         const uncollectibleAmount = agg.nonCollectibleDebt.totalAmount || 0;
         const uncollectibleCount = agg.nonCollectibleDebt.totalCases || 0;
         return {
-          title: 'ที่มาของยอดรวมค่าปรับรถไม่เข้ารับงาน',
+          title: 'ที่มาของค่าปรับทั้งหมด',
+          totalLabel: 'ยอดค่าปรับทั้งหมด',
           rows: [
-            { label: 'กำลังผ่อนชำระ', amount: activeAmount, count: activeCount, tone: 'blue' },
-            { label: 'ชำระแล้ว', amount: doneAmount, count: doneCount, tone: 'blue' },
-            { label: 'ปรับไม่ได้', hint: 'เก็บเงินจริงไม่ได้ แต่นับรวมในยอดรวม', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
+            { label: 'ค่าปรับผ่อนชำระ', amount: activeAmount, count: activeCount, tone: 'blue' },
+            { label: 'ค่าปรับชำระแล้ว', amount: doneAmount, count: doneCount, tone: 'blue' },
+            { label: 'ปรับไม่ได้', amount: uncollectibleAmount, count: uncollectibleCount, tone: 'red' }
           ],
           total: activeAmount + doneAmount + uncollectibleAmount
         };

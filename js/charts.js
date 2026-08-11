@@ -886,12 +886,26 @@ const Charts = (() => {
   }
 
   // ── Public API ──
+  // แต่ละ renderXxx ทำงานเป็นอิสระจากกัน (คนละ container/canvas) แต่เดิมเรียกเรียง
+  // กันตรงๆ โดยไม่มี try/catch — ถ้าตัวใดตัวหนึ่ง throw (เช่น renderDailyTrend หรือ
+  // renderCustomerChart ซึ่งอยู่ก่อน renderTopDrivers ในลำดับนี้) ตัวที่เหลือทั้งหมด
+  // จะไม่ทำงานเลยในรอบนั้น ทำให้การ์ดหลังๆ (เช่น "10 อันดับพนักงาน") ค้างอยู่ที่ค่า
+  // เดิม/skeleton โดยไม่มี error ให้เห็นบนหน้าจอ — ครอบแต่ละตัวด้วย try/catch แยกกัน
+  // เพื่อกันไม่ให้ความล้มเหลวของกราฟหนึ่งบล็อกกราฟอื่นที่ไม่เกี่ยวข้องกัน
+  function safeRender(name, fn) {
+    try {
+      fn();
+    } catch (err) {
+      console.error(`[Fine Dashboard] Chart render failed: ${name}`, err);
+    }
+  }
+
   function renderAll(aggregates, filteredData, filters = {}) {
-    renderDailyTrend(aggregates, filters.selectedMonth);
-    renderCustomerChart(aggregates);
-    renderTopDrivers(aggregates);
-    renderPaymentStatus(aggregates);
-    renderFullRoutes(filteredData || FineData.getAll(), filters.selectedMonth);
+    safeRender('renderDailyTrend', () => renderDailyTrend(aggregates, filters.selectedMonth));
+    safeRender('renderCustomerChart', () => renderCustomerChart(aggregates));
+    safeRender('renderTopDrivers', () => renderTopDrivers(aggregates));
+    safeRender('renderPaymentStatus', () => renderPaymentStatus(aggregates));
+    safeRender('renderFullRoutes', () => renderFullRoutes(filteredData || FineData.getAll(), filters.selectedMonth));
   }
 
   function updateAll(aggregates, filteredData, filters = {}) {
