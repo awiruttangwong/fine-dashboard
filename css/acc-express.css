@@ -1,0 +1,240 @@
+/* ============================================================
+   เปรียบเทียบค่าปรับ Acc Vs Express — สไตล์ส่วนที่ฝังใน dashboard หลัก
+   (ต่อท้าย "สัดส่วนตามลูกค้า" ในแท็บภาพรวมแผนกบัญชี)
+
+   พอร์ตมาจาก xlsx-comparison/css/style.css เฉพาะส่วนที่ใช้แสดงผลตาราง
+   ตัดสไตล์ที่เป็นของหน้าเดี่ยวออกทั้งหมด (body, .acc-page, upload card,
+   สถานะอัพโหลด) เพราะหน้านี้ไม่มีการเลือกไฟล์ — อ่านจากคลังกลางอย่างเดียว
+
+   สีทั้งหมดดึงจากไฟล์ต้นฉบับจริง (theme1.xml + cell fill ตรวจด้วย openpyxl):
+     - ส้มพีช  #FFCC99  = แถบ "Y2026" (ยอดรวมทั้งปี) ในชีต Summary
+     - พีชอ่อน #FBE3D6  = แถบคอลัมน์ลูกค้า (สลับ) ในชีตรายเดือน
+     - เทาอ่อน #D9D9D9  = แถบสลับที่ 2
+     - เหลืองอ่อน #FFFFCC = แถบสลับที่ 2 เฉพาะชีต Summary
+     - เทา #D1D1D1      = แถบรวมยอดย่อย
+     - แดง #FF0000      = ตัวเลขติดลบ / "ปรับไม่ได้"
+     - ม่วงเข้ม #501649  = สีตัวอักษรหัวรายการ/ชื่อลูกค้า
+   ============================================================ */
+
+/* Focus mode: sidebar toggle "ภาพรวมแผนกบัญชี" hides every other section (ref:
+   .main__content-inner--debt-focus ใน css/debt.css). ต่างจากโมดูล "ค่าปรับรถไม่เข้า
+   รับงาน" ตรงที่ #section-acc-express เองก็ hidden อยู่แล้วโดย default ใน index.html —
+   เป็น section ที่โชว์เฉพาะตอน focus mode เปิดเท่านั้น (js/app.js:setAccExpressModuleActive
+   สลับ hidden) ไม่ใช่ section ที่โชว์อยู่บนหน้าหลักตลอดเวลา */
+.main__content-inner--accexpress-focus > .section:not(#section-acc-express) { display: none; }
+
+.acc-embed { padding: 0 20px 20px; }
+
+/* ── สถานะโหลด/ว่าง/ผิดพลาด ── */
+.acc-embed-state {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin: 0 20px 20px;
+  padding: 18px 20px;
+  border-radius: var(--radius-md, 10px);
+  background: var(--color-surface-alt);
+  font-size: 0.8125rem;
+  font-weight: 500;
+  color: var(--color-text-secondary);
+}
+.acc-embed-state--muted { color: var(--color-text-muted); }
+.acc-embed-state--error { background: var(--color-danger-light); color: var(--color-danger); }
+.acc-embed-spinner {
+  flex: none;
+  width: 16px;
+  height: 16px;
+  border: 2px solid var(--color-border, #D2D2D7);
+  border-top-color: var(--color-accent);
+  border-radius: 50%;
+  animation: acc-spin 0.7s linear infinite;
+}
+@keyframes acc-spin { to { transform: rotate(360deg); } }
+
+/* ── Sheet tabs ── */
+.acc-tabs {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  padding: 6px;
+  background: var(--color-surface-alt);
+  border-radius: var(--radius-md, 10px);
+  width: fit-content;
+}
+.acc-tabs__btn {
+  padding: 8px 18px;
+  border-radius: var(--radius-sm, 8px);
+  border: none;
+  background: transparent;
+  color: var(--color-text-secondary);
+  font-family: inherit;
+  font-size: 0.8125rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+.acc-tabs__btn.is-active { background: var(--color-surface); color: var(--color-accent); box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+
+.acc-content { margin-top: 16px; }
+
+/* ── การ์ดเนื้อหา ── */
+.acc-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg, 16px);
+  overflow: hidden;
+}
+.acc-card__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 16px 20px;
+  border-bottom: 1px solid var(--color-border-light);
+}
+.acc-card__title { font-size: 1rem; font-weight: 700; }
+.acc-card__meta { font-size: 0.75rem; color: var(--color-text-muted); }
+.acc-card__body { padding: 18px 20px; overflow-x: auto; }
+
+/* ── ตารางจำลองหน้าตา Excel (ขนาด/สี/เส้นขอบตามต้นฉบับ) ── */
+.acc-xls-table {
+  border-collapse: collapse;
+  font-size: 0.95rem;
+  white-space: nowrap;
+}
+.acc-xls-table th,
+.acc-xls-table td {
+  border: 1px solid #BFBFBF;
+  padding: 8px 14px;
+  text-align: center;
+  font-weight: 700;
+}
+.acc-xls-table .acc-cell--label {
+  text-align: left;
+  white-space: normal;
+  min-width: 220px;
+  color: #501649;
+}
+.acc-xls-table .acc-cell--customer-name { color: #501649; }
+.acc-xls-table .acc-cell--negative { color: #FF0000; }
+.acc-xls-table .acc-row--total td { border-bottom: 3px double #7f7f7f; }
+.acc-xls-table .acc-row--subtotal td { background: #D1D1D1 !important; }
+
+/* ตารางกว้างผันแปรตามจำนวนเดือน/ลูกค้า — ปล่อยขนาดธรรมชาติ (ไม่ตัดคำกลางคำแบบ
+   table-layout:fixed) แล้วให้ JS วัดความกว้างจริงย่อด้วย transform:scale ให้พอดี
+   การ์ดเสมอ (ดู fitWideTables ใน js/acc-express.js) */
+.acc-fit-wrap { width: 100%; overflow: hidden; }
+.acc-fit-wrap .acc-xls-table--fit { transform-origin: top left; }
+
+/* แถบสีของแต่ละกลุ่มคอลัมน์ (ลูกค้า/เดือน) — สลับกันตามต้นฉบับ */
+.acc-band-0 { background: #FFCC99; }
+.acc-band-a { background: #FBE3D6; }
+.acc-band-b { background: #D9D9D9; }
+.acc-band-c { background: #FFFFCC; }
+
+/* ── บล็อกกระทบยอด ── */
+.acc-recon {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 18px;
+  margin-top: 18px;
+}
+@media (max-width: 720px) { .acc-recon { grid-template-columns: 1fr; } }
+.acc-recon__block {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-md, 10px);
+  overflow: hidden;
+}
+.acc-recon__block table { width: 100%; border-collapse: collapse; font-size: 0.9rem; }
+.acc-recon__block td { padding: 10px 14px; border-bottom: 1px solid var(--color-border-light); font-weight: 600; }
+.acc-recon__block tr:last-child td { border-bottom: none; }
+.acc-recon__block td:first-child { text-align: left; color: var(--color-text-secondary); }
+.acc-recon__block td:last-child { text-align: right; font-variant-numeric: tabular-nums; }
+.acc-recon__block .acc-cell--negative { color: #FF0000; }
+
+/* ── ป้าย "GL" — มีอยู่จริงในทุกชีตเดือนของต้นฉบับ แสดงไว้เพื่อความครบถ้วน ── */
+.acc-gl-note {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 3px 10px;
+  border-radius: var(--radius-sm, 6px);
+  background: var(--color-surface-alt);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 700;
+}
+
+/* ── ตารางรายการบัญชี ── */
+.acc-ledger-wrap { margin-top: 18px; overflow-x: auto; }
+.acc-ledger { width: 100%; border-collapse: collapse; font-size: 0.8125rem; }
+.acc-ledger th {
+  position: sticky; top: 0;
+  background: var(--color-surface-alt);
+  color: var(--color-text-secondary);
+  font-weight: 600;
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border);
+  border-right: 1px solid var(--color-border-light);
+  text-align: left;
+  white-space: nowrap;
+}
+.acc-ledger th:last-child { border-right: none; }
+.acc-ledger td {
+  padding: 8px 10px;
+  border-bottom: 1px solid var(--color-border-light);
+  border-right: 1px solid var(--color-border-light);
+  vertical-align: top;
+}
+.acc-ledger td:last-child { border-right: none; }
+.acc-ledger td.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.acc-ledger tbody tr:hover { background: var(--color-surface-hover); }
+.acc-ledger__subtotal td {
+  background: var(--color-surface-alt);
+  font-weight: 700;
+  color: var(--color-text-secondary);
+}
+.acc-ledger__subtotal td:first-child { text-align: right; }
+
+.acc-link {
+  color: var(--color-accent, #0071E3);
+  text-decoration: underline;
+  cursor: pointer;
+}
+.acc-link:hover { color: var(--color-accent-hover, #005BB5); }
+
+.acc-section-title {
+  font-size: 0.8125rem;
+  font-weight: 700;
+  color: var(--color-text-secondary);
+  margin: 22px 0 8px;
+  text-transform: uppercase;
+  letter-spacing: 0.02em;
+}
+.acc-section-title:first-child { margin-top: 0; }
+
+/* ── การ์ด KPI — ใช้คลาสจริงของ dashboard หลัก (kpi-tile/kpi-card/kpi-panel)
+   สีตัวหน่วย (value-suffix) ในธีมหลักผูกกับ [data-kpi="..."] ที่รู้จักเฉพาะการ์ด
+   ของหน้าหลัก จึง override เฉพาะ scope นี้ ไม่ไปแก้ไฟล์ธีมกลาง ── */
+.acc-kpi-scope [data-tone="blue"] .kpi-card__value-suffix   { color: #0071E3; }
+.acc-kpi-scope [data-tone="green"] .kpi-card__value-suffix  { color: #34C759; }
+.acc-kpi-scope [data-tone="red"] .kpi-card__value-suffix    { color: #FF3B30; }
+.acc-kpi-scope [data-tone="orange"] .kpi-card__value-suffix { color: #FF7000; }
+.acc-kpi-scope [data-tone="purple"] .kpi-card__value-suffix { color: #AF52DE; }
+
+.acc-kpi-section { margin-bottom: 22px; }
+.acc-kpi-section__title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.9375rem;
+  font-weight: 700;
+  color: var(--color-text-primary);
+  margin-bottom: 14px;
+}
+.acc-kpi-section__title svg { flex: none; color: var(--color-accent); }
+
+.acc-empty {
+  padding: 60px 20px;
+  text-align: center;
+  color: var(--color-text-muted);
+  font-size: 0.875rem;
+}

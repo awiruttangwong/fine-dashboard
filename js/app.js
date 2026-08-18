@@ -178,6 +178,18 @@ const App = (() => {
       refreshFromSource(reason);
     }
 
+    // ── เปิดช่องให้โมดูลอื่น (เช่น js/debt.js) สั่งรีเฟรชข้อมูลหลักได้จากนอกไฟล์นี้ ──
+    // ตัวอย่าง: หลังจ่ายเงิน/แก้ไข/เพิ่ม พขร. ในโมดูล "ค่าปรับรถไม่เข้ารับงาน" โมดูลนั้น
+    // รีเฟรชแค่ state ของตัวเอง (debt.js: load(true)) แต่ตัวเลข KPI/กราฟ/ตารางอื่นๆ ของ
+    // dashboard หลักที่รวมยอดหนี้เข้าไปด้วย (js/data.js: totalFine = fineRaw -
+    // uncollectible + debtGrandTotal) จะยังค้างค่าเดิมจนกว่าจะถึงรอบ auto-refresh ถัดไป
+    // (สูงสุด 60 วิ) หรือสลับแท็บ/โฟกัสหน้าต่างใหม่ — ไม่เรียก refreshFromSource ตรงๆ
+    // เพราะมันเป็น closure ในนี้ จึง expose ผ่าน window ให้เรียกจากนอกไฟล์ได้ ไม่ผ่าน
+    // MIN_REFRESH_GAP_MS (เป็นการรีเฟรชเพราะผู้ใช้เพิ่งสั่งเขียนข้อมูลจริง ไม่ใช่การ
+    // poll พาสซีฟ) — refreshFromSource เองมี guard กันยิงซ้อนกันอยู่แล้ว (refreshPromise)
+    window.FineDashboard = window.FineDashboard || {};
+    window.FineDashboard.refreshNow = (reason) => refreshFromSource(reason || 'external-write');
+
     // ── Driver debt module (NATIVE, inline) ──
     // "ค่าปรับรถไม่เข้ารับงาน" เป็น section ที่แสดงอยู่ในหน้าเสมอ (เรนเดอร์ครั้งเดียว
     // ตอนโหลด) — ปุ่ม toggle เป็นแค่ "focus mode" ซ่อน section อื่นด้วย CSS แล้ว
@@ -212,9 +224,43 @@ const App = (() => {
       if (targetMonth) DebtTracker.setMonth(targetMonth);
     }
 
+    // ── Acc-vs-Express module (NATIVE, inline) ──
+    // "ภาพรวมแผนกบัญชี" ใช้ "focus mode" แบบเดียวกับ ค่าปรับรถไม่เข้ารับงาน ทุกประการ
+    // (ตาม ref ที่ผู้ใช้ยื่น) — ต่างแค่เนื้อหาที่ซ่อน/โฟกัส คือ #section-acc-express
+    // แทน #section-debt เท่านั้น
+    const accExpressModuleToggle = document.getElementById('accexpress-module-toggle');
+    const accExpressViewEl = document.getElementById('acc-express-view');
+    const sectionAccExpressEl = document.getElementById('section-acc-express');
+    let accExpressModuleActive = false;
+
+    function setAccExpressModuleActive(active) {
+      accExpressModuleActive = active;
+      if (accExpressModuleToggle) {
+        accExpressModuleToggle.classList.toggle('active', active);
+        accExpressModuleToggle.setAttribute('aria-pressed', String(active));
+      }
+      if (contentInnerEl) contentInnerEl.classList.toggle('main__content-inner--accexpress-focus', active);
+      // ต่างจากโมดูล "ค่าปรับรถไม่เข้ารับงาน" ตรงที่ section นี้ต้องซ่อนอยู่บนหน้าหลัก
+      // เสมอเมื่อไม่ได้ focus — ไม่ใช่ section ที่โชว์ตลอดเวลาแล้วให้ focus mode ซ่อนแค่
+      // section อื่น (ดูคอมเมนต์ที่ index.html และ css/acc-express.css)
+      if (sectionAccExpressEl) sectionAccExpressEl.hidden = !active;
+      if (mainTitleEl) mainTitleEl.textContent = active ? 'ภาพรวมแผนกบัญชี' : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
+      if (active && sectionAccExpressEl) window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    // โฟกัสโมดูลเดียวได้ทีละอัน — สลับไปอันหนึ่งต้องปิดอีกอันก่อนเสมอ ไม่งั้น CSS ของ
+    // 2 focus mode จะซ่อน section ของกันและกันพร้อมกัน (จอว่างเปล่าทั้งหมด)
     if (driverModuleToggle) {
       driverModuleToggle.addEventListener('click', () => {
+        if (!driverModuleActive && accExpressModuleActive) setAccExpressModuleActive(false);
         setDriverModuleActive(!driverModuleActive);
+      });
+    }
+
+    if (accExpressModuleToggle) {
+      accExpressModuleToggle.addEventListener('click', () => {
+        if (!accExpressModuleActive && driverModuleActive) setDriverModuleActive(false);
+        setAccExpressModuleActive(!accExpressModuleActive);
       });
     }
 
@@ -224,6 +270,12 @@ const App = (() => {
     if (debtViewEl && typeof DebtTracker !== 'undefined') {
       const initialDebtMonth = FineData.monthLabelFromSelectedMonth(FineData.getDefaultMonth());
       DebtTracker.show(debtViewEl, initialDebtMonth);
+    }
+
+    // เรนเดอร์ส่วนเปรียบเทียบ Acc Vs Express ครั้งเดียวตอนโหลด (ไม่ผูกกับ month filter
+    // เหมือน debt — ข้อมูลเป็นคนละชุด อัพโหลดจากไฟล์แยกต่างหาก) AccExpress แคชผลไว้เอง
+    if (accExpressViewEl && typeof AccExpress !== 'undefined') {
+      AccExpress.render('acc-express-view');
     }
 
     // ── Mobile sidebar toggle ──
@@ -324,7 +376,12 @@ const App = (() => {
 
   function setViewMode(filterState) {
     const isComparisonMode = !!filterState.isComparisonMode;
+    // section-grand-summary ต้องซ่อนด้วยในโหมดภาพรวม — เดิมไม่อยู่ในลิสต์นี้ การ์ด
+    // "ยอดรวมค่าปรับทั้งหมด" ของ "เดือนที่เลือก" จึงค้างอยู่เหนือหน้าภาพรวมรายปี ทำให้
+    // เห็นตัวเลขรายเดือนปนกับรายปีในหน้าจอเดียว ตอนนี้โหมดภาพรวมมีการ์ดชุดเดียวกัน
+    // เวอร์ชันรายปีอยู่ในตัวแล้ว (js/comparison.js) จึงซ่อนของรายเดือนได้ตรงๆ
     const overviewSections = [
+      document.getElementById('section-grand-summary'),
       document.getElementById('section-kpi'),
       document.getElementById('section-charts'),
       document.getElementById('section-tables')
