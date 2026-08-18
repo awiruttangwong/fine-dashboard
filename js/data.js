@@ -534,6 +534,34 @@ const FineData = (() => {
     };
   }
 
+  // เหมือน getStatusAggregates() แต่นับจากแถวที่ผ่านตัวกรองแล้วโดยตรง (ใช้
+  // row.record_status_type ที่ applyStatusClassification() ผูกไว้ตั้งแต่โหลดข้อมูล)
+  // แทนการกรอง statusData ซ้ำด้วยเดือนอย่างเดียว — getFiltered() กรองได้มากกว่าแค่เดือน
+  // (ลูกค้า, พขร., เส้นทาง, ประเภทรถ, สถานะ, คำค้นหา) ถ้าใช้ getStatusAggregates(month)
+  // ตรงๆ ใน getAggregates() ยอด ปรับได้+รอปรับ+ปรับไม่ได้ จะไม่เท่ากับ totalFine ทันทีที่
+  // มีตัวกรองอื่นนอกจากเดือนถูกเลือก (การ์ด/popup ที่มาของยอดจะเห็นตัวเลขไม่ตรงกับการ์ด)
+  function getStatusAggregatesFromRows(rows) {
+    const result = {
+      paidAmount: 0, paidCount: 0,
+      pendingAmount: 0, pendingCount: 0,
+      uncollectibleAmount: 0, uncollectibleCount: 0
+    };
+    rows.forEach(row => {
+      const amount = row.fine_amount || 0;
+      if (row.record_status_type === 'ปรับได้') {
+        result.paidAmount += amount;
+        result.paidCount++;
+      } else if (row.record_status_type === 'รอปรับ') {
+        result.pendingAmount += amount;
+        result.pendingCount++;
+      } else if (row.record_status_type === 'ปรับไม่ได้') {
+        result.uncollectibleAmount += amount;
+        result.uncollectibleCount++;
+      }
+    });
+    return result;
+  }
+
   function getAggregates(data, selectedMonth) {
     const result = {
       count: data.length,
@@ -587,7 +615,7 @@ const FineData = (() => {
       result.fineAmountDistribution[row.fine_amount] = (result.fineAmountDistribution[row.fine_amount] || 0) + 1;
     });
 
-    const statusAgg = getStatusAggregates(selectedMonth);
+    const statusAgg = getStatusAggregatesFromRows(data);
     result.statusBreakdown = statusAgg;
     result.paidCompletedAmount = statusAgg.paidAmount;
     result.totalRemaining = result.totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
@@ -839,10 +867,13 @@ const FineData = (() => {
         fineRaw,
         uncollectibleAmount: statusAgg.uncollectibleAmount,
         uncollectibleCount: statusAgg.uncollectibleCount,
+        paidAmount: statusAgg.paidAmount,
         paidCount: statusAgg.paidCount,
+        pendingAmount: statusAgg.pendingAmount,
         pendingCount: statusAgg.pendingCount,
         debtTotal: debtSummary.amount,
         debtCount: debtSummary.count,
+        debtDeducted: debtSummary.deducted,
         installment,
         nonCollectibleDebt,
         totalFine: (fineRaw - statusAgg.uncollectibleAmount) + debtSummary.amount,
@@ -906,6 +937,49 @@ const FineData = (() => {
       dataIssues: yearData.filter(r => r.is_full_duplicate || r.is_barcode_duplicate || r.has_amount_mismatch || r.is_driver_blank).length
     };
     yearly.collectionRate = yearFineRaw > 0 ? (yearly.totalPaid / yearFineRaw) * 100 : 0;
+
+    // ── aggregates รูปทรงเดียวกับ getAggregates() ของโหมดรายเดือนเป๊ะ ──
+    // มีไว้ให้โหมด "ภาพรวม" (รายปี) เรนเดอร์การ์ด KPI ชุดเดียวกับหน้าหลักได้ตรงๆ ผ่าน
+    // KPICards.renderScope() โดยไม่ต้องเขียน config/สูตรของการ์ดซ้ำอีกชุด — ทุกค่าบวก
+    // มาจาก monthlyData ชุดเดิมที่ตาราง "ภาพรวมรายเดือน" ใช้ ตัวเลขบนการ์ดรายปีจึง
+    // เท่ากับผลรวมของทาราง 12 เดือนเสมอ ไม่ใช่คนละที่มา
+    const sumMonths = (fn) => monthlyData.reduce((s, m) => s + fn(m), 0);
+    const statusBreakdown = {
+      paidAmount: sumMonths(m => m.paidAmount),
+      paidCount: sumMonths(m => m.paidCount),
+      pendingAmount: sumMonths(m => m.pendingAmount),
+      pendingCount: sumMonths(m => m.pendingCount),
+      uncollectibleAmount: sumMonths(m => m.uncollectibleAmount),
+      uncollectibleCount: sumMonths(m => m.uncollectibleCount)
+    };
+    // นับสถานะการชำระของแถวค่าปรับทั้งปี — การ์ด "ค่าปรับรอชำระ" ใช้ค่านี้เพื่อเตือน
+    // จำนวนรายการที่ข้อมูลผิดพลาด (data_error) เหมือนโหมดรายเดือน
+    const paymentStatusCounts = {};
+    yearData.forEach(row => {
+      paymentStatusCounts[row.payment_status] = (paymentStatusCounts[row.payment_status] || 0) + 1;
+    });
+
+    yearly.aggregates = {
+      count: yearData.length,
+      totalFine: yearFineRaw,
+      totalPaid: sumMonths(m => m.totalPaid),
+      paidCompletedAmount: statusBreakdown.paidAmount,
+      totalRemaining: yearFineRaw - statusBreakdown.paidAmount - statusBreakdown.uncollectibleAmount,
+      collectionRate: yearly.collectionRate,
+      dataIssues: yearly.dataIssues,
+      paymentStatusCounts,
+      statusBreakdown,
+      installment: yearly.installment,
+      nonCollectibleDebt: {
+        totalCases: sumMonths(m => m.nonCollectibleDebt.totalCases),
+        totalAmount: sumMonths(m => m.nonCollectibleDebt.totalAmount)
+      },
+      debtGrandTotal: {
+        amount: sumMonths(m => m.debtTotal),
+        count: sumMonths(m => m.debtCount),
+        deducted: sumMonths(m => m.debtDeducted)
+      }
+    };
 
     return {
       year,

@@ -429,7 +429,10 @@ const KPICards = (() => {
     }
   ];
 
-  function renderGrid(containerId, configs, aggregates) {
+  // idPrefix ให้เรนเดอร์การ์ดชุดเดียวกันได้มากกว่า 1 ที่ในหน้าเดียว (โหมดปกติ = ราย
+  // เดือน, โหมด "ภาพรวม" = รายปี) โดย id ไม่ชนกัน — สไตล์ผูกกับ data-kpi ไม่ใช่ id
+  // (css/components.css) การ์ดทั้ง 2 ชุดจึงหน้าตาเหมือนกันเป๊ะโดยไม่ต้องก๊อป CSS
+  function renderGrid(containerId, configs, aggregates, idPrefix = '') {
     const el = document.getElementById(containerId);
     if (!el) return;
 
@@ -437,7 +440,7 @@ const KPICards = (() => {
       const value = config.getValue(aggregates);
       const clickable = typeof config.getBreakdown === 'function';
       return `
-        <div class="kpi-tile${clickable ? ' kpi-tile--clickable' : ''}" id="kpi-${config.id}"${clickable ? ' role="button" tabindex="0" aria-haspopup="dialog" title="ดูที่มาของยอด"' : ''}>
+        <div class="kpi-tile${clickable ? ' kpi-tile--clickable' : ''}" id="kpi-${idPrefix}${config.id}" data-kpi="${config.id}"${clickable ? ' role="button" tabindex="0" aria-haspopup="dialog" title="ดูที่มาของยอด"' : ''}>
           <div class="kpi-tile__eyebrow">
             <div class="kpi-card__icon ${config.iconClass}">${config.icon}</div>
             <span class="kpi-card__label">${config.label}</span>
@@ -453,10 +456,18 @@ const KPICards = (() => {
     }).join('');
 
     configs.forEach((config) => {
-      if (typeof config.getBreakdown !== 'function') return;
-      const card = document.getElementById(`kpi-${config.id}`);
+      const card = document.getElementById(`kpi-${idPrefix}${config.id}`);
       if (!card) return;
-      const open = () => showBreakdown(config);
+      // เก็บ aggregates ของรอบเรนเดอร์นี้ไว้เป็น property บน element โดยตรง (ไม่ใช่ผูก
+      // เข้ากับ closure ตรงๆ) เพราะตัวแปร filter ทุกตัวหลังโหลดหน้าแรก (เปลี่ยนเดือน/
+      // ลูกค้า/สถานะ ฯลฯ) วิ่งผ่าน KPICards.update() → updateGrid() ไม่ใช่ renderGrid()
+      // เดิม handler ผูก aggregates ของตอนโหลดหน้าแรกไว้เฉยๆ ไม่เคยอัปเดต ทำให้กด
+      // popup ทีหลังเห็นตัวเลขเก่าค้าง ไม่ตรงกับตัวเลขบนการ์ดที่ update() รีเฟรชแล้ว —
+      // updateGrid ด้านล่างเขียนทับ property นี้ทุกครั้ง ส่วน handler อ่านค่าสดจาก
+      // การ์ดตอนคลิก จึงตรงกับตัวเลขบนจอเสมอ ไม่ว่าจะกดตอนไหน
+      card.__kpiAggregates = aggregates;
+      if (typeof config.getBreakdown !== 'function') return;
+      const open = () => showBreakdown(config, card.__kpiAggregates);
       card.addEventListener('click', open);
       card.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); open(); } });
     });
@@ -470,10 +481,14 @@ const KPICards = (() => {
     });
   }
 
-  function updateGrid(configs, aggregates) {
+  function updateGrid(configs, aggregates, idPrefix = '') {
     configs.forEach((config) => {
-      const card = document.getElementById(`kpi-${config.id}`);
+      const card = document.getElementById(`kpi-${idPrefix}${config.id}`);
       if (!card) return;
+
+      // รีเฟรชอ้างอิงที่ click handler อ่านตอนเปิด popup breakdown — กันไม่ให้ popup
+      // ค้างข้อมูลรอบ render แรก (ดูคอมเมนต์ยาวใน renderGrid)
+      card.__kpiAggregates = aggregates;
 
       const valueEl = card.querySelector('.kpi-card__value');
       const detailEl = card.querySelector('.kpi-card__detail');
@@ -492,11 +507,18 @@ const KPICards = (() => {
     if (!container) return;
     lastAgg = aggregates;
 
-    renderGrid('kpi-grand-grid', grandConfigs, aggregates);
+    renderScope({ grand: 'kpi-grand-grid', fine: 'kpi-grid-fine', debt: 'kpi-grid-debt' }, aggregates);
+  }
+
+  // เรนเดอร์การ์ดชุดเดียวกัน (config/สูตร/ดีไซน์ชุดเดียวกันทั้งหมด) ลง container ใดก็ได้
+  // ใช้โดยโหมด "ภาพรวม" (รายปี) ที่ต้องการหน้าตาเหมือนโหมดรายเดือนเป๊ะ ต่างแค่ที่มา
+  // ของตัวเลข (yearly aggregates) — ไม่มีการคัดลอก config/มาร์กอัปไปเขียนซ้ำที่อื่น
+  function renderScope(targets, aggregates, idPrefix = '') {
+    renderGrid(targets.grand, grandConfigs, aggregates, idPrefix);
     // คนละกลุ่มข้อมูล ("ค่าปรับอื่นๆ" vs "ค่าปรับรถไม่เข้ารับงาน") จึงแยกเรนเดอร์คนละ
     // panel — ลำดับใน cardConfigs คงเดิม แค่แบ่งเป็น 2 container ตาม index
-    renderGrid('kpi-grid-fine', cardConfigs.slice(0, 4), aggregates);
-    renderGrid('kpi-grid-debt', cardConfigs.slice(4), aggregates);
+    renderGrid(targets.fine, cardConfigs.slice(0, 4), aggregates, idPrefix);
+    renderGrid(targets.debt, cardConfigs.slice(4), aggregates, idPrefix);
   }
 
   function update(aggregates) {
@@ -513,9 +535,10 @@ const KPICards = (() => {
     return String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   }
 
-  function showBreakdown(config) {
-    if (!lastAgg || typeof config.getBreakdown !== 'function') return;
-    const data = config.getBreakdown(lastAgg);
+  function showBreakdown(config, aggregates) {
+    const agg = aggregates || lastAgg;
+    if (!agg || typeof config.getBreakdown !== 'function') return;
+    const data = config.getBreakdown(agg);
 
     const rowsHtml = data.rows.map(r => `
       <div class="kpi-bd__row kpi-bd__row--${r.tone || 'neutral'}">
@@ -562,5 +585,5 @@ const KPICards = (() => {
     requestAnimationFrame(() => ov.classList.add('is-show'));
   }
 
-  return { render, update };
+  return { render, update, renderScope };
 })();
