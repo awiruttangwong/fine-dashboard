@@ -17,6 +17,12 @@ trap 'rm -rf "$STAGE_DIR"' EXIT
 
 cp -r index.html css js icons _headers "$STAGE_DIR/"
 
+# xlsx-comparison/ (โมดูลอัพโหลดขึ้นฐานข้อมูล) — คัดลอกเฉพาะ index.html/css/js เท่านั้น
+# ห้ามคัดลอกทั้งโฟลเดอร์ เพราะมีไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx" (ข้อมูล
+# ลูกค้า/ยอดเงินจริง) วางอยู่ข้างในสำหรับทดสอบ local เท่านั้น ต้องไม่หลุดขึ้นเว็บสาธารณะ
+mkdir -p "$STAGE_DIR/xlsx-comparison"
+cp -r xlsx-comparison/index.html xlsx-comparison/css xlsx-comparison/js "$STAGE_DIR/xlsx-comparison/"
+
 npx --yes wrangler pages deploy "$STAGE_DIR" \
   --project-name 2kfine-dashboard \
   --branch main \

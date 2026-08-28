@@ -116,6 +116,13 @@ const DebtTracker = (() => {
       if (okMsg) toast(okMsg, 'success');
       await load(true);
       if (highlightId) flashRow(highlightId);
+      // สั่ง dashboard หลักรีเฟรชข้อมูลพื้นหลัง (ไม่ await — ไม่บังคับให้ modal ต้องรอ
+      // การรีเฟรชนี้ก่อนปิด) ให้ KPI/กราฟ/ตารางอื่นที่รวมยอดหนี้เข้าไปด้วยตรงกับที่
+      // เพิ่งเขียนทันที แทนที่จะค้างค่าเดิมจนกว่าจะถึงรอบ auto-refresh ถัดไป (ดู
+      // window.FineDashboard.refreshNow ใน js/app.js)
+      if (window.FineDashboard && typeof window.FineDashboard.refreshNow === 'function') {
+        window.FineDashboard.refreshNow('debt-write');
+      }
       return res;
     } catch (err) { toast(err.message, 'error'); throw err; }
     finally { state.busy = false; }
@@ -338,7 +345,7 @@ const DebtTracker = (() => {
       actions = edit + pay + move;
     }
     const sub = `${esc(d.route)} · ${esc(fmtDate(d.startDate))}${d.customer ? ' · ลูกค้า ' + esc(d.customer) : ''}`;
-    // คอลัมน์ "ชำระแล้ว" โชว์เฉพาะแท็บ "ผ่อนเสร็จแล้ว" เพื่อให้เห็นตัวเลขที่รวมกันเป็น
+    // คอลัมน์ "ค่าปรับชำระแล้ว" โชว์เฉพาะแท็บ "ผ่อนเสร็จแล้ว" เพื่อให้เห็นตัวเลขที่รวมกันเป็น
     // ยอดบนการ์ด KPI "ผ่อนเสร็จแล้ว" ได้ตรงๆ ในตาราง ไม่ต้องเดา/บวกเอง — วางไว้ก่อน
     // "คงเหลือ" และใช้สีเขียว (cell-paid) ต่างจากสีแดงของคงเหลือ ให้แยกความหมายชัดเจน
     const paidCell = showPaid ? `<td class="cell-paid">${num(d.paid)}</td>` : '';
@@ -360,7 +367,7 @@ const DebtTracker = (() => {
     const colCount = showPaid ? 6 : 5;
     const body = rows.length ? rows.map(d => rowHtml(d, showPaid)).join('') : `<tr><td colspan="${colCount}"><div class="debt-empty">ไม่มีรายการ</div></td></tr>`;
     const paidCol = showPaid ? '<col class="col-balance">' : '';
-    const paidHeader = showPaid ? '<th class="cell-center">ชำระแล้ว</th>' : '';
+    const paidHeader = showPaid ? '<th class="cell-center">ค่าปรับชำระแล้ว</th>' : '';
     return `
       <div class="table-block" id="debt-group-${cls}">
         <div class="table-group-title table-group-title--${mod}">
@@ -441,14 +448,22 @@ const DebtTracker = (() => {
       const data = { name: g('a-name'), customer: g('a-customer'), fineType: g('a-type'), route: g('a-route'), date, total: g('a-total') || '0', installments: g('a-inst') || '12', collectible };
       if (!data.name || !data.customer || !data.fineType) { toast('ชื่อผู้รับโอน, ลูกค้า และสาเหตุ จำเป็นต้องระบุ', 'error'); return; }
       // เดือนปลายทางกำหนดจาก "วันที่เริ่ม" เสมอ — ไม่เดาเดือนปัจจุบันอีกต่อไป (กันข้อมูล
-      // ไหลผิดเดือนแบบเดียวกับ import). วันที่จึงจำเป็น และถ้ากำลังดูเดือนเจาะจงอยู่ วันที่
-      // ต้องอยู่ในเดือนนั้น ไม่งั้นบล็อก (กันเผลอเพิ่มข้ามเดือนที่กำลังดู)
+      // ไหลผิดเดือนแบบเดียวกับ import). วันที่จึงจำเป็น
       const md = date.match(/^(\d{4})-(\d{2})-\d{2}$/);
       if (!md) { toast('กรุณาระบุวันที่เริ่ม', 'error'); return; }
       const targetMonth = 'M' + Number(md[2]);
-      if (state.month !== 'all' && targetMonth !== state.month) { toast('วันที่เริ่มต้องอยู่ในเดือน ' + state.month.slice(1) + ' ที่กำลังดูอยู่', 'error'); return; }
       // แถวใหม่ยังไม่รู้ id (backend gen ให้) จึงไม่ส่ง highlightId
-      submitWrite(m.$('a-ok'), m.close, 'debt_add', Object.assign({ month: targetMonth }, data), 'เพิ่ม ' + data.name + ' แล้ว');
+      const doSubmit = () => submitWrite(m.$('a-ok'), m.close, 'debt_add', Object.assign({ month: targetMonth }, data), 'เพิ่ม ' + data.name + ' แล้ว');
+      // ถ้าวันที่เริ่มไม่อยู่ในเดือนที่กำลังดู ไม่บล็อกทันที — ถามยืนยันก่อน เผื่อผู้ใช้ตั้งใจ
+      // บันทึกย้อนหลัง/ล่วงหน้าจริงๆ กดยืนยันแล้วบันทึกลงเดือนตามวันที่เริ่มเสมอ (ไม่ใช่เดือนที่กำลังดู)
+      if (state.month !== 'all' && targetMonth !== state.month) {
+        const foot2 = '<button class="btn btn-outline-secondary" data-role="cancel" style="flex:1">ยกเลิก</button><button class="btn btn-warning" id="a-confirm-ok" style="flex:1">ยืนยันบันทึก</button>';
+        const cm = modal('ยืนยันบันทึกข้ามเดือน', `<p class="debt-note-box" style="margin:0">วันที่เริ่มอยู่ในเดือน <b>${targetMonth.slice(1)}</b> แต่ตอนนี้กำลังดูเดือน <b>${state.month.slice(1)}</b> อยู่<br>ต้องการยืนยันบันทึกลงเดือน <b>${targetMonth.slice(1)}</b> หรือไม่?</p>`, { foot: foot2 });
+        cm.ov.querySelector('[data-role=cancel]').onclick = cm.close;
+        cm.$('a-confirm-ok').onclick = () => { cm.close(); doSubmit(); };
+        return;
+      }
+      doSubmit();
     };
   }
 

@@ -270,7 +270,7 @@ const Filters = (() => {
               <span class="filter-month-label__right">
                 <button class="comparison-switch ${state.isComparisonMode ? 'active' : ''}" id="comparison-mode-toggle"
                         type="button" aria-pressed="${state.isComparisonMode}">
-                  <span class="comparison-switch__label">ภาพรวม</span>
+                  <span class="comparison-switch__label">ภาพรวมรายปี</span>
                   <span class="comparison-switch__track" aria-hidden="true">
                     <span class="comparison-switch__thumb"></span>
                   </span>

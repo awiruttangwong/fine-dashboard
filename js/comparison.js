@@ -12,87 +12,52 @@ const ComparisonView = (() => {
   const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
   const COLORS = ['#0071E3', '#FF9500', '#34C759', '#FF3B30', '#AF52DE', '#5AC8FA', '#5856D6', '#00C7BE', '#32ADE6', '#FFCC00'];
 
+  // เหลือเฉพาะไอคอนที่หัวตารางในหน้านี้ใช้จริง — ไอคอนของการ์ด KPI ย้ายไปอยู่กับ
+  // ชุดการ์ดกลางใน js/kpi.js แล้ว (หน้านี้เรียกผ่าน KPICards.renderScope)
   const ICONS = {
-    money: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>`,
     file: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><path d="M14 2v6h6"/><path d="M8 13h8M8 17h6"/></svg>`,
-    check: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><path d="m9 11 3 3L22 4"/></svg>`,
-    clock: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><circle cx="12" cy="12" r="10"/><path d="M12 6v6l4 2"/></svg>`,
-    trend: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="m3 17 6-6 4 4 8-8"/><path d="M15 7h6v6"/></svg>`,
-    alert: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M10.29 3.86 1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"/><line x1="12" y1="9" x2="12" y2="13"/><line x1="12" y1="17" x2="12.01" y2="17"/></svg>`,
     pie: `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21.21 15.89A10 10 0 1 1 8 2.83"/><path d="M22 12A10 10 0 0 0 12 2v10z"/></svg>`
   };
-
-  // ชุดการ์ด KPI เดียวกับหน้าแรก (js/kpi.js cardConfigs) เป๊ะ — ก่อนหน้านี้หน้านี้มีแค่
-  // 5 การ์ดสรุปกว้างๆ (ยอดปรับรวม/จำนวนรายการ/ชำระแล้ว/คงเหลือ/อัตราเรียกเก็บ) ซึ่งไม่มี
-  // "กำลังผ่อน"/"ผ่อนเสร็จแล้ว"/"ปรับไม่ได้" เลย ทำให้ดูภาพรวมทั้งปีไม่ครบเท่าโหมดปกติ
-  // เปลี่ยนให้ใช้ yearly.* ที่คำนวณด้วยสูตรเดียวกับ getAggregates ทุกกระเบียดนิ้วแทน
-  const KPI_CONFIGS = [
-    {
-      key: 'totalFine', label: 'ยอดปรับรวม', format: 'currency', icon: ICONS.money, tone: 'red',
-      detail: (yearly) => {
-        const netCount = yearly.totalRows - yearly.uncollectibleCount;
-        return `จาก ${formatNumber(netCount + yearly.debtCount)} รายการ`;
-      }
-    },
-    {
-      key: 'totalPaid', label: 'ชำระค่าปรับแล้ว', format: 'currency', icon: ICONS.check, tone: 'green',
-      detail: (yearly) => `${formatNumber(yearly.paidCount)} รายการที่ปรับได้`
-    },
-    {
-      key: 'totalRemaining', label: 'ยอดคงเหลือ', format: 'currency', icon: ICONS.alert, tone: 'orange',
-      detail: (yearly) => yearly.pendingCount > 0 ? `${formatNumber(yearly.pendingCount)} รายการรอปรับ` : 'ไม่มีรายการที่ต้องติดตาม'
-    },
-    {
-      key: 'installmentActive', label: 'กำลังผ่อน', format: 'currency', icon: ICONS.clock, tone: 'blue',
-      getValue: (yearly) => yearly.installment.totalRemainingAmount,
-      detail: (yearly) => yearly.installment.activeCases > 0 ? `${formatNumber(yearly.installment.activeCases)} รายการ` : 'ไม่มีรายการที่กำลังผ่อน'
-    },
-    {
-      key: 'installmentDone', label: 'ผ่อนเสร็จแล้ว', format: 'currency', icon: ICONS.check, tone: 'mint',
-      getValue: (yearly) => yearly.installment.doneAmount,
-      detail: (yearly) => yearly.installment.doneCases > 0 ? `${formatNumber(yearly.installment.doneCases)} รายการ` : 'ยังไม่มีรายการผ่อนเสร็จ'
-    },
-    {
-      key: 'nonCollectible', label: 'ปรับไม่ได้', format: 'currency', icon: ICONS.alert, tone: 'red',
-      getValue: (yearly) => yearly.nonCollectible.totalAmount,
-      detail: (yearly) => yearly.nonCollectible.totalCases > 0 ? `${formatNumber(yearly.nonCollectible.totalCases)} รายการ` : 'ไม่มีรายการปรับไม่ได้'
-    }
-  ];
 
   // ตัวชี้วัดที่กราฟ "แนวโน้มค่าปรับรายเดือน" สลับดูได้ทีละตัว (toggle) — ใช้สูตร/ฟิลด์
   // เดียวกับ monthlyData ใน getYearlyComparisonModel (js/data.js) ที่คำนวณตรงกับ
   // getAggregates ของโหมดปกติอยู่แล้ว ไม่มีการคำนวณใหม่ซ้ำในไฟล์นี้
+  // ป้ายปุ่มใช้คำเดียวกับที่ตั้งไว้ในป๊อปอัปที่มาของยอด (kpi.js) เป๊ะ — totalPaid/
+  // totalRemaining เป็นยอดฝั่ง "ค่าปรับอื่นๆ" เท่านั้น, installmentActive/Done เป็น
+  // ฝั่ง "รถไม่เข้ารับงาน" เท่านั้น ต้องระบุที่มาให้ชัด ไม่งั้นชนกับป้าย "ค่าปรับ
+  // ชำระแล้ว" ที่ใช้ทั้ง 2 ฝั่ง (totalFine/nonCollectible รวมทั้ง 2 แหล่งจึงไม่ต้อง
+  // ระบุ ใช้คำว่า "ทั้งหมด" แทน)
   const TREND_METRICS = [
     {
-      key: 'totalFine', label: 'ยอดปรับรวม', color: '#0071E3',
+      key: 'totalFine', label: 'ค่าปรับทั้งหมด', color: '#0071E3',
       getValue: (m) => m.totalFine, getCount: (m) => m.count,
-      chartSubtitle: 'ยอดปรับรวมรายเดือน'
+      chartSubtitle: 'ค่าปรับทั้งหมดรายเดือน'
     },
     {
-      key: 'totalPaid', label: 'ชำระค่าปรับแล้ว', color: '#34C759',
+      key: 'totalPaid', label: 'ค่าปรับอื่นๆชำระแล้ว', color: '#34C759',
       getValue: (m) => m.totalPaid, getCount: (m) => m.paidCount,
-      chartSubtitle: 'ยอดชำระค่าปรับแล้วรายเดือน'
+      chartSubtitle: 'ค่าปรับอื่นๆชำระแล้วรายเดือน'
     },
     {
-      key: 'totalRemaining', label: 'ยอดคงเหลือ', color: '#FF9500',
+      key: 'totalRemaining', label: 'ค่าปรับรอชำระอื่นๆ', color: '#FF9500',
       getValue: (m) => m.totalRemaining, getCount: (m) => m.pendingCount,
-      chartSubtitle: 'ยอดคงเหลือรายเดือน'
+      chartSubtitle: 'ค่าปรับรอชำระอื่นๆรายเดือน'
     },
     {
-      key: 'installmentActive', label: 'กำลังผ่อน', color: '#5856D6',
+      key: 'installmentActive', label: 'ค่าปรับผ่อนชำระรถไม่เข้ารับงาน', color: '#5856D6',
       getValue: (m) => m.installment.totalRemainingAmount, getCount: (m) => m.installment.activeCases,
-      chartSubtitle: 'ยอดกำลังผ่อนรายเดือน'
+      chartSubtitle: 'ค่าปรับผ่อนชำระรถไม่เข้ารับงานรายเดือน'
     },
     {
-      key: 'installmentDone', label: 'ผ่อนเสร็จแล้ว', color: '#00C7BE',
+      key: 'installmentDone', label: 'ค่าปรับรถไม่เข้ารับงานชำระแล้ว', color: '#00C7BE',
       getValue: (m) => m.installment.doneAmount, getCount: (m) => m.installment.doneCases,
-      chartSubtitle: 'ยอดผ่อนเสร็จแล้วรายเดือน'
+      chartSubtitle: 'ค่าปรับรถไม่เข้ารับงานชำระแล้วรายเดือน'
     },
     {
-      key: 'nonCollectible', label: 'ปรับไม่ได้', color: '#FF3B30',
+      key: 'nonCollectible', label: 'ปรับไม่ได้ทั้งหมด', color: '#FF3B30',
       getValue: (m) => m.uncollectibleAmount + m.nonCollectibleDebt.totalAmount,
       getCount: (m) => m.uncollectibleCount + m.nonCollectibleDebt.totalCases,
-      chartSubtitle: 'ยอดปรับไม่ได้รายเดือน'
+      chartSubtitle: 'ยอดปรับไม่ได้ทั้งหมดรายเดือน'
     }
   ];
 
@@ -126,38 +91,46 @@ const ComparisonView = (() => {
     return `${formatNumber(value)} ฿`;
   }
 
-  function formatValue(value, type) {
-    if (type === 'currency') return formatCurrency(value);
-    if (type === 'percent') return `${formatNumber(value, 1)}%`;
-    return `${formatNumber(value)} รายการ`;
-  }
-
-  // แยกตัวเลข/หน่วยเป็นคนละ span (main + suffix) เพื่อให้พิมพ์ตัวเลขใหญ่เด่น ส่วนหน่วย
-  // เล็กลงและมีสีตามโทนการ์ด — ดีไซน์เดียวกับ .kpi-card__value-main/suffix ของการ์ด
-  // KPI หน้าโหมดปกติ (css/components.css) ไม่ได้เปลี่ยนค่าตัวเลขใดๆ แค่จัดรูปแบบใหม่
-  function formatValueMarkup(value, type) {
-    if (type === 'currency') {
-      return `<span class="comparison-kpi__value-main">${formatNumber(value)}</span><span class="comparison-kpi__value-suffix">฿</span>`;
-    }
-    if (type === 'percent') {
-      return `<span class="comparison-kpi__value-main">${formatNumber(value, 1)}</span><span class="comparison-kpi__value-suffix">%</span>`;
-    }
-    return `<span class="comparison-kpi__value-main">${formatNumber(value)}</span><span class="comparison-kpi__value-suffix comparison-kpi__value-suffix--word">รายการ</span>`;
-  }
-
-  function renderKpiCard(config, yearly) {
-    const value = typeof config.getValue === 'function' ? config.getValue(yearly) : yearly[config.key];
+  // โครงเดียวกับ #section-grand-summary + #section-kpi ใน index.html เป๊ะ (คลาสชุด
+  // เดียวกันทุกตัว) ต่างแค่ id ของ container ที่เติม yearly- กันชนกับของโหมดรายเดือน
+  // ที่ยังอยู่ใน DOM (แค่ถูกซ่อน) — ตัวการ์ดข้างในเรนเดอร์โดย KPICards.renderScope()
+  // ด้วย config/สูตร/ป๊อปอัปที่มาของยอดชุดเดียวกับหน้าหลักทั้งหมด
+  function renderYearlyKpiSections() {
     return `
-      <article class="comparison-kpi comparison-kpi--${config.tone}">
-        <div class="comparison-kpi__header">
-          <span class="comparison-kpi__label">${escapeHtml(config.label)}</span>
-          <span class="comparison-kpi__icon">${config.icon}</span>
+      <section class="section" id="yearly-section-grand-summary">
+        <div class="section__title">
+          <svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+            <path d="M180-120q-24.75 0-42.37-17.63Q120-155.25 120-180v-600q0-24.75 17.63-42.38Q155.25-840 180-840h600q24.75 0 42.38 17.62Q840-804.75 840-780v600q0 24.75-17.62 42.37Q804.75-120 780-120H180Zm0-60h600v-600H180v600Zm90-90h60v-300h-60v300Zm150 0h60v-420h-60v420Zm150 0h60v-180h-60v180Z"/>
+          </svg>
+          ยอดรวมค่าปรับทั้งหมด
         </div>
-        <div class="comparison-kpi__value">${formatValueMarkup(value, config.format)}</div>
-        <div class="comparison-kpi__footer">
-          <span class="comparison-kpi__baseline">${escapeHtml(config.detail(yearly))}</span>
+        <div class="kpi-grid kpi-grid--grand" id="yearly-kpi-grand-grid"></div>
+      </section>
+
+      <section class="section" id="yearly-section-kpi">
+        <div class="section__title">
+          <svg width="18" height="18" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true">
+            <path d="M440-520v-280h440v280H440ZM80-160v-280h400v280H80Zm0-360v-280h280v280H80Zm440-80h280v-120H520v120ZM160-240h240v-120H160v120Zm0-360h120v-120H160v120Zm360 0ZM400-360ZM280-600ZM680-80l-12-60q-12-5-22.5-10.5T624-164l-58 18-40-68 46-40q-2-13-2-26t2-26l-46-40 40-68 58 18q11-8 21.5-13.5T668-420l12-60h80l12 60q12 5 22.5 10.5T816-396l58-18 40 68-46 40q2 13 2 26t-2 26l46 40-40 68-58-18q-11 8-21.5 13.5T772-140l-12 60h-80Zm96.5-143.5Q800-247 800-280t-23.5-56.5Q753-360 720-360t-56.5 23.5Q640-313 640-280t23.5 56.5Q687-200 720-200t56.5-23.5Z"/>
+          </svg>
+          สรุปภาพรวม
         </div>
-      </article>
+        <div class="kpi-groups">
+          <div class="kpi-panel kpi-panel--fine">
+            <div class="kpi-panel__label">
+              <svg class="kpi-panel__label-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm466 0q-47 47-113 47-11 0-28-2.5t-28-5.5q27-32 41.5-71t14.5-81q0-42-14.5-81T544-792q14-5 28-6.5t28-1.5q66 0 113 47t47 113q0 66-47 113ZM120-240h480v-32q0-11-5.5-20T580-306q-54-27-109-40.5T360-360q-56 0-111 13.5T140-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q440-607 440-640t-23.5-56.5Q393-720 360-720t-56.5 23.5Q280-673 280-640t23.5 56.5Q327-560 360-560t56.5-23.5ZM360-240Zm0-400Z"/></svg>
+              ค่าปรับอื่นๆ
+            </div>
+            <div class="kpi-panel__grid" id="yearly-kpi-grid-fine"></div>
+          </div>
+          <div class="kpi-panel kpi-panel--debt">
+            <div class="kpi-panel__label">
+              <svg class="kpi-panel__label-icon" xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M40-160v-112q0-34 17.5-62.5T104-378q62-31 126-46.5T360-440q66 0 130 15.5T616-378q29 15 46.5 43.5T680-272v112H40Zm720 0v-120q0-44-24.5-84.5T666-434q51 6 96 20.5t84 35.5q36 20 55 44.5t19 53.5v120H760ZM247-527q-47-47-47-113t47-113q47-47 113-47t113 47q47 47 47 113t-47 113q-47 47-113 47t-113-47Zm466 0q-47 47-113 47-11 0-28-2.5t-28-5.5q27-32 41.5-71t14.5-81q0-42-14.5-81T544-792q14-5 28-6.5t28-1.5q66 0 113 47t47 113q0 66-47 113ZM120-240h480v-32q0-11-5.5-20T580-306q-54-27-109-40.5T360-360q-56 0-111 13.5T140-306q-9 5-14.5 14t-5.5 20v32Zm296.5-343.5Q440-607 440-640t-23.5-56.5Q393-720 360-720t-56.5 23.5Q280-673 280-640t23.5 56.5Q327-560 360-560t56.5-23.5ZM360-240Zm0-400Z"/></svg>
+              ค่าปรับรถไม่เข้ารับงาน
+            </div>
+            <div class="kpi-panel__grid" id="yearly-kpi-grid-debt"></div>
+          </div>
+        </div>
+      </section>
     `;
   }
 
@@ -177,7 +150,10 @@ const ComparisonView = (() => {
       // ต้องใช้เวลาไทย (UTC+7) เหมือนทุกจุดที่ตัดสิน "เดือนปัจจุบัน" ในแอป —
       // new Date() ดิบอิงโซนเวลาเครื่องผู้ใช้ จึงไฮไลต์ผิดแถวช่วงคาบเกี่ยวสิ้นเดือน
       // เมื่อเปิดจากเครื่อง/เบราว์เซอร์ที่ตั้งโซนเวลาอื่น
-      const nowTh = (window.FineData && FineData.nowInThailand) ? FineData.nowInThailand() : new Date();
+      // FineData ประกาศด้วย const ระดับสคริปต์ จึงไม่ได้ถูกแขวนไว้บน window —
+      // เช็ค window.FineData เดิมเป็น false เสมอ ทำให้ตกไปใช้ new Date() (โซนเวลา
+      // เครื่องผู้ใช้) ทุกครั้ง ผิดเจตนาเดิมที่ต้องอิงเวลาไทยเหมือนทุกจุดในแอป
+      const nowTh = (typeof FineData !== 'undefined' && FineData.nowInThailand) ? FineData.nowInThailand() : new Date();
       const isCurrentMonth = m.index === nowTh.getMonth() + 1;
       const rowClasses = [isCurrentMonth ? 'row--current-month' : '', !m.count ? 'row--empty' : ''].filter(Boolean).join(' ');
       return `
@@ -207,9 +183,9 @@ const ComparisonView = (() => {
             <tr>
               <th style="text-align:left">เดือน</th>
               <th style="text-align:right">จำนวนรายการ</th>
-              <th style="text-align:right">ยอดปรับ</th>
-              <th style="text-align:right">ชำระค่าปรับแล้ว</th>
-              <th style="text-align:right">ยอดคงเหลือ</th>
+              <th style="text-align:right">ค่าปรับ</th>
+              <th style="text-align:right">ค่าปรับชำระแล้ว</th>
+              <th style="text-align:right">ค่าปรับคงเหลือ</th>
               <th style="text-align:right">ค่าปรับรถไม่เข้ารับงาน</th>
               <th style="text-align:right">อัตราเรียกเก็บ</th>
             </tr>
@@ -265,8 +241,8 @@ const ComparisonView = (() => {
             <tr>
               <th style="text-align:left;white-space:nowrap">ลูกค้า</th>
               <th style="text-align:right;white-space:nowrap">จำนวนรายการ</th>
-              <th style="text-align:right;white-space:nowrap">ยอดปรับรวม</th>
-              <th style="text-align:right;white-space:nowrap">ชำระแล้ว</th>
+              <th style="text-align:right;white-space:nowrap">ค่าปรับรวม</th>
+              <th style="text-align:right;white-space:nowrap">ค่าปรับชำระแล้ว</th>
             </tr>
           </thead>
           <tbody>
@@ -296,9 +272,7 @@ const ComparisonView = (() => {
           </div>
         </div>
 
-        <div class="comparison-kpi-grid">
-          ${KPI_CONFIGS.map(config => renderKpiCard(config, yearly)).join('')}
-        </div>
+        ${renderYearlyKpiSections()}
 
         <div class="comparison-yearly-chart-card chart-card">
           <div class="chart-card__header chart-card__header--stack">
@@ -323,10 +297,15 @@ const ComparisonView = (() => {
           </div>
         </div>
 
-        <div class="comparison-breakdown-grid">
-          <div class="chart-card comparison-yearly-table-card">
-            ${renderMonthlyTable(model)}
-          </div>
+        <div class="chart-card comparison-yearly-table-card">
+          ${renderMonthlyTable(model)}
+        </div>
+
+        <!-- กราฟสัดส่วน + ตารางสัดส่วนตามลูกค้า มาจากข้อมูลชุดเดียวกัน (customerBreakdown)
+             จึงวางคู่กันแบ่งฝั่งละ 50% แทนการวางเรียงเต็มความกว้างทีละการ์ด (เดิมการ์ด
+             โดนัทกว้างเต็มจอทำให้มีพื้นที่ว่างเปล่ามหาศาลรอบๆ วงกลม/legend ที่มีขนาด
+             เล็กกว่าการ์ดมาก) ดู .comparison-customer-row ใน css/comparison.css -->
+        <div class="comparison-customer-row">
           <div class="chart-card comparison-customer-chart-card">
             <div class="chart-card__header">
               <div>
@@ -338,20 +317,31 @@ const ComparisonView = (() => {
               <div class="comparison-doughnut-wrap">
                 <canvas id="chart-yearly-customer" role="img" aria-label="กราฟสัดส่วนลูกค้าทั้งปี"></canvas>
                 <div class="comparison-doughnut-center">
-                  <strong>${formatCurrency(yearly.totalFine)}</strong>
+                  <strong id="yearly-customer-total">0</strong>
                   <span>ยอดรวมทั้งปี</span>
                 </div>
               </div>
               <div class="comparison-customer-legend" id="yearly-customer-legend"></div>
             </div>
           </div>
-        </div>
 
-        <div class="chart-card">
-          ${renderCustomerYearlyTable(model)}
+          <div class="chart-card">
+            ${renderCustomerYearlyTable(model)}
+          </div>
         </div>
       </section>
     `;
+
+    // การ์ด KPI รายปี — ใช้โมดูลเดียวกับหน้าหลัก (config/สูตร/ป๊อปอัปที่มาของยอด/
+    // อนิเมชันนับเลข เหมือนกันทุกอย่าง) ต่างแค่ป้อน yearly.aggregates แทน aggregates
+    // รายเดือน จึงไม่มีทางที่ดีไซน์ 2 โหมดจะหลุดจากกันเวลาแก้การ์ดในอนาคต
+    if (typeof KPICards !== 'undefined' && yearly.aggregates) {
+      KPICards.renderScope(
+        { grand: 'yearly-kpi-grand-grid', fine: 'yearly-kpi-grid-fine', debt: 'yearly-kpi-grid-debt' },
+        yearly.aggregates,
+        'yearly-'
+      );
+    }
 
     renderYearlyTrendChart(model, currentTrendMetric);
     renderCustomerChart(model);
@@ -555,7 +545,7 @@ const ComparisonView = (() => {
     const canvas = document.getElementById('chart-yearly-customer');
     if (!canvas || typeof Chart === 'undefined') return;
 
-    const { customerBreakdown, yearly } = model;
+    const { customerBreakdown } = model;
     const entries = Object.entries(customerBreakdown)
       .filter(([, data]) => data.fineTotal > 0)
       .sort((a, b) => b[1].fineTotal - a[1].fineTotal);
@@ -564,6 +554,15 @@ const ComparisonView = (() => {
       canvas.hidden = true;
       return;
     }
+
+    // ยอดรวมกลางวงกลม + % ต้องคำนวณจากผลรวมของ "ก้อนที่แสดงอยู่จริง" (customerBreakdown)
+    // เท่านั้น — เดิมยอดกลางใช้ yearly.totalFine ซึ่งเป็นคนละสูตร (หัก uncollectible +
+    // บวกยอดหนี้ พขร.) ทำให้ยอดกลางไม่เท่ากับผลรวมของก้อนพายที่มองเห็น และ % ที่โชว์ตอน
+    // hover ก็ไม่รวมกันได้ 100% ข้าม customer — แก้ให้ยอดกลาง/tooltip/legend ใช้ total
+    // เดียวกันทั้งหมด จึงบวกกันได้ 100% เสมอ และตรงกับตัวเลขที่ตารางด้านข้างแสดงเป๊ะ
+    const total = entries.reduce((sum, [, data]) => sum + data.fineTotal, 0);
+    const totalEl = document.getElementById('yearly-customer-total');
+    if (totalEl) totalEl.textContent = formatCurrency(total);
 
     customerChart = new Chart(canvas.getContext('2d'), {
       type: 'doughnut',
@@ -591,7 +590,7 @@ const ComparisonView = (() => {
             bodyFont: { family: "'Prompt'", size: 11 },
             callbacks: {
               label: context => {
-                const pct = yearly.totalFine > 0 ? ((context.raw / yearly.totalFine) * 100).toFixed(1) : '0.0';
+                const pct = total > 0 ? ((context.raw / total) * 100).toFixed(1) : '0.0';
                 return ` ${context.label}: ${formatCurrency(context.raw)} (${pct}%)`;
               }
             }
@@ -602,7 +601,6 @@ const ComparisonView = (() => {
 
     const legendEl = document.getElementById('yearly-customer-legend');
     if (legendEl) {
-      const total = entries.reduce((sum, [, data]) => sum + data.fineTotal, 0);
       legendEl.innerHTML = entries.map(([name, data], i) => {
         const pct = total > 0 ? ((data.fineTotal / total) * 100).toFixed(1) : '0.0';
         return `

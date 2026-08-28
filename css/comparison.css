@@ -460,13 +460,6 @@
   font-size: var(--font-size-xs);
 }
 
-.comparison-breakdown-grid {
-  display: grid;
-  grid-template-columns: minmax(0, 2fr) minmax(320px, 1fr);
-  gap: var(--space-4);
-  align-items: stretch;
-}
-
 .comparison-table-wrap {
   margin-top: var(--space-4);
   overflow-x: auto;
@@ -522,12 +515,30 @@
   text-align: center !important;
 }
 
+/* ── สัดส่วนยอดปรับตามลูกค้า: การ์ดกราฟโดนัท + การ์ดตาราง แบ่งฝั่งละ 50% ──
+   เดิมวางเรียงเต็มความกว้างทีละการ์ด การ์ดโดนัทเลยกว้างเท่าทั้งหน้าจอทั้งที่วงกลม/
+   legend มีขนาดเล็กกว่ามาก เกิดพื้นที่ว่างมหาศาล จับคู่ไว้เป็นแถวเดียวกันแบ่งครึ่งแทน
+   ตารางยังมี .table-container (overflow-x:auto) ของตัวเองอยู่แล้ว จึง scroll แนวนอน
+   ได้เองถ้าคอลัมน์ไม่พอในความกว้างครึ่งจอ ไม่ต้องกังวลเรื่องล้น */
+.comparison-customer-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: var(--space-5);
+  align-items: stretch;
+}
+
+@media (max-width: 1050px) {
+  .comparison-customer-row {
+    grid-template-columns: 1fr;
+  }
+}
+
 /* ── Customer doughnut card ── */
 .comparison-customer-chart-layout {
   min-height: 300px;
   padding: var(--space-4) var(--space-5) var(--space-5);
   display: grid;
-  grid-template-columns: minmax(150px, 0.9fr) minmax(160px, 1.1fr);
+  grid-template-columns: 1fr 1fr;
   align-items: center;
   gap: var(--space-5);
 }
@@ -881,10 +892,6 @@
 @media (max-width: 1280px) {
   .comparison-kpi-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .comparison-breakdown-grid {
-    grid-template-columns: 1fr;
   }
 }
 
