@@ -318,6 +318,17 @@ function doGet(e) {
       return output_(debtWrite_('delete', params), callback);
     }
 
+    // ── xlsx-comparison module: อ่านข้อมูลที่อัพโหลดจากไฟล์ "เปรียบเทียบค่าปรับ
+    // Acc Vs Express.xlsx" กลับมา (เขียนผ่าน doPost action=acc_express_upload) ──
+    if (action === 'acc_express_data') {
+      return output_(buildAccExpressDataPayload_(), callback);
+    }
+    // แก้ไข/ลบ key ที่อัพโหลดผิดพลาดออกจาก AccExpressData โดยไม่ต้องรอไฟล์ใหม่
+    // (เช่น ไฟล์ทดสอบเผลอมีชีตที่ไม่ควรมีติดเข้าไป)
+    if (action === 'acc_express_delete') {
+      return output_(accExpressDelete_(params.key), callback);
+    }
+
     return output_(buildDataPayload_(params), callback);
   } catch (err) {
     return output_({
@@ -326,6 +337,176 @@ function doGet(e) {
       stack: err && err.stack ? String(err.stack) : null
     }, callback);
   }
+}
+
+/* ══════════════════════════════════════════════════════════════════════════
+   xlsx-comparison module — "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx"
+   ฝั่ง frontend (xlsx-comparison/js/app.js) parse ไฟล์ทั้งเล่มในเบราว์เซอร์แล้วส่ง
+   ทุกชีต (Summary + รายเดือน) มาเก็บที่นี่เป็น JSON ต่อแถวในแท็บเดียว (ไม่แยกแท็บ
+   ต่อเดือนแบบ SUM(Mx)) — payload มีขนาดหลักร้อย KB ต่อการอัพโหลด (ทั้งปี) จึงใช้
+   doPost แทน JSONP GET (ที่ใช้ทั่วทั้ง backend นี้) เพราะ URL query string มีขีดจำกัด
+   ความยาวที่รับไม่ไหว — frontend ส่ง body เป็น text/plain (ไม่ใช่ application/json)
+   เพื่อเลี่ยง CORS preflight ที่ Apps Script ตอบ OPTIONS ไม่ได้
+   ══════════════════════════════════════════════════════════════════════════ */
+
+function doPost(e) {
+  var callback = (e && e.parameter && e.parameter.callback) || null;
+  try {
+    var body = e && e.postData ? e.postData.contents : '';
+    var payload = JSON.parse(body || '{}');
+    var action = cleanText_(payload.action);
+
+    if (action === 'acc_express_upload') {
+      return output_(accExpressUpload_(payload), callback);
+    }
+
+    throw new Error('unknown POST action: ' + action);
+  } catch (err) {
+    return output_({
+      ok: false,
+      error: String(err && err.message ? err.message : err),
+      stack: err && err.stack ? String(err.stack) : null
+    }, callback);
+  }
+}
+
+// ── หา/สร้างแท็บ AccExpressData พร้อมหัวคอลัมน์ (idempotent เหมือน getOrCreateDebtSheet_) ──
+function getOrCreateAccExpressSheet_(ss) {
+  var name = BACKEND_CONFIG.accExpressSheetName;
+  var headers = BACKEND_CONFIG.accExpressHeaders;
+  var sheet = ss.getSheetByName(name);
+  if (!sheet) sheet = ss.insertSheet(name);
+
+  var existingHeader = sheet.getLastColumn() > 0 ? sheet.getRange(1, 1, 1, headers.length).getDisplayValues()[0] : [];
+  var needsHeader = existingHeader.length < headers.length ||
+    headers.some(function(h, i) { return cleanText_(existingHeader[i]) !== h; });
+  if (needsHeader) {
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]).setFontWeight('bold');
+    sheet.setFrozenRows(1);
+  }
+  return sheet;
+}
+
+// ── WRITE: upsert ตาม sheet_key (คีย์ = ชื่อชีตต้นฉบับ เช่น "Summary", "Jan") ──
+// key ที่ส่งมาแล้วมีแถวอยู่แล้ว → เขียนทับแถวนั้น (แทนที่ข้อมูลเก่าเสมอ)
+// key ที่ยังไม่เคยมี (เดือนใหม่) → เพิ่มแถวใหม่ ไม่กระทบ key อื่นที่ไม่ได้ส่งมาในรอบนี้
+function accExpressUpload_(payload) {
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    var sheets = payload.sheets;
+    if (!sheets || typeof sheets !== 'object' || !Object.keys(sheets).length) {
+      throw new Error('ต้องส่ง sheets เป็น object ของ { ชื่อชีต: array-of-arrays } อย่างน้อย 1 ชีต');
+    }
+
+    var ss = openBackendSpreadsheet_();
+    var sheet = getOrCreateAccExpressSheet_(ss);
+    var sourceFileName = cleanText_(payload.source_file_name);
+    var now = new Date().toISOString();
+
+    var lastRow = sheet.getLastRow();
+    var existingKeys = lastRow > 1 ? sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues() : [];
+    var rowByKey = {};
+    for (var i = 0; i < existingKeys.length; i++) {
+      var k = cleanText_(existingKeys[i][0]);
+      if (k) rowByKey[k] = i + 2; // +2: offset ของ getRange(2,...) + 1-based
+    }
+
+    var updatedKeys = [];
+    Object.keys(sheets).forEach(function(key) {
+      var cleanKey = cleanText_(key);
+      if (!cleanKey) return;
+      var json = JSON.stringify(sheets[key]);
+      var rowIndex = rowByKey[cleanKey];
+
+      if (rowIndex) {
+        sheet.getRange(rowIndex, 2, 1, 3).setValues([[now, sourceFileName, json]]);
+      } else {
+        sheet.appendRow([cleanKey, now, sourceFileName, json]);
+      }
+      updatedKeys.push(cleanKey);
+    });
+
+    return {
+      ok: true,
+      action: 'acc_express_upload',
+      updated_at: now,
+      updated_keys: updatedKeys
+    };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+// ── ลบแถวเดียวออกจาก AccExpressData ตาม sheet_key ──
+function accExpressDelete_(key) {
+  var cleanKey = cleanText_(key);
+  if (!cleanKey) throw new Error('ต้องระบุ key');
+
+  var lock = LockService.getDocumentLock();
+  lock.waitLock(30000);
+  try {
+    var ss = openBackendSpreadsheet_();
+    var sheet = ss.getSheetByName(BACKEND_CONFIG.accExpressSheetName);
+    if (!sheet) return { ok: true, action: 'acc_express_delete', key: cleanKey, deleted: false };
+
+    var lastRow = sheet.getLastRow();
+    if (lastRow > 1) {
+      var keys = sheet.getRange(2, 1, lastRow - 1, 1).getDisplayValues();
+      for (var i = 0; i < keys.length; i++) {
+        if (cleanText_(keys[i][0]) === cleanKey) {
+          sheet.deleteRow(i + 2);
+          return { ok: true, action: 'acc_express_delete', key: cleanKey, deleted: true };
+        }
+      }
+    }
+    return { ok: true, action: 'acc_express_delete', key: cleanKey, deleted: false };
+  } finally {
+    if (lock.hasLock()) lock.releaseLock();
+  }
+}
+
+// ── READ: คืนทุกชีตที่เคยอัพโหลดไว้ กลับมาเป็น { sheet_key: array-of-arrays } ──
+function buildAccExpressDataPayload_() {
+  var ss = openBackendSpreadsheet_();
+  var sheet = ss.getSheetByName(BACKEND_CONFIG.accExpressSheetName);
+  if (!sheet) {
+    return {
+      ok: true,
+      action: 'acc_express_data',
+      generated_at: new Date().toISOString(),
+      sheets: {},
+      updated_at: {}
+    };
+  }
+
+  var lastRow = sheet.getLastRow();
+  var sheetsOut = {};
+  var updatedAt = {};
+
+  if (lastRow > 1) {
+    var rows = sheet.getRange(2, 1, lastRow - 1, 4).getValues();
+    rows.forEach(function(row) {
+      var key = cleanText_(row[0]);
+      if (!key) return;
+      try {
+        sheetsOut[key] = JSON.parse(row[3]);
+        updatedAt[key] = row[1];
+      } catch (parseErr) {
+        // ข้ามแถวที่ JSON เสีย ไม่ให้ล้มทั้ง payload — ไม่ควรเกิดขึ้นเพราะเขียนด้วย
+        // JSON.stringify เสมอ แต่กันไว้เผื่อมีคนแก้ cell ตรงๆ ใน sheet
+      }
+    });
+  }
+
+  return {
+    ok: true,
+    action: 'acc_express_data',
+    generated_at: new Date().toISOString(),
+    row_count: lastRow > 1 ? lastRow - 1 : 0,
+    sheets: sheetsOut,
+    updated_at: updatedAt
+  };
 }
 
 function buildHealthPayload_() {
