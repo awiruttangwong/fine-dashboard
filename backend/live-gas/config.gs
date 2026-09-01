@@ -105,7 +105,7 @@ var BACKEND_CONFIG = {
     { label: 'M6', id: '1DEQ2s_C2EszJ27udXkd7L1IJGo4syGUiHM4VCE-9Fh0' },
     { label: 'M7', id: '15Z8CC5Y53NVEuKy52sq1eZhdeHkXqmX2ZrXcBEGs558' },
     { label: 'M8', id: '173rdnYB8xT92abBkTOCIsxZFcDTSaKCYWjc6Y7exIV8' },
-    { label: 'M9', id: '' },
+    { label: 'M9', id: '13GOiVbZRv86HQG3OQO_d4rFY_oMZ3U1HUf7utT2JmYE' },
     { label: 'M10', id: '' },
     { label: 'M11', id: '' },
     { label: 'M12', id: '' }
@@ -114,5 +114,10 @@ var BACKEND_CONFIG = {
   validRowPolicy: {
     requireAtLeastOneIdentifier: ['fine_date', 'barcode', 'route', 'driver_name', 'receiver_name'],
     requireAtLeastOneBusinessField: ['customer', 'fine_amount', 'paid_amount', 'remaining_amount']
-  }
+  },
+  // ── xlsx-comparison module: "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx" ──
+  // เก็บทุกชีต (Summary + รายเดือน) ไว้ในแท็บเดียวเป็น JSON ต่อแถว (คีย์ = ชื่อชีต)
+  // ไม่แยกแท็บต่อเดือนเหมือน SUM(Mx)/Drivers(Mx) เพื่อไม่ให้คลังกลางรกเพิ่ม
+  accExpressSheetName: 'AccExpressData',
+  accExpressHeaders: ['sheet_key', 'updated_at', 'source_file_name', 'json_data']
 };
