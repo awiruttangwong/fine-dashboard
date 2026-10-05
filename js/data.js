@@ -616,7 +616,7 @@ const FineData = (() => {
     const statusAgg = getStatusAggregatesFromRows(data);
     result.statusBreakdown = statusAgg;
     result.paidCompletedAmount = statusAgg.paidAmount;
-    result.totalRemaining = result.totalFine - statusAgg.paidAmount - statusAgg.uncollectibleAmount;
+    result.totalRemaining = statusAgg.pendingAmount; // = ยอดชีต "รอปรับ" เท่านั้น (ไม่รวมแถวที่ยังไม่ถูกจัดสถานะ)
     result.collectionRate = result.totalFine > 0 ? (statusAgg.paidAmount / result.totalFine) * 100 : 0;
     result.installment = getInstallmentSummary(selectedMonth);
     result.debtGrandTotal = getDebtGrandTotalSummary(selectedMonth);
@@ -876,7 +876,7 @@ const FineData = (() => {
         nonCollectibleDebt,
         totalFine: (fineRaw - statusAgg.uncollectibleAmount) + debtSummary.amount,
         totalPaid: statusAgg.paidAmount,
-        totalRemaining: fineRaw - statusAgg.paidAmount - statusAgg.uncollectibleAmount,
+        totalRemaining: statusAgg.pendingAmount,
         collectionRate: fineRaw > 0 ? (statusAgg.paidAmount / fineRaw) * 100 : 0,
         rows
       };
@@ -962,7 +962,7 @@ const FineData = (() => {
       totalFine: yearFineRaw,
       totalPaid: sumMonths(m => m.totalPaid),
       paidCompletedAmount: statusBreakdown.paidAmount,
-      totalRemaining: yearFineRaw - statusBreakdown.paidAmount - statusBreakdown.uncollectibleAmount,
+      totalRemaining: statusBreakdown.pendingAmount,
       collectionRate: yearly.collectionRate,
       dataIssues: yearly.dataIssues,
       paymentStatusCounts,
