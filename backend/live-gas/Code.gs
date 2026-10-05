@@ -700,21 +700,9 @@ function debtActualMonthFromCell_(rawValue, displayText) {
 function detectMonthMismatches_(fineRows, driverRows, paymentRows) {
   var items = [];
 
-  fineRows.forEach(function(row) {
-    if (!row.fine_month || !row.source_sheet_month) return;
-    // SPX พิเศษ: ยืนยันกับผู้ใช้แล้วว่าวันที่จริงข้ามเดือนจากชื่อชีตเป็นเรื่องปกติ
-    // เฉพาะ courier นี้ (ไม่ใช่ human error) — frontend เองก็นับ SPX เป็นของเดือนตาม
-    // ชื่อชีตแล้ว (ดู effective_month_key ใน js/data.js) จึงไม่ต้อง alert ให้ตรวจสอบ
-    if (row.customer === 'SPX') return;
-    if (row.fine_month !== row.source_sheet_month) {
-      items.push({
-        source: row.source_sheet,
-        expected_month: row.source_sheet_month,
-        actual_month: row.fine_month,
-        detail: 'แถวที่ ' + row.source_row + ' (' + (row.customer || '-') + ', ' + (row.barcode || '-') + ') วันที่จริง ' + (row.fine_date_raw || '-')
-      });
-    }
-  });
+  // ค่าปรับ (SUM/รอปรับ/ปรับได้/ปรับไม่ได้): ไม่ตรวจเดือนของวันที่เทียบกับชื่อชีตอีกแล้ว —
+  // กฎของระบบคือข้อมูลอยู่ชีตเดือนไหนก็นับเป็นเดือนนั้นเสมอ (ค่าปรับย้อนหลังเรียกเก็บในเดือนที่
+  // บันทึก ทุกลูกค้า) วันที่ข้ามเดือนจึงเป็นเรื่องปกติ ไม่ใช่ข้อผิดพลาดที่ต้องแจ้งเตือน
 
   driverRows.forEach(function(row) {
     var expected = extractMonthNumberFromLabel_(row.month_label);
