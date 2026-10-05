@@ -7,6 +7,9 @@ var BACKEND_CONFIG = {
   timezone: 'Asia/Bangkok',
   headerRow: 1,
   defaultAction: 'data',
+  // ลูกค้าที่ไม่นำเข้าคลังกลาง/ไม่ประมวลผลเลย (ทั้งตอนซิงค์ SUM/รอปรับ/ปรับได้/ปรับไม่ได้
+  // และตอนอ่านข้อมูลให้ dashboard) — J&T ซ้ำกับ Drivers(Mx) (ค่าปรับรถไม่เข้ารับงาน)
+  excludedCustomers: ['J&T'],
   statusSheetNames: ['รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],
   monthlySheetPattern: /^(SUM|รอปรับ|ปรับได้|ปรับไม่ได้)\(M(\d{1,2})\)$/i,
   supportedSheetTypes: ['SUM', 'รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],

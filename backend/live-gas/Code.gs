@@ -110,6 +110,15 @@ function sortWarehouseSheetsByMonth_(ss) {
   });
 }
 
+// ลูกค้าที่ถูกยกเว้นไม่ให้เข้าประมวลผล (ดู BACKEND_CONFIG.excludedCustomers) — เทียบแบบไม่สนตัวพิมพ์/ช่องว่าง
+function isExcludedCustomer_(value) {
+  var key = cleanText_(value).toUpperCase().replace(/\s+/g, '');
+  if (!key) return false;
+  return (BACKEND_CONFIG.excludedCustomers || []).some(function(name) {
+    return String(name).toUpperCase().replace(/\s+/g, '') === key;
+  });
+}
+
 function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel) {
   return BACKEND_CONFIG.statusSheetNames.map(function(sheetType) {
     var synced = refreshAndRebuildWarehouse_(
@@ -161,6 +170,13 @@ function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, central
   var displayValues = sourceRange.getDisplayValues();
   var sheetMonth = extractSheetMonth_(targetSheetName);
   var syncedValues = buildSyncedWarehouseValues_(rawValues, displayValues, sheetMonth);
+  // ตัดแถวของลูกค้าที่ยกเว้น (J&T) ออกก่อนเขียนลงคลังกลาง — หาคอลัมน์จากหัว "ลูกค้า"
+  var customerCol = syncedValues[0].indexOf('ลูกค้า');
+  if (customerCol < 0) customerCol = 1;
+  syncedValues = syncedValues.filter(function(row, rowIndex) {
+    return rowIndex === 0 || !isExcludedCustomer_(row[customerCol]);
+  });
+  lastRowSource = syncedValues.length;
   enforceSyncColumnFormats_(targetSheet, lastRowSource);
   targetSheet.getRange(1, 1, lastRowSource, lastColSource).setValues(syncedValues);
   applyStrictStructuralLayout_(targetSheet, targetSheetName, lastRowSource, lastColSource);
@@ -1635,6 +1651,7 @@ function normalizeSheetRow_(values, displayValues, headerMap, descriptor, source
   var routeRaw = getCellByField_(values, displayValues, headerMap, 'route');
   var route = parseRoute_(routeRaw);
   var customer = cleanText_(getCellByField_(values, displayValues, headerMap, 'customer')).toUpperCase();
+  if (isExcludedCustomer_(customer)) return null;
   var barcode = cleanText_(getCellByField_(values, displayValues, headerMap, 'barcode'));
   var fineAmount = toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'fine_amount'));
   var paidAmount = toNullableNumber_(getValueForNumberField_(values, displayValues, headerMap, 'paid_amount'));
