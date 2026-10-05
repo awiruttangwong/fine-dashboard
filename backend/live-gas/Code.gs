@@ -46,14 +46,17 @@ function runCentralDataSync_() {
 
     try {
       var sourceSs = SpreadsheetApp.openById(cleanText_(source.id));
-      var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')');
-      var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label);
+      // แถวที่สาเหตุเป็น "เคลมพัสดุ" (อ่านจากชีตลูกค้าในไฟล์เดือนตรงๆ เพราะ SUM ไม่มีคอลัมน์
+      // สาเหตุ) — ตัดออกจาก SUM/รอปรับ/ปรับได้/ปรับไม่ได้ ทุกเดือน
+      var claimStats = { keys: collectClaimExclusionKeys_(sourceSs), removed: {} };
+      var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')', { claimStats: claimStats });
+      var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label, claimStats);
       // ไม่ copy ข้อมูล Drivers/Payments จากไฟล์รายเดือนอีกต่อไป — คลังกลางเป็นแหล่งข้อมูล
       // หลักแล้ว native UI เขียนตรงเข้าคลัง ถ้ายัง copy จากไฟล์รายเดือนจะทับข้อมูลที่เพิ่ง
       // เขียนหาย
 
       if (sumStatus) {
-        processLog.push(source.label + ': สำเร็จ' + buildStatusSyncLog_(statusResults));
+        processLog.push(source.label + ': สำเร็จ' + buildStatusSyncLog_(statusResults) + buildClaimLog_(claimStats));
       } else {
         processLog.push(source.label + ': พบปัญหาโครงสร้างแผ่นงานต้นทาง SUM');
       }
@@ -119,14 +122,45 @@ function isExcludedCustomer_(value) {
   });
 }
 
-function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel) {
+// ── เคลมพัสดุ: คืน set ของคีย์ "บาร์โค้ด|ยอดปรับ" จากชีตลูกค้าในไฟล์เดือน ที่คอลัมน์สาเหตุมี
+// คำว่า "เคลมพัสดุ" (ดู BACKEND_CONFIG.claimExclusion) ใช้คีย์เดียวกันจับแถวใน SUM/สถานะ
+function collectClaimExclusionKeys_(sourceSpreadsheet) {
+  var rule = BACKEND_CONFIG.claimExclusion;
+  var keys = {};
+  if (!rule) return keys;
+  rule.sheets.forEach(function(sheetName) {
+    var sheet = sourceSpreadsheet.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var lastCol = Math.max(rule.reasonColIdx, rule.barcodeColIdx, rule.amountColIdx) + 1;
+    if (sheet.getLastColumn() < lastCol) return;
+    var values = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol).getDisplayValues();
+    values.forEach(function(row) {
+      if (cleanText_(row[rule.reasonColIdx]).indexOf(rule.keyword) === -1) return;
+      keys[claimKey_(row[rule.barcodeColIdx], row[rule.amountColIdx])] = true;
+    });
+  });
+  return keys;
+}
+
+function claimKey_(barcode, amount) {
+  var n = parseFloat(cleanText_(amount).replace(/[^0-9.\-]/g, ''));
+  return cleanText_(barcode).toUpperCase() + '|' + (isFinite(n) ? n : cleanText_(amount));
+}
+
+function buildClaimLog_(claimStats) {
+  var parts = Object.keys(claimStats.removed).filter(function(k) { return claimStats.removed[k] > 0; })
+    .map(function(k) { return k + ' ' + claimStats.removed[k]; });
+  return parts.length ? ' | ตัดเคลมพัสดุ: ' + parts.join(', ') : '';
+}
+
+function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel, claimStats) {
   return BACKEND_CONFIG.statusSheetNames.map(function(sheetType) {
     var synced = refreshAndRebuildWarehouse_(
       sourceSpreadsheet,
       sheetType,
       centralSpreadsheet,
       sheetType + '(' + sourceLabel + ')',
-      { required: false }
+      { required: false, claimStats: claimStats }
     );
     return { type: sheetType, synced: synced };
   });
@@ -176,6 +210,23 @@ function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, central
   syncedValues = syncedValues.filter(function(row, rowIndex) {
     return rowIndex === 0 || !isExcludedCustomer_(row[customerCol]);
   });
+  // ตัดแถว "เคลมพัสดุ" (คีย์จาก collectClaimExclusionKeys_) — จับด้วยลูกค้า+บาร์โค้ด+ยอดปรับ
+  var claimStats = options.claimStats;
+  if (claimStats && Object.keys(claimStats.keys).length) {
+    var header = syncedValues[0];
+    var barcodeCol = header.indexOf('บาร์โค้ด');
+    var amountCol = header.indexOf('ยอดปรับ');
+    var claimSheets = BACKEND_CONFIG.claimExclusion.sheets.map(function(s) { return s.toUpperCase(); });
+    if (barcodeCol >= 0 && amountCol >= 0) {
+      var before = syncedValues.length;
+      syncedValues = syncedValues.filter(function(row, rowIndex) {
+        if (rowIndex === 0) return true;
+        if (claimSheets.indexOf(cleanText_(row[customerCol]).toUpperCase()) === -1) return true;
+        return !claimStats.keys[claimKey_(row[barcodeCol], row[amountCol])];
+      });
+      claimStats.removed[sourceSheetType] = before - syncedValues.length;
+    }
+  }
   lastRowSource = syncedValues.length;
   enforceSyncColumnFormats_(targetSheet, lastRowSource);
   targetSheet.getRange(1, 1, lastRowSource, lastColSource).setValues(syncedValues);

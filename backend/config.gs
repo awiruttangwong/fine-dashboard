@@ -10,6 +10,9 @@ var BACKEND_CONFIG = {
   // ลูกค้าที่ไม่นำเข้าคลังกลาง/ไม่ประมวลผลเลย (ทั้งตอนซิงค์ SUM/รอปรับ/ปรับได้/ปรับไม่ได้
   // และตอนอ่านข้อมูลให้ dashboard) — J&T ซ้ำกับ Drivers(Mx) (ค่าปรับรถไม่เข้ารับงาน)
   excludedCustomers: ['J&T'],
+  // แถวที่สาเหตุ (คอลัมน์ C ของชีตลูกค้าในไฟล์เดือน) มีคำว่า "เคลมพัสดุ" ไม่นำเข้า SUM/รอปรับ/ปรับได้/ปรับไม่ได้
+  // ทุกเดือน — index นับจาก 0: C=2 สาเหตุ, D=3 บาร์โค้ด, K=10 ยอดปรับ
+  claimExclusion: { sheets: ['BEST'], keyword: 'เคลมพัสดุ', reasonColIdx: 2, barcodeColIdx: 3, amountColIdx: 10 },
   statusSheetNames: ['รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],
   monthlySheetPattern: /^(SUM|รอปรับ|ปรับได้|ปรับไม่ได้)\(M(\d{1,2})\)$/i,
   supportedSheetTypes: ['SUM', 'รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],
