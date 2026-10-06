@@ -294,11 +294,12 @@ const AccExpress = (() => {
   }
 
   // แถวเทียบ 1 บรรทัดในการ์ด: ชื่อ | ไฟล์ | ระบบ | ส่วนต่าง
-  function cmpRowHtml(fileLabel, fileVal, sysLabel, sysVal) {
+  function cmpRowHtml(topic, fileLabel, fileVal, sysLabel, sysVal) {
     const diff = sysVal - fileVal;
     const ok = Math.round(diff) === 0;
     return `
       <div class="acc-cmp-row${ok ? '' : ' is-diff'}">
+        <div class="acc-cmp-row__topic">${escHtml(topic)}</div>
         <div class="acc-cmp-row__pair">
           <div class="acc-cmp-row__item"><span>${escHtml(fileLabel)}</span><b>${fmtNum(fileVal) || '0'}</b></div>
           <div class="acc-cmp-row__item"><span>${escHtml(sysLabel)}</span><b>${fmtNum(sysVal) || '0'}</b></div>
@@ -318,8 +319,8 @@ const AccExpress = (() => {
           <span class="acc-cmp-card__name">${escHtml(label)}</span>
           <span class="acc-cmp-badge ${hasDiff ? 'is-diff' : 'is-ok'}">${hasDiff ? 'มีส่วนต่าง' : 'ตรงกัน'}</span>
         </div>
-        ${rows.map((r) => cmpRowHtml(r.fileLabel, r.fileVal, r.sysLabel, r.sysVal)).join('')}
-        <div class="acc-cmp-card__more">ดูรายละเอียดทั้งหมด${listCount ? ` · ${listCount} รายการในระบบ` : ''} →</div>
+        ${rows.map((r) => cmpRowHtml(r.topic, r.fileLabel, r.fileVal, r.sysLabel, r.sysVal)).join('')}
+        <div class="acc-cmp-card__more">ดูรายละเอียดทั้งหมด${listCount ? ` · ระบบ ${listCount} รายการ` : ''} →</div>
       </div>`;
   }
 
@@ -377,22 +378,22 @@ const AccExpress = (() => {
       fineCats.forEach((c) => allFineCats.push(Object.assign({ customer: g.label }, c)));
 
       fineCards.push(cmpCardHtml(g.label, [
-        { fileLabel: 'Express (ไฟล์)', fileVal: fineExp, sysLabel: 'SUM (ระบบ)', sysVal: s.sum },
-        { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: fineAcc, sysLabel: 'ปรับได้ (ระบบ)', sysVal: s.paid }
+        { topic: 'ยอดแจ้งปรับ', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: fineExp, sysLabel: 'ระบบ', sysVal: s.sum },
+        { topic: 'ยอดปรับได้จริง', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: fineAcc, sysLabel: 'ระบบ', sysVal: s.paid }
       ], fineList, s.sumRows.length, false, { kind: 'fine', monthNum, fileCats: fineCats, sysRows: s.sumRows }));
       drvCards.push(cmpCardHtml(g.label, [
-        { fileLabel: 'Express (ไฟล์)', fileVal: drvExp, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: s.drvTotal },
-        { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: drvAcc, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: s.drvPaid }
+        { topic: 'ยอดแจ้งปรับ', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: drvExp, sysLabel: 'ระบบ', sysVal: s.drvTotal },
+        { topic: 'ยอดปรับได้จริง', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: drvAcc, sysLabel: 'ระบบ', sysVal: s.drvPaid }
       ], drvList, s.drvRows.length, false, { kind: 'drv', monthNum, fileCats: drvCats, drvRows: s.drvRows }));
     });
 
     const fineTotal = cmpCardHtml('รวมทุกลูกค้า', [
-      { fileLabel: 'Express (ไฟล์)', fileVal: t.fe, sysLabel: 'SUM (ระบบ)', sysVal: t.fs },
-      { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.fa, sysLabel: 'ปรับได้ (ระบบ)', sysVal: t.fp }
+      { topic: 'ยอดแจ้งปรับ', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: t.fe, sysLabel: 'ระบบ', sysVal: t.fs },
+      { topic: 'ยอดปรับได้จริง', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: t.fa, sysLabel: 'ระบบ', sysVal: t.fp }
     ], '', allFineRows.length, true, { kind: 'fine', monthNum, isTotal: true, fileCats: allFineCats, sysRows: allFineRows });
     const drvTotal = cmpCardHtml('รวมทุกลูกค้า', [
-      { fileLabel: 'Express (ไฟล์)', fileVal: t.de, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: t.dt },
-      { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.da, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: t.dp }
+      { topic: 'ยอดแจ้งปรับ', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: t.de, sysLabel: 'ระบบ', sysVal: t.dt },
+      { topic: 'ยอดปรับได้จริง', fileLabel: 'Acc Vs Express (ไฟล์)', fileVal: t.da, sysLabel: 'ระบบ', sysVal: t.dp }
     ], '', allDrvRows.length, true, { kind: 'drv', monthNum, isTotal: true, fileCats: [], drvRows: allDrvRows });
 
     // ลูกค้าที่มีในระบบแต่ไม่มีคอลัมน์ในไฟล์ — แจ้งให้เห็น ไม่ปล่อยหายเงียบ
@@ -402,12 +403,12 @@ const AccExpress = (() => {
     return `
       <div class="acc-cmp-section">
         <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับอื่นๆ (M${monthNum})</div>
-        <div class="acc-section-note">ไฟล์ = ตัวเลขจากไฟล์ที่อัพโหลด (แถว "รวม" หักแถวรถไม่เข้ารับงาน) · ระบบ = SUM / ปรับได้ ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์</div>
+        <div class="acc-section-note">Acc Vs Express (ไฟล์) = แถว "รวม" หักแถวรถไม่เข้ารับงาน · ระบบ = SUM / ปรับได้ ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์</div>
         <div class="acc-cmp-grid">${fineTotal}${fineCards.join('')}</div>
       </div>
       <div class="acc-cmp-section">
         <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับรถไม่เข้ารับงาน (M${monthNum})</div>
-        <div class="acc-section-note">ไฟล์ = แถว "ค่าปรับรถไม่เข้ารับงาน" · ระบบ = Drivers(M${monthNum}) ยอดรวม / ยอดชำระแล้ว</div>
+        <div class="acc-section-note">Acc Vs Express (ไฟล์) = แถว "ค่าปรับรถไม่เข้ารับงาน" · ระบบ = Drivers(M${monthNum}) ยอดรวม / ยอดชำระแล้ว</div>
         <div class="acc-cmp-grid">${drvTotal}${drvCards.join('')}</div>
       </div>
       ${extra.length ? `<div class="acc-section-note acc-diff--bad">ลูกค้าในระบบที่ไม่มีคอลัมน์ในไฟล์: ${extra.map(escHtml).join(', ')}</div>` : ''}
@@ -424,11 +425,11 @@ const AccExpress = (() => {
     const diff = r.sysVal - r.fileVal;
     const ok = Math.round(diff) === 0;
     const pct = (v) => Math.max(1.5, Math.abs(v) / max * 100);
-    const topic = String(r.sysLabel).replace(/\s*\(ระบบ\)\s*$/, '');
-    const line = (tag, label, val, cls) => `
+    const topic = r.topic;
+    const line = (label, val, cls) => `
       <div class="acc-pop-line">
         <div class="acc-pop-line__head">
-          <span class="acc-pop-line__tag ${cls}">${tag}</span>
+          <span class="acc-pop-line__dot ${cls}"></span>
           <span class="acc-pop-line__label">${escHtml(label)}</span>
           <b class="acc-pop-line__val">${fmtNum(val) || '0'}</b>
         </div>
@@ -440,8 +441,8 @@ const AccExpress = (() => {
           <span class="acc-pop-cmp__title">${escHtml(topic)}</span>
           <span class="acc-pop-cmp__status">${ok ? 'ตรงกัน' : 'ไม่ตรงกัน'}</span>
         </div>
-        ${line('ไฟล์', r.fileLabel.replace(/\s*\(ไฟล์\)\s*$/, ''), r.fileVal, 'is-file')}
-        ${line('ระบบ', r.sysLabel.replace(/\s*\(ระบบ\)\s*$/, ''), r.sysVal, 'is-sys')}
+        ${line(r.fileLabel, r.fileVal, 'is-file')}
+        ${line(r.sysLabel, r.sysVal, 'is-sys')}
         <div class="acc-pop-cmp__foot">
           <span>ส่วนต่าง (ระบบ − ไฟล์)</span>
           <b>${ok ? '0' : `${diff > 0 ? '+' : ''}${fmtNum(diff)}`}</b>
@@ -540,15 +541,15 @@ const AccExpress = (() => {
         </div>
         <div class="acc-pop__tabs" role="tablist">
           <button type="button" class="acc-pop__tab is-active" data-pop-tab="0" role="tab">สรุปการเทียบ</button>
-          <button type="button" class="acc-pop__tab" data-pop-tab="1" role="tab">ตัวเลขจากไฟล์</button>
-          <button type="button" class="acc-pop__tab" data-pop-tab="2" role="tab">รายการในระบบ${listCount ? ` <span class="acc-pop__tab-count">${listCount}</span>` : ''}</button>
+          <button type="button" class="acc-pop__tab" data-pop-tab="1" role="tab">Acc Vs Express (ไฟล์)</button>
+          <button type="button" class="acc-pop__tab" data-pop-tab="2" role="tab">ระบบ${listCount ? ` <span class="acc-pop__tab-count">${listCount}</span>` : ''}</button>
         </div>
         <div class="acc-pop__body">
           <section class="acc-pop__panel" data-pop-panel="0">
             <div class="acc-pop-cmps">${d.rows.map(cmpBarsHtml).join('')}</div>
           </section>
           <section class="acc-pop__panel" data-pop-panel="1" hidden>
-            <div class="acc-pop__panel-note">ตัวเลขจากไฟล์ที่อัพโหลด แยกตามประเภทค่าปรับ${d.kind === 'drv' ? ' (แถวค่าปรับรถไม่เข้ารับงาน)' : ' (ไม่รวมแถวค่าปรับรถไม่เข้ารับงาน)'}</div>
+            <div class="acc-pop__panel-note">Acc Vs Express (ไฟล์) แยกตามประเภทค่าปรับ${d.kind === 'drv' ? ' (แถวค่าปรับรถไม่เข้ารับงาน)' : ' (ไม่รวมแถวค่าปรับรถไม่เข้ารับงาน)'}</div>
             ${fileCatsTableHtml(d)}
           </section>
           <section class="acc-pop__panel" data-pop-panel="2" hidden>

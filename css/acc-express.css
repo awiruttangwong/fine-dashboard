@@ -480,3 +480,9 @@ body.acc-pop-open { overflow: hidden; }
   .acc-pop__body { padding: 16px; }
   .acc-pop-cmps { grid-template-columns: 1fr; }
 }
+
+/* หัวข้อคู่เทียบในการ์ด + จุดสีแทนป้ายในบรรทัด popup */
+.acc-cmp-row__topic { margin-bottom: 6px; font-size: .78rem; font-weight: 700; color: #3A3A3C; }
+.acc-pop-line__dot { flex: 0 0 auto; width: 10px; height: 10px; border-radius: 3px; }
+.acc-pop-line__dot.is-file { background: #8A97AD; }
+.acc-pop-line__dot.is-sys { background: #0B3D91; }
