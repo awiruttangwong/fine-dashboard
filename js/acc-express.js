@@ -423,17 +423,29 @@ const AccExpress = (() => {
     const max = Math.max(Math.abs(r.fileVal), Math.abs(r.sysVal), 1);
     const diff = r.sysVal - r.fileVal;
     const ok = Math.round(diff) === 0;
-    const bar = (label, val, cls) => `
-      <div class="acc-pop-bar">
-        <span class="acc-pop-bar__label">${escHtml(label)}</span>
-        <div class="acc-pop-bar__track"><div class="acc-pop-bar__fill ${cls}" style="width:${Math.max(2, Math.abs(val) / max * 100)}%"></div></div>
-        <b class="acc-pop-bar__val">${fmtNum(val) || '0'}</b>
+    const pct = (v) => Math.max(1.5, Math.abs(v) / max * 100);
+    const topic = String(r.sysLabel).replace(/\s*\(ระบบ\)\s*$/, '');
+    const line = (tag, label, val, cls) => `
+      <div class="acc-pop-line">
+        <div class="acc-pop-line__head">
+          <span class="acc-pop-line__tag ${cls}">${tag}</span>
+          <span class="acc-pop-line__label">${escHtml(label)}</span>
+          <b class="acc-pop-line__val">${fmtNum(val) || '0'}</b>
+        </div>
+        <div class="acc-pop-line__track"><div class="acc-pop-line__fill ${cls}" style="width:${pct(val)}%"></div></div>
       </div>`;
     return `
       <div class="acc-pop-cmp${ok ? '' : ' is-diff'}">
-        ${bar(r.fileLabel, r.fileVal, 'is-file')}
-        ${bar(r.sysLabel, r.sysVal, 'is-sys')}
-        <div class="acc-pop-cmp__diff">${ok ? '✓ ตรงกัน' : `ส่วนต่าง (ระบบ − ไฟล์) ${diff > 0 ? '+' : ''}${fmtNum(diff)}`}</div>
+        <div class="acc-pop-cmp__head">
+          <span class="acc-pop-cmp__title">${escHtml(topic)}</span>
+          <span class="acc-pop-cmp__status">${ok ? 'ตรงกัน' : 'ไม่ตรงกัน'}</span>
+        </div>
+        ${line('ไฟล์', r.fileLabel.replace(/\s*\(ไฟล์\)\s*$/, ''), r.fileVal, 'is-file')}
+        ${line('ระบบ', r.sysLabel.replace(/\s*\(ระบบ\)\s*$/, ''), r.sysVal, 'is-sys')}
+        <div class="acc-pop-cmp__foot">
+          <span>ส่วนต่าง (ระบบ − ไฟล์)</span>
+          <b>${ok ? '0' : `${diff > 0 ? '+' : ''}${fmtNum(diff)}`}</b>
+        </div>
       </div>`;
   }
 
@@ -512,6 +524,7 @@ const AccExpress = (() => {
     if (!d) return;
     closeCmpPopup();
     const kindLabel = d.kind === 'drv' ? 'ค่าปรับรถไม่เข้ารับงาน' : 'ค่าปรับอื่นๆ';
+    const listCount = (d.kind === 'drv' ? d.drvRows : d.sysRows || []).length;
     const ov = document.createElement('div');
     ov.className = 'acc-pop-overlay';
     ov.innerHTML = `
@@ -525,20 +538,34 @@ const AccExpress = (() => {
           </div>
           <button type="button" class="acc-pop__x" aria-label="ปิด">×</button>
         </div>
+        <div class="acc-pop__tabs" role="tablist">
+          <button type="button" class="acc-pop__tab is-active" data-pop-tab="0" role="tab">สรุปการเทียบ</button>
+          <button type="button" class="acc-pop__tab" data-pop-tab="1" role="tab">ตัวเลขจากไฟล์</button>
+          <button type="button" class="acc-pop__tab" data-pop-tab="2" role="tab">รายการในระบบ${listCount ? ` <span class="acc-pop__tab-count">${listCount}</span>` : ''}</button>
+        </div>
         <div class="acc-pop__body">
-          <div class="acc-pop__section-title">1. สรุปการเทียบ ไฟล์ vs ระบบ</div>
-          <div class="acc-pop-cmps">${d.rows.map(cmpBarsHtml).join('')}</div>
-
-          <div class="acc-pop__section-title">2. ตัวเลขจากไฟล์ แยกตามประเภทค่าปรับ</div>
-          ${fileCatsTableHtml(d)}
-
-          <div class="acc-pop__section-title">3. รายการในระบบ (${d.kind === 'drv' ? `Drivers(M${d.monthNum})` : `SUM(M${d.monthNum})`})</div>
-          ${d.kind === 'drv' ? sysDrvHtml(d) : sysFineHtml(d)}
+          <section class="acc-pop__panel" data-pop-panel="0">
+            <div class="acc-pop-cmps">${d.rows.map(cmpBarsHtml).join('')}</div>
+          </section>
+          <section class="acc-pop__panel" data-pop-panel="1" hidden>
+            <div class="acc-pop__panel-note">ตัวเลขจากไฟล์ที่อัพโหลด แยกตามประเภทค่าปรับ${d.kind === 'drv' ? ' (แถวค่าปรับรถไม่เข้ารับงาน)' : ' (ไม่รวมแถวค่าปรับรถไม่เข้ารับงาน)'}</div>
+            ${fileCatsTableHtml(d)}
+          </section>
+          <section class="acc-pop__panel" data-pop-panel="2" hidden>
+            <div class="acc-pop__panel-note">รายการจาก ${d.kind === 'drv' ? `Drivers(M${d.monthNum})` : `SUM(M${d.monthNum})`} ในระบบ</div>
+            ${d.kind === 'drv' ? sysDrvHtml(d) : sysFineHtml(d)}
+          </section>
         </div>
       </div>`;
     document.body.appendChild(ov);
     document.body.classList.add('acc-pop-open');
-    ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('.acc-pop__x')) closeCmpPopup(); });
+    ov.addEventListener('click', (e) => {
+      if (e.target === ov || e.target.closest('.acc-pop__x')) { closeCmpPopup(); return; }
+      const tab = e.target.closest('.acc-pop__tab');
+      if (!tab) return;
+      ov.querySelectorAll('.acc-pop__tab').forEach((t) => t.classList.toggle('is-active', t === tab));
+      ov.querySelectorAll('.acc-pop__panel').forEach((pn) => { pn.hidden = pn.dataset.popPanel !== tab.dataset.popTab; });
+    });
   }
 
   function closeCmpPopup() {
