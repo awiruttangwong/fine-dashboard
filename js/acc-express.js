@@ -403,12 +403,10 @@ const AccExpress = (() => {
     return `
       <div class="acc-cmp-section">
         <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับอื่นๆ (M${monthNum})</div>
-        <div class="acc-section-note">Acc Vs Express (ไฟล์) = แถว "รวม" หักแถวรถไม่เข้ารับงาน · ระบบ = SUM / ปรับได้ ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์</div>
         <div class="acc-cmp-grid">${fineTotal}${fineCards.join('')}</div>
       </div>
       <div class="acc-cmp-section">
         <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับรถไม่เข้ารับงาน (M${monthNum})</div>
-        <div class="acc-section-note">Acc Vs Express (ไฟล์) = แถว "ค่าปรับรถไม่เข้ารับงาน" · ระบบ = Drivers(M${monthNum}) ยอดรวม / ยอดชำระแล้ว</div>
         <div class="acc-cmp-grid">${drvTotal}${drvCards.join('')}</div>
       </div>
       ${extra.length ? `<div class="acc-section-note acc-diff--bad">ลูกค้าในระบบที่ไม่มีคอลัมน์ในไฟล์: ${extra.map(escHtml).join(', ')}</div>` : ''}
