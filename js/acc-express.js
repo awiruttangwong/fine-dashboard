@@ -287,91 +287,108 @@ const AccExpress = (() => {
     return byCust;
   }
 
-  function diffCellHtml(diff) {
-    if (!isNum(diff)) return '<td></td>';
-    const cls = Math.round(diff) === 0 ? 'acc-diff--ok' : 'acc-diff--bad';
-    return `<td class="${cls}">${diff > 0 ? '+' : ''}${fmtNum(diff)}</td>`;
+  // แถวเทียบ 1 บรรทัดในการ์ด: ชื่อ | ไฟล์ | ระบบ | ส่วนต่าง
+  function cmpRowHtml(fileLabel, fileVal, sysLabel, sysVal) {
+    const diff = sysVal - fileVal;
+    const ok = Math.round(diff) === 0;
+    return `
+      <div class="acc-cmp-row${ok ? '' : ' is-diff'}">
+        <div class="acc-cmp-row__pair">
+          <div class="acc-cmp-row__item"><span>${escHtml(fileLabel)}</span><b>${fmtNum(fileVal) || '0'}</b></div>
+          <div class="acc-cmp-row__item"><span>${escHtml(sysLabel)}</span><b>${fmtNum(sysVal) || '0'}</b></div>
+        </div>
+        <div class="acc-cmp-row__diff">${ok ? '✓ ตรงกัน' : `ส่วนต่าง ${diff > 0 ? '+' : ''}${fmtNum(diff)}`}</div>
+      </div>`;
+  }
+
+  // การ์ดลูกค้า 1 ใบ: หัว (ชื่อ + ป้ายสถานะ) → แถวเทียบ → รายการในระบบ (กดเปิด)
+  function cmpCardHtml(label, rows, listHtml, listCount, isTotal) {
+    const hasDiff = rows.some((r) => Math.round(r.sysVal - r.fileVal) !== 0);
+    return `
+      <div class="acc-cmp-card${hasDiff ? ' is-diff' : ''}${isTotal ? ' is-total' : ''}">
+        <div class="acc-cmp-card__head">
+          <span class="acc-cmp-card__name">${escHtml(label)}</span>
+          <span class="acc-cmp-badge ${hasDiff ? 'is-diff' : 'is-ok'}">${hasDiff ? 'มีส่วนต่าง' : 'ตรงกัน'}</span>
+        </div>
+        ${rows.map((r) => cmpRowHtml(r.fileLabel, r.fileVal, r.sysLabel, r.sysVal)).join('')}
+        ${listHtml ? `
+          <details class="acc-cmp-card__list">
+            <summary>ดูรายการในระบบ (${listCount})</summary>
+            <div class="acc-ledger-wrap">${listHtml}</div>
+          </details>` : ''}
+      </div>`;
   }
 
   function systemReconHtml(name, aoa, groups, catRows, subtotalRowIdx) {
     const monthNum = MONTH_NAMES.indexOf(name) + 1;
     if (!monthNum) return '';
-    const title = `<div class="acc-section-title">เทียบกับข้อมูลในระบบ (M${monthNum})</div>`;
     const sys = systemMonthData(monthNum);
-    if (!sys) return `${title}<div class="acc-embed-state acc-embed-state--muted">ข้อมูลระบบยังโหลดไม่เสร็จ — เปิดแท็บนี้ใหม่อีกครั้งหลัง dashboard โหลดเสร็จ</div>`;
+    if (!sys) {
+      return `<div class="acc-section-title">เทียบกับข้อมูลในระบบ (M${monthNum})</div>
+        <div class="acc-embed-state acc-embed-state--muted">ข้อมูลระบบยังโหลดไม่เสร็จ — เปิดแท็บนี้ใหม่อีกครั้งหลัง dashboard โหลดเสร็จ</div>`;
+    }
 
     const num = (v) => (isNum(v) ? v : 0);
+    const empty = { sum: 0, sumRows: [], paid: 0, paidRows: [], drvTotal: 0, drvPaid: 0, drvRows: [] };
     const driverRow = catRows.find((r) => String(cell(aoa, r, 0) || '').indexOf('รถไม่เข้ารับงาน') !== -1);
-    const totals = { fe: 0, fs: 0, fa: 0, fp: 0, de: 0, dt: 0, da: 0, dp: 0 };
-    let body = '';
-    let details = '';
+    const t = { fe: 0, fs: 0, fa: 0, fp: 0, de: 0, dt: 0, da: 0, dp: 0 };
+    const fineCards = [];
+    const drvCards = [];
 
     groups.forEach((g) => {
-      const key = custKey(g.label);
-      const s = sys[key] || { sum: 0, sumRows: [], paid: 0, paidRows: [], drvTotal: 0, drvPaid: 0, drvRows: [] };
+      const s = sys[custKey(g.label)] || empty;
       const drvExp = driverRow !== undefined ? num(cell(aoa, driverRow, g.col + 1)) : 0;
       const drvAcc = driverRow !== undefined ? num(cell(aoa, driverRow, g.col + 2)) : 0;
       const fineExp = num(cell(aoa, subtotalRowIdx, g.col + 1)) - drvExp;
       const fineAcc = num(cell(aoa, subtotalRowIdx, g.col + 2)) - drvAcc;
-      totals.fe += fineExp; totals.fs += s.sum; totals.fa += fineAcc; totals.fp += s.paid;
-      totals.de += drvExp; totals.dt += s.drvTotal; totals.da += drvAcc; totals.dp += s.drvPaid;
+      t.fe += fineExp; t.fs += s.sum; t.fa += fineAcc; t.fp += s.paid;
+      t.de += drvExp; t.dt += s.drvTotal; t.da += drvAcc; t.dp += s.drvPaid;
 
-      body += `<tr>
-        <td class="acc-cell--label">${escHtml(g.label)}</td>
-        <td>${fmtNum(fineExp)}</td><td>${fmtNum(s.sum)}</td>${diffCellHtml(s.sum - fineExp)}
-        <td>${fmtNum(fineAcc)}</td><td>${fmtNum(s.paid)}</td>${diffCellHtml(s.paid - fineAcc)}
-        <td>${fmtNum(drvExp)}</td><td>${fmtNum(s.drvTotal)}</td>${diffCellHtml(s.drvTotal - drvExp)}
-        <td>${fmtNum(drvAcc)}</td><td>${fmtNum(s.drvPaid)}</td>${diffCellHtml(s.drvPaid - drvAcc)}
-      </tr>`;
+      const paidKeys = new Set(s.paidRows.map((r) => [r.barcode, r.fine_date, r.fine_amount].join('|')));
+      const fineList = s.sumRows.length ? `<table class="acc-ledger">
+          <thead><tr><th>วันที่</th><th>บาร์โค้ด</th><th>พขร.</th><th>ยอด</th><th>ปรับได้</th></tr></thead>
+          <tbody>${s.sumRows.map((r) => `<tr><td>${escHtml(r.fine_date_raw || r.fine_date || '')}</td><td>${escHtml(r.barcode || '')}</td><td>${escHtml(r.driver_name || '')}</td><td class="num">${fmtNum(r.fine_amount)}</td><td>${paidKeys.has([r.barcode, r.fine_date, r.fine_amount].join('|')) ? '✓' : ''}</td></tr>`).join('')}</tbody>
+        </table>` : '';
+      const drvList = s.drvRows.length ? `<table class="acc-ledger">
+          <thead><tr><th>วันที่เริ่ม</th><th>เส้นทาง</th><th>สถานะ</th><th>ยอดรวม</th><th>ชำระแล้ว</th></tr></thead>
+          <tbody>${s.drvRows.map((r) => `<tr><td>${escHtml(r.start_date || '')}</td><td>${escHtml(r.route || '')}</td><td>${escHtml(r.status || '')}${r.collectible ? ' · ' + escHtml(r.collectible) : ''}</td><td class="num">${fmtNum(r.total)}</td><td class="num">${fmtNum(r.paid)}</td></tr>`).join('')}</tbody>
+        </table>` : '';
 
-      const hasDiff = [s.sum - fineExp, s.paid - fineAcc, s.drvTotal - drvExp, s.drvPaid - drvAcc].some((d) => Math.round(d) !== 0);
-      if (s.sumRows.length || s.drvRows.length) {
-        const paidKeys = new Set(s.paidRows.map((r) => [r.barcode, r.fine_date, r.fine_amount].join('|')));
-        details += `<details class="acc-sys-detail"${hasDiff ? ' data-diff="1"' : ''}>
-          <summary>${escHtml(g.label)} — รายการในระบบ ${s.sumRows.length} ค่าปรับ${s.drvRows.length ? ` · ${s.drvRows.length} รถไม่เข้ารับงาน` : ''}${hasDiff ? ' <span class="acc-diff--bad">มีส่วนต่าง</span>' : ''}</summary>
-          <div class="acc-ledger-wrap"><table class="acc-ledger">
-            <thead><tr><th>แหล่ง</th><th>วันที่</th><th>บาร์โค้ด / เส้นทาง</th><th>พขร. / สถานะ</th><th>ยอด</th><th>ปรับได้</th></tr></thead>
-            <tbody>
-              ${s.sumRows.map((r) => `<tr><td>${escHtml(r.source_sheet)}</td><td>${escHtml(r.fine_date_raw || r.fine_date || '')}</td><td>${escHtml(r.barcode || '')}</td><td>${escHtml(r.driver_name || '')}</td><td class="num">${fmtNum(r.fine_amount)}</td><td>${paidKeys.has([r.barcode, r.fine_date, r.fine_amount].join('|')) ? '✓' : ''}</td></tr>`).join('')}
-              ${s.drvRows.map((r) => `<tr><td>Drivers(M${monthNum})</td><td>${escHtml(r.start_date || '')}</td><td>${escHtml(r.route || '')}</td><td>${escHtml(r.status || '')}${r.collectible ? ' · ' + escHtml(r.collectible) : ''}</td><td class="num">${fmtNum(r.total)}</td><td class="num">${fmtNum(r.paid)}</td></tr>`).join('')}
-            </tbody>
-          </table></div>
-        </details>`;
-      }
+      fineCards.push(cmpCardHtml(g.label, [
+        { fileLabel: 'Express (ไฟล์)', fileVal: fineExp, sysLabel: 'SUM (ระบบ)', sysVal: s.sum },
+        { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: fineAcc, sysLabel: 'ปรับได้ (ระบบ)', sysVal: s.paid }
+      ], fineList, s.sumRows.length));
+      drvCards.push(cmpCardHtml(g.label, [
+        { fileLabel: 'Express (ไฟล์)', fileVal: drvExp, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: s.drvTotal },
+        { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: drvAcc, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: s.drvPaid }
+      ], drvList, s.drvRows.length));
     });
 
-    // ลูกค้าที่มีในระบบแต่ไม่มีคอลัมน์ในไฟล์ (เช่นลูกค้าใหม่) — แจ้งให้เห็น ไม่ปล่อยหายเงียบ
+    const fineTotal = cmpCardHtml('รวมทุกลูกค้า', [
+      { fileLabel: 'Express (ไฟล์)', fileVal: t.fe, sysLabel: 'SUM (ระบบ)', sysVal: t.fs },
+      { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.fa, sysLabel: 'ปรับได้ (ระบบ)', sysVal: t.fp }
+    ], '', 0, true);
+    const drvTotal = cmpCardHtml('รวมทุกลูกค้า', [
+      { fileLabel: 'Express (ไฟล์)', fileVal: t.de, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: t.dt },
+      { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.da, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: t.dp }
+    ], '', 0, true);
+
+    // ลูกค้าที่มีในระบบแต่ไม่มีคอลัมน์ในไฟล์ — แจ้งให้เห็น ไม่ปล่อยหายเงียบ
     const fileKeys = new Set(groups.map((g) => custKey(g.label)));
     const extra = Object.keys(sys).filter((k) => !fileKeys.has(k) && (sys[k].sum || sys[k].drvTotal));
 
     return `
-      ${title}
-      <div class="acc-section-note">ไฟล์ = ตัวเลขจากไฟล์ที่อัพโหลด · ระบบ = SUM / ปรับได้ / Drivers ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์ (สีแดง = ไม่ตรง)</div>
-      <div class="acc-ledger-wrap">
-        <table class="acc-ledger acc-sys-recon">
-          <thead>
-            <tr><th rowspan="2">ลูกค้า</th><th colspan="6">ค่าปรับอื่นๆ</th><th colspan="6">ค่าปรับรถไม่เข้ารับงาน</th></tr>
-            <tr>
-              <th>Express (ไฟล์)</th><th>SUM (ระบบ)</th><th>ส่วนต่าง</th>
-              <th>Acc (ไฟล์)</th><th>ปรับได้ (ระบบ)</th><th>ส่วนต่าง</th>
-              <th>Express (ไฟล์)</th><th>Drivers (ระบบ)</th><th>ส่วนต่าง</th>
-              <th>Acc (ไฟล์)</th><th>ชำระแล้ว (ระบบ)</th><th>ส่วนต่าง</th>
-            </tr>
-          </thead>
-          <tbody>
-            ${body}
-            <tr class="acc-ledger__subtotal">
-              <td>รวม</td>
-              <td>${fmtNum(totals.fe)}</td><td>${fmtNum(totals.fs)}</td>${diffCellHtml(totals.fs - totals.fe)}
-              <td>${fmtNum(totals.fa)}</td><td>${fmtNum(totals.fp)}</td>${diffCellHtml(totals.fp - totals.fa)}
-              <td>${fmtNum(totals.de)}</td><td>${fmtNum(totals.dt)}</td>${diffCellHtml(totals.dt - totals.de)}
-              <td>${fmtNum(totals.da)}</td><td>${fmtNum(totals.dp)}</td>${diffCellHtml(totals.dp - totals.da)}
-            </tr>
-          </tbody>
-        </table>
+      <div class="acc-cmp-section">
+        <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับอื่นๆ (M${monthNum})</div>
+        <div class="acc-section-note">ไฟล์ = ตัวเลขจากไฟล์ที่อัพโหลด (แถว "รวม" หักแถวรถไม่เข้ารับงาน) · ระบบ = SUM / ปรับได้ ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์</div>
+        <div class="acc-cmp-grid">${fineTotal}${fineCards.join('')}</div>
+      </div>
+      <div class="acc-cmp-section">
+        <div class="acc-section-title">เทียบกับข้อมูลในระบบ · ค่าปรับรถไม่เข้ารับงาน (M${monthNum})</div>
+        <div class="acc-section-note">ไฟล์ = แถว "ค่าปรับรถไม่เข้ารับงาน" · ระบบ = Drivers(M${monthNum}) ยอดรวม / ยอดชำระแล้ว</div>
+        <div class="acc-cmp-grid">${drvTotal}${drvCards.join('')}</div>
       </div>
       ${extra.length ? `<div class="acc-section-note acc-diff--bad">ลูกค้าในระบบที่ไม่มีคอลัมน์ในไฟล์: ${extra.map(escHtml).join(', ')}</div>` : ''}
-      ${details ? `<div class="acc-sys-details">${details}</div>` : ''}
     `;
   }
 
