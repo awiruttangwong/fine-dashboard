@@ -48,7 +48,12 @@ function runCentralDataSync_() {
       var sourceSs = SpreadsheetApp.openById(cleanText_(source.id));
       // แถวที่สาเหตุเป็น "เคลมพัสดุ" (อ่านจากชีตลูกค้าในไฟล์เดือนตรงๆ เพราะ SUM ไม่มีคอลัมน์
       // สาเหตุ) — ตัดออกจาก SUM/รอปรับ/ปรับได้/ปรับไม่ได้ ทุกเดือน
-      var claimStats = { keys: collectClaimExclusionKeys_(sourceSs), removed: {} };
+      var claimStats = { keys: collectClaimExclusionKeys_(sourceSs), removed: {}, replacements: [] };
+      // ชีตลูกค้าทดแทน (SPX → SPX-USE) — มีชีตและมีข้อมูลเท่านั้นถึงใช้แทน
+      (BACKEND_CONFIG.sheetReplacements || []).forEach(function(rule) {
+        var built = buildReplacementRows_(sourceSs, rule);
+        if (built) claimStats.replacements.push({ rule: rule, rows: built });
+      });
       var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')', { claimStats: claimStats });
       var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label, claimStats);
       // ไม่ copy ข้อมูล Drivers/Payments จากไฟล์รายเดือนอีกต่อไป — คลังกลางเป็นแหล่งข้อมูล
@@ -142,6 +147,52 @@ function collectClaimExclusionKeys_(sourceSpreadsheet) {
   return keys;
 }
 
+// ── ชีตลูกค้าทดแทน (เช่น SPX → SPX-USE) ──
+// สร้างแถว SUM/สถานะ ของลูกค้านั้นใหม่จากชีตทดแทนในไฟล์เดือน ด้วยตรรกะเดียวกับสคริปต์
+// รายเดือน (เลือกคอลัมน์, ข้ามแถวที่ยอดปรับว่าง/<=0, แยกสถานะจาก ปรับได้/คงเหลือ/คอลัมน์ Q)
+// คืน null ถ้าไม่มีชีตทดแทนหรือไม่มีข้อมูล → ใช้แถวจาก SUM ของไฟล์เดือนตามเดิม
+function buildReplacementRows_(sourceSpreadsheet, rule, sheetName) {
+  var sheet = sourceSpreadsheet.getSheetByName(sheetName || rule.useSheet);
+  if (!sheet || sheet.getLastRow() < 2) return null;
+  var lastCol = Math.max(sheet.getLastColumn(), rule.statusColIdx + 1);
+  var range = sheet.getRange(2, 1, sheet.getLastRow() - 1, lastCol);
+  var values = range.getValues();
+  var display = range.getDisplayValues();
+  var out = { SUM: [], 'รอปรับ': [], 'ปรับได้': [], 'ปรับไม่ได้': [] };
+
+  values.forEach(function(src, i) {
+    var disp = display[i];
+    var fine = parseSheetAmount_(src[rule.fineColIdx], disp[rule.fineColIdx]);
+    if (fine === null || fine <= 0) return;
+    var row = rule.cols.map(function(c, outIdx) {
+      return outIdx === 0 ? cleanText_(disp[c]) : (src[c] === undefined ? '' : src[c]);
+    });
+    var hasIdentity = [row[0], row[1], row[2], row[3]].some(function(v) { return v !== '' && v !== null && v !== undefined; });
+    if (!hasIdentity || row[6] === '' || row[6] === null) return;
+    out.SUM.push(row);
+
+    var closeText = cleanText_(disp[rule.statusColIdx] || src[rule.statusColIdx]);
+    var paid = parseSheetAmount_(src[rule.paidColIdx], disp[rule.paidColIdx]);
+    var remaining = parseSheetAmount_(src[rule.remainingColIdx], disp[rule.remainingColIdx]);
+    var isZero = function(v) { return v === null || Math.abs(v) < 0.005; };
+    var status = '';
+    if (closeText.indexOf('จบจ่าย') !== -1) status = 'ปรับไม่ได้';
+    else if (isZero(paid) && remaining !== null && Math.abs(remaining + fine) < 0.005) status = 'รอปรับ';
+    else if (paid !== null && paid > 0 && Math.abs(paid - fine) < 0.005 && isZero(remaining)) status = 'ปรับได้';
+    if (status) out[status].push(row.slice());
+  });
+  return out.SUM.length ? out : null;
+}
+
+function parseSheetAmount_(value, displayValue) {
+  var text = cleanText_(displayValue);
+  if (text === '' && typeof value === 'number') return isFinite(value) ? value : null;
+  var normalized = (text || cleanText_(value)).replace(/,/g, '').replace(/[^0-9.\-]/g, '');
+  if (normalized === '' || normalized === '-' || normalized === '.' || normalized === '-.') return null;
+  var n = Number(normalized);
+  return isFinite(n) ? n : null;
+}
+
 function claimKey_(barcode, amount) {
   var n = parseFloat(cleanText_(amount).replace(/[^0-9.\-]/g, ''));
   return cleanText_(barcode).toUpperCase() + '|' + (isFinite(n) ? n : cleanText_(amount));
@@ -150,7 +201,12 @@ function claimKey_(barcode, amount) {
 function buildClaimLog_(claimStats) {
   var parts = Object.keys(claimStats.removed).filter(function(k) { return claimStats.removed[k] > 0; })
     .map(function(k) { return k + ' ' + claimStats.removed[k]; });
-  return parts.length ? ' | ตัดเคลมพัสดุ: ' + parts.join(', ') : '';
+  var text = parts.length ? ' | ตัดเคลมพัสดุ: ' + parts.join(', ') : '';
+  (claimStats.replacements || []).forEach(function(rep) {
+    var used = rep.used || {};
+    text += ' | ' + rep.rule.customer + ' ใช้ ' + rep.rule.useSheet + ': ' + Object.keys(used).map(function(k) { return k + ' ' + used[k]; }).join(', ');
+  });
+  return text;
 }
 
 function syncMonthlyStatusSheets_(sourceSpreadsheet, centralSpreadsheet, sourceLabel, claimStats) {
@@ -226,6 +282,23 @@ function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, central
       });
       claimStats.removed[sourceSheetType] = before - syncedValues.length;
     }
+  }
+  // แทนแถวของลูกค้าด้วยแถวที่สร้างจากชีตทดแทน (เช่น SPX จาก SPX-USE)
+  if (claimStats && claimStats.replacements && claimStats.replacements.length) {
+    var width = syncedValues[0].length;
+    claimStats.replacements.forEach(function(rep) {
+      var custUpper = rep.rule.customer.toUpperCase();
+      syncedValues = syncedValues.filter(function(row, rowIndex) {
+        return rowIndex === 0 || cleanText_(row[customerCol]).toUpperCase() !== custUpper;
+      });
+      (rep.rows[sourceSheetType] || []).forEach(function(r) {
+        var padded = r.slice(0, width);
+        while (padded.length < width) padded.push('');
+        syncedValues.push(padded);
+      });
+      rep.used = rep.used || {};
+      rep.used[sourceSheetType] = (rep.rows[sourceSheetType] || []).length;
+    });
   }
   lastRowSource = syncedValues.length;
   enforceSyncColumnFormats_(targetSheet, lastRowSource);

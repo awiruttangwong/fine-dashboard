@@ -12,6 +12,10 @@ var BACKEND_CONFIG = {
   excludedCustomers: ['J&T'],
   // แถวที่สาเหตุ (คอลัมน์ C ของชีตลูกค้าในไฟล์เดือน) มีคำว่า "เคลมพัสดุ" ไม่นำเข้า SUM/รอปรับ/ปรับได้/ปรับไม่ได้
   // ทุกเดือน — index นับจาก 0: C=2 สาเหตุ, D=3 บาร์โค้ด, K=10 ยอดปรับ
+  // ชีตลูกค้าทดแทน: ถ้าไฟล์เดือนมีชีต useSheet และมีข้อมูล ให้สร้างแถวของลูกค้านั้นใน
+  // SUM/รอปรับ/ปรับได้/ปรับไม่ได้ จากชีตนี้แทน (แถวเดิมของลูกค้านั้นจาก SUM ไฟล์เดือนถูกตัดทิ้ง)
+  // ไม่มีชีต/ชีตว่าง = ใช้ข้อมูลเดิม · index นับจาก 0 ตามสคริปต์รายเดือน (K=10 ยอดปรับ, O=14 ปรับได้, P=15 คงเหลือ, Q=16 สถานะ)
+  sheetReplacements: [{ customer: 'SPX', useSheet: 'SPX-USE', cols: [0, 1, 3, 4, 6, 7, 10, 14, 15], fineColIdx: 10, paidColIdx: 14, remainingColIdx: 15, statusColIdx: 16 }],
   claimExclusion: { sheets: ['BEST'], keyword: 'เคลมพัสดุ', reasonColIdx: 2, barcodeColIdx: 3, amountColIdx: 10 },
   statusSheetNames: ['รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],
   monthlySheetPattern: /^(SUM|รอปรับ|ปรับได้|ปรับไม่ได้)\(M(\d{1,2})\)$/i,
