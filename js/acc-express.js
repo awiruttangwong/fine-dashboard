@@ -250,6 +250,131 @@ const AccExpress = (() => {
   }
 
   // ── Month sheet ──
+  // ── เทียบไฟล์ Acc Vs Express (เดือนนี้) กับข้อมูลในระบบเดือนเดียวกัน ──
+  // จับคู่ตามที่ตกลงกับผู้ใช้:
+  //   ค่าปรับอื่นๆ      : Express (แจ้งให้ปรับ) ↔ SUM(Mx)      | Acc (ปรับได้จริง) ↔ ปรับได้(Mx)
+  //   รถไม่เข้ารับงาน  : Express ↔ Drivers(Mx) ยอดรวม           | Acc ↔ Drivers(Mx) ยอดชำระแล้ว
+  // "ค่าปรับอื่นๆ" ฝั่งไฟล์ = แถว "รวม" ลบแถว "ค่าปรับรถไม่เข้ารับงาน" — ระบบแยกรถไม่เข้ารับ
+  // งานไว้ที่ Drivers(Mx) อยู่แล้ว J&T จึงเทียบได้เองโดยไม่ต้องกรณีพิเศษ (SUM ไม่มี J&T แล้ว
+  // เพราะซ้ำกับ Drivers) ข้อมูลระบบใช้ payload ชุดเดียวกับ dashboard หลัก (FineData) ซึ่งตัด
+  // J&T/เคลมพัสดุ ไปแล้วฝั่ง backend และจัดเดือนตามชื่อชีต (source_sheet_month)
+  const custKey = (v) => String(v == null ? '' : v).toUpperCase().replace(/\s+/g, '');
+
+  function systemMonthData(monthNum) {
+    const payload = (typeof FineData !== 'undefined' && FineData.getLastPayload) ? FineData.getLastPayload() : null;
+    if (!payload) return null;
+    const byCust = {};
+    const get = (k) => (byCust[k] = byCust[k] || { sum: 0, sumRows: [], paid: 0, paidRows: [], drvTotal: 0, drvPaid: 0, drvRows: [] });
+    (payload.rows || []).forEach((row) => {
+      if (Number(row.source_sheet_month) !== monthNum) return;
+      const c = get(custKey(row.customer));
+      c.sum += row.fine_amount || 0;
+      c.sumRows.push(row);
+    });
+    ((payload.status_rows || {})['ปรับได้'] || []).forEach((row) => {
+      if (Number(row.source_sheet_month) !== monthNum) return;
+      const c = get(custKey(row.customer));
+      c.paid += row.fine_amount || 0;
+      c.paidRows.push(row);
+    });
+    (payload.debt_rows || []).forEach((row) => {
+      if (String(row.month_label || '').toUpperCase() !== 'M' + monthNum) return;
+      const c = get(custKey(row.customer));
+      c.drvTotal += row.total || 0;
+      c.drvPaid += row.paid || 0;
+      c.drvRows.push(row);
+    });
+    return byCust;
+  }
+
+  function diffCellHtml(diff) {
+    if (!isNum(diff)) return '<td></td>';
+    const cls = Math.round(diff) === 0 ? 'acc-diff--ok' : 'acc-diff--bad';
+    return `<td class="${cls}">${diff > 0 ? '+' : ''}${fmtNum(diff)}</td>`;
+  }
+
+  function systemReconHtml(name, aoa, groups, catRows, subtotalRowIdx) {
+    const monthNum = MONTH_NAMES.indexOf(name) + 1;
+    if (!monthNum) return '';
+    const title = `<div class="acc-section-title">เทียบกับข้อมูลในระบบ (M${monthNum})</div>`;
+    const sys = systemMonthData(monthNum);
+    if (!sys) return `${title}<div class="acc-embed-state acc-embed-state--muted">ข้อมูลระบบยังโหลดไม่เสร็จ — เปิดแท็บนี้ใหม่อีกครั้งหลัง dashboard โหลดเสร็จ</div>`;
+
+    const num = (v) => (isNum(v) ? v : 0);
+    const driverRow = catRows.find((r) => String(cell(aoa, r, 0) || '').indexOf('รถไม่เข้ารับงาน') !== -1);
+    const totals = { fe: 0, fs: 0, fa: 0, fp: 0, de: 0, dt: 0, da: 0, dp: 0 };
+    let body = '';
+    let details = '';
+
+    groups.forEach((g) => {
+      const key = custKey(g.label);
+      const s = sys[key] || { sum: 0, sumRows: [], paid: 0, paidRows: [], drvTotal: 0, drvPaid: 0, drvRows: [] };
+      const drvExp = driverRow !== undefined ? num(cell(aoa, driverRow, g.col + 1)) : 0;
+      const drvAcc = driverRow !== undefined ? num(cell(aoa, driverRow, g.col + 2)) : 0;
+      const fineExp = num(cell(aoa, subtotalRowIdx, g.col + 1)) - drvExp;
+      const fineAcc = num(cell(aoa, subtotalRowIdx, g.col + 2)) - drvAcc;
+      totals.fe += fineExp; totals.fs += s.sum; totals.fa += fineAcc; totals.fp += s.paid;
+      totals.de += drvExp; totals.dt += s.drvTotal; totals.da += drvAcc; totals.dp += s.drvPaid;
+
+      body += `<tr>
+        <td class="acc-cell--label">${escHtml(g.label)}</td>
+        <td>${fmtNum(fineExp)}</td><td>${fmtNum(s.sum)}</td>${diffCellHtml(s.sum - fineExp)}
+        <td>${fmtNum(fineAcc)}</td><td>${fmtNum(s.paid)}</td>${diffCellHtml(s.paid - fineAcc)}
+        <td>${fmtNum(drvExp)}</td><td>${fmtNum(s.drvTotal)}</td>${diffCellHtml(s.drvTotal - drvExp)}
+        <td>${fmtNum(drvAcc)}</td><td>${fmtNum(s.drvPaid)}</td>${diffCellHtml(s.drvPaid - drvAcc)}
+      </tr>`;
+
+      const hasDiff = [s.sum - fineExp, s.paid - fineAcc, s.drvTotal - drvExp, s.drvPaid - drvAcc].some((d) => Math.round(d) !== 0);
+      if (s.sumRows.length || s.drvRows.length) {
+        const paidKeys = new Set(s.paidRows.map((r) => [r.barcode, r.fine_date, r.fine_amount].join('|')));
+        details += `<details class="acc-sys-detail"${hasDiff ? ' data-diff="1"' : ''}>
+          <summary>${escHtml(g.label)} — รายการในระบบ ${s.sumRows.length} ค่าปรับ${s.drvRows.length ? ` · ${s.drvRows.length} รถไม่เข้ารับงาน` : ''}${hasDiff ? ' <span class="acc-diff--bad">มีส่วนต่าง</span>' : ''}</summary>
+          <div class="acc-ledger-wrap"><table class="acc-ledger">
+            <thead><tr><th>แหล่ง</th><th>วันที่</th><th>บาร์โค้ด / เส้นทาง</th><th>พขร. / สถานะ</th><th>ยอด</th><th>ปรับได้</th></tr></thead>
+            <tbody>
+              ${s.sumRows.map((r) => `<tr><td>${escHtml(r.source_sheet)}</td><td>${escHtml(r.fine_date_raw || r.fine_date || '')}</td><td>${escHtml(r.barcode || '')}</td><td>${escHtml(r.driver_name || '')}</td><td class="num">${fmtNum(r.fine_amount)}</td><td>${paidKeys.has([r.barcode, r.fine_date, r.fine_amount].join('|')) ? '✓' : ''}</td></tr>`).join('')}
+              ${s.drvRows.map((r) => `<tr><td>Drivers(M${monthNum})</td><td>${escHtml(r.start_date || '')}</td><td>${escHtml(r.route || '')}</td><td>${escHtml(r.status || '')}${r.collectible ? ' · ' + escHtml(r.collectible) : ''}</td><td class="num">${fmtNum(r.total)}</td><td class="num">${fmtNum(r.paid)}</td></tr>`).join('')}
+            </tbody>
+          </table></div>
+        </details>`;
+      }
+    });
+
+    // ลูกค้าที่มีในระบบแต่ไม่มีคอลัมน์ในไฟล์ (เช่นลูกค้าใหม่) — แจ้งให้เห็น ไม่ปล่อยหายเงียบ
+    const fileKeys = new Set(groups.map((g) => custKey(g.label)));
+    const extra = Object.keys(sys).filter((k) => !fileKeys.has(k) && (sys[k].sum || sys[k].drvTotal));
+
+    return `
+      ${title}
+      <div class="acc-section-note">ไฟล์ = ตัวเลขจากไฟล์ที่อัพโหลด · ระบบ = SUM / ปรับได้ / Drivers ของเดือน M${monthNum} · ส่วนต่าง = ระบบ − ไฟล์ (สีแดง = ไม่ตรง)</div>
+      <div class="acc-ledger-wrap">
+        <table class="acc-ledger acc-sys-recon">
+          <thead>
+            <tr><th rowspan="2">ลูกค้า</th><th colspan="6">ค่าปรับอื่นๆ</th><th colspan="6">ค่าปรับรถไม่เข้ารับงาน</th></tr>
+            <tr>
+              <th>Express (ไฟล์)</th><th>SUM (ระบบ)</th><th>ส่วนต่าง</th>
+              <th>Acc (ไฟล์)</th><th>ปรับได้ (ระบบ)</th><th>ส่วนต่าง</th>
+              <th>Express (ไฟล์)</th><th>Drivers (ระบบ)</th><th>ส่วนต่าง</th>
+              <th>Acc (ไฟล์)</th><th>ชำระแล้ว (ระบบ)</th><th>ส่วนต่าง</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${body}
+            <tr class="acc-ledger__subtotal">
+              <td>รวม</td>
+              <td>${fmtNum(totals.fe)}</td><td>${fmtNum(totals.fs)}</td>${diffCellHtml(totals.fs - totals.fe)}
+              <td>${fmtNum(totals.fa)}</td><td>${fmtNum(totals.fp)}</td>${diffCellHtml(totals.fp - totals.fa)}
+              <td>${fmtNum(totals.de)}</td><td>${fmtNum(totals.dt)}</td>${diffCellHtml(totals.dt - totals.de)}
+              <td>${fmtNum(totals.da)}</td><td>${fmtNum(totals.dp)}</td>${diffCellHtml(totals.dp - totals.da)}
+            </tr>
+          </tbody>
+        </table>
+      </div>
+      ${extra.length ? `<div class="acc-section-note acc-diff--bad">ลูกค้าในระบบที่ไม่มีคอลัมน์ในไฟล์: ${extra.map(escHtml).join(', ')}</div>` : ''}
+      ${details ? `<div class="acc-sys-details">${details}</div>` : ''}
+    `;
+  }
+
   function renderMonthCard(name, sheet) {
     const aoa = sheet.aoa;
     const headerRowIdx = 0;
@@ -358,6 +483,8 @@ const AccExpress = (() => {
               ${expBlock ? reconBlockHtml(aoa, expBlock) : ''}
             </div>
           ` : ''}
+
+          ${systemReconHtml(name, aoa, groups, catRows, subtotalRowIdx)}
 
           ${ledgerRows.length ? `
             <div class="acc-section-title">รายการบัญชี (${ledgerRows.filter((x) => x.type === 'entry').length} รายการ)</div>
