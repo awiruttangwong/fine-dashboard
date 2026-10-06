@@ -243,9 +243,28 @@
 .acc-upload-btn {
   position: relative;
   flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 18px;
+  border: none;
+  border-radius: 12px;
+  background: #0071E3;
+  color: #fff;
+  font-weight: 600;
+  font-size: var(--font-size-sm);
+  box-shadow: 0 4px 12px rgba(0, 113, 227, .28);
   cursor: pointer;
   white-space: nowrap;
+  transition: background .15s ease, box-shadow .15s ease, transform .15s ease;
 }
+.acc-upload-btn:hover {
+  background: #0062C4;
+  box-shadow: 0 6px 16px rgba(0, 113, 227, .36);
+  transform: translateY(-1px);
+}
+.acc-upload-btn:active { transform: translateY(0); }
+.acc-upload-btn:focus-within { outline: 2px solid rgba(0, 113, 227, .45); outline-offset: 2px; }
 .acc-upload-btn.is-loading { color: transparent !important; pointer-events: none; }
 .acc-upload-btn.is-loading::after {
   content: ""; position: absolute; top: 50%; left: 50%;

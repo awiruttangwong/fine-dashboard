@@ -442,7 +442,8 @@ const AccExpress = (() => {
         </div>
         <label class="btn btn-primary acc-upload-btn${uploading ? ' is-loading' : ''}">
           <input type="file" accept=".xlsx,.xls" hidden data-role="acc-upload-input"${uploading ? ' disabled' : ''}>
-          อัพโหลดไฟล์ .xlsx
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          อัพโหลดไฟล์ Acc Vs Express
         </label>
       </div>
       <div class="acc-upload-status" data-role="acc-upload-status"${uploadStatus ? '' : ' hidden'}>${uploadStatus}</div>
@@ -625,7 +626,7 @@ const AccExpress = (() => {
         });
 
       if (!order.length) {
-        renderState(`<div class="acc-embed-state acc-embed-state--muted">ยังไม่มีข้อมูลในฐานข้อมูล — กด "อัพโหลดไฟล์ .xlsx" ด้านบนเพื่อเพิ่มไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx"</div>`);
+        renderState(`<div class="acc-embed-state acc-embed-state--muted">ยังไม่มีข้อมูลในฐานข้อมูล — กด "อัพโหลดไฟล์ Acc Vs Express" ด้านบนเพื่อเพิ่มไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx"</div>`);
         return;
       }
 
