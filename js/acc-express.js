@@ -40,7 +40,8 @@ const AccExpress = (() => {
   let cache = null;      // { sheets: {name: {aoa, links}}, updated_at: {...} }
   let inFlight = null;
   let uploading = false;   // กำลังอัพโหลดอยู่ (กันกดซ้อน + คงสถานะปุ่มข้าม re-render)
-  let uploadStatus = '';   // ข้อความสถานะอัพโหลดล่าสุด (HTML) คงไว้ข้าม re-render   // Promise ของคำขอที่กำลังวิ่งอยู่ (กันยิงซ้อน)
+  let uploadStatus = '';   // ข้อความสถานะอัพโหลดล่าสุด (HTML) คงไว้ข้าม re-render
+  let cmpRegistry = {};    // ข้อมูลเต็มของการ์ดเทียบแต่ละใบ (id → detail) ใช้เปิด popup
   let sheetOrder = [];
   let currentSheetName = null;
   let rootEl = null;     // container ของ section นี้ในหน้า dashboard
@@ -265,11 +266,16 @@ const AccExpress = (() => {
     if (!payload) return null;
     const byCust = {};
     const get = (k) => (byCust[k] = byCust[k] || { sum: 0, sumRows: [], paid: 0, paidRows: [], drvTotal: 0, drvPaid: 0, drvRows: [] });
+    // สถานะของแถว SUM หาจากชีตสถานะ (คีย์เดียวกับ js/data.js: บาร์โค้ด|วันที่|ยอด|เส้นทาง)
+    const statusOf = {};
+    Object.entries(payload.status_rows || {}).forEach(([type, rows]) => {
+      (rows || []).forEach((r) => { statusOf[[r.barcode, r.fine_date, r.fine_amount, r.route_raw].join('|')] = type; });
+    });
     (payload.rows || []).forEach((row) => {
       if (Number(row.source_sheet_month) !== monthNum) return;
       const c = get(custKey(row.customer));
       c.sum += row.fine_amount || 0;
-      c.sumRows.push(row);
+      c.sumRows.push(Object.assign({}, row, { _status: statusOf[[row.barcode, row.fine_date, row.fine_amount, row.route_raw].join('|')] || 'ยังไม่จัดสถานะ' }));
     });
     ((payload.status_rows || {})['ปรับได้'] || []).forEach((row) => {
       if (Number(row.source_sheet_month) !== monthNum) return;
@@ -302,20 +308,18 @@ const AccExpress = (() => {
   }
 
   // การ์ดลูกค้า 1 ใบ: หัว (ชื่อ + ป้ายสถานะ) → แถวเทียบ → รายการในระบบ (กดเปิด)
-  function cmpCardHtml(label, rows, listHtml, listCount, isTotal) {
+  function cmpCardHtml(label, rows, listHtml, listCount, isTotal, detail) {
     const hasDiff = rows.some((r) => Math.round(r.sysVal - r.fileVal) !== 0);
+    const id = 'cmp' + Object.keys(cmpRegistry).length;
+    cmpRegistry[id] = Object.assign({ label, rows, hasDiff }, detail || {});
     return `
-      <div class="acc-cmp-card${hasDiff ? ' is-diff' : ''}${isTotal ? ' is-total' : ''}">
+      <div class="acc-cmp-card${hasDiff ? ' is-diff' : ''}${isTotal ? ' is-total' : ''}" data-cmp-id="${id}" role="button" tabindex="0" title="คลิกเพื่อดูรายละเอียด">
         <div class="acc-cmp-card__head">
           <span class="acc-cmp-card__name">${escHtml(label)}</span>
           <span class="acc-cmp-badge ${hasDiff ? 'is-diff' : 'is-ok'}">${hasDiff ? 'มีส่วนต่าง' : 'ตรงกัน'}</span>
         </div>
         ${rows.map((r) => cmpRowHtml(r.fileLabel, r.fileVal, r.sysLabel, r.sysVal)).join('')}
-        ${listHtml ? `
-          <details class="acc-cmp-card__list">
-            <summary>ดูรายการในระบบ (${listCount})</summary>
-            <div class="acc-ledger-wrap">${listHtml}</div>
-          </details>` : ''}
+        <div class="acc-cmp-card__more">ดูรายละเอียดทั้งหมด${listCount ? ` · ${listCount} รายการในระบบ` : ''} →</div>
       </div>`;
   }
 
@@ -334,6 +338,18 @@ const AccExpress = (() => {
     const t = { fe: 0, fs: 0, fa: 0, fp: 0, de: 0, dt: 0, da: 0, dp: 0 };
     const fineCards = [];
     const drvCards = [];
+    cmpRegistry = {};
+    const allFineRows = [];
+    const allDrvRows = [];
+    const allFineCats = [];
+    // แถวประเภทค่าปรับจากไฟล์ของลูกค้า 1 ราย (ไม่รวมแถวรถไม่เข้ารับงาน = ค่าปรับอื่นๆ)
+    const fileCatsOf = (g, onlyDriver) => catRows
+      .filter((r) => (r === driverRow) === onlyDriver)
+      .map((r) => ({
+        label: String(cell(aoa, r, 0) || ''),
+        cust: num(cell(aoa, r, g.col)), exp: num(cell(aoa, r, g.col + 1)),
+        acc: num(cell(aoa, r, g.col + 2)), unc: num(cell(aoa, r, g.col + 3))
+      }));
 
     groups.forEach((g) => {
       const s = sys[custKey(g.label)] || empty;
@@ -354,24 +370,30 @@ const AccExpress = (() => {
           <tbody>${s.drvRows.map((r) => `<tr><td>${escHtml(r.start_date || '')}</td><td>${escHtml(r.route || '')}</td><td>${escHtml(r.status || '')}${r.collectible ? ' · ' + escHtml(r.collectible) : ''}</td><td class="num">${fmtNum(r.total)}</td><td class="num">${fmtNum(r.paid)}</td></tr>`).join('')}</tbody>
         </table>` : '';
 
+      const fineCats = fileCatsOf(g, false);
+      const drvCats = fileCatsOf(g, true);
+      s.sumRows.forEach((r) => allFineRows.push(r));
+      s.drvRows.forEach((r) => allDrvRows.push(r));
+      fineCats.forEach((c) => allFineCats.push(Object.assign({ customer: g.label }, c)));
+
       fineCards.push(cmpCardHtml(g.label, [
         { fileLabel: 'Express (ไฟล์)', fileVal: fineExp, sysLabel: 'SUM (ระบบ)', sysVal: s.sum },
         { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: fineAcc, sysLabel: 'ปรับได้ (ระบบ)', sysVal: s.paid }
-      ], fineList, s.sumRows.length));
+      ], fineList, s.sumRows.length, false, { kind: 'fine', monthNum, fileCats: fineCats, sysRows: s.sumRows }));
       drvCards.push(cmpCardHtml(g.label, [
         { fileLabel: 'Express (ไฟล์)', fileVal: drvExp, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: s.drvTotal },
         { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: drvAcc, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: s.drvPaid }
-      ], drvList, s.drvRows.length));
+      ], drvList, s.drvRows.length, false, { kind: 'drv', monthNum, fileCats: drvCats, drvRows: s.drvRows }));
     });
 
     const fineTotal = cmpCardHtml('รวมทุกลูกค้า', [
       { fileLabel: 'Express (ไฟล์)', fileVal: t.fe, sysLabel: 'SUM (ระบบ)', sysVal: t.fs },
       { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.fa, sysLabel: 'ปรับได้ (ระบบ)', sysVal: t.fp }
-    ], '', 0, true);
+    ], '', allFineRows.length, true, { kind: 'fine', monthNum, isTotal: true, fileCats: allFineCats, sysRows: allFineRows });
     const drvTotal = cmpCardHtml('รวมทุกลูกค้า', [
       { fileLabel: 'Express (ไฟล์)', fileVal: t.de, sysLabel: `Drivers(M${monthNum}) (ระบบ)`, sysVal: t.dt },
       { fileLabel: 'Acc. ปรับได้จริง (ไฟล์)', fileVal: t.da, sysLabel: 'ชำระแล้ว (ระบบ)', sysVal: t.dp }
-    ], '', 0, true);
+    ], '', allDrvRows.length, true, { kind: 'drv', monthNum, isTotal: true, fileCats: [], drvRows: allDrvRows });
 
     // ลูกค้าที่มีในระบบแต่ไม่มีคอลัมน์ในไฟล์ — แจ้งให้เห็น ไม่ปล่อยหายเงียบ
     const fileKeys = new Set(groups.map((g) => custKey(g.label)));
@@ -391,6 +413,151 @@ const AccExpress = (() => {
       ${extra.length ? `<div class="acc-section-note acc-diff--bad">ลูกค้าในระบบที่ไม่มีคอลัมน์ในไฟล์: ${extra.map(escHtml).join(', ')}</div>` : ''}
     `;
   }
+
+  // ══ Popup รายละเอียดการเทียบของการ์ด 1 ใบ ══
+  const STATUS_ORDER = ['ปรับได้', 'รอปรับ', 'ปรับไม่ได้', 'ยังไม่จัดสถานะ'];
+  const STATUS_TONE = { 'ปรับได้': 'ok', 'รอปรับ': 'wait', 'ปรับไม่ได้': 'bad', 'ยังไม่จัดสถานะ': 'none' };
+
+  // แท่งเทียบ ไฟล์ vs ระบบ (ความยาวตามสัดส่วนของค่าที่มากกว่า) ให้เห็นภาพส่วนต่างทันที
+  function cmpBarsHtml(r) {
+    const max = Math.max(Math.abs(r.fileVal), Math.abs(r.sysVal), 1);
+    const diff = r.sysVal - r.fileVal;
+    const ok = Math.round(diff) === 0;
+    const bar = (label, val, cls) => `
+      <div class="acc-pop-bar">
+        <span class="acc-pop-bar__label">${escHtml(label)}</span>
+        <div class="acc-pop-bar__track"><div class="acc-pop-bar__fill ${cls}" style="width:${Math.max(2, Math.abs(val) / max * 100)}%"></div></div>
+        <b class="acc-pop-bar__val">${fmtNum(val) || '0'}</b>
+      </div>`;
+    return `
+      <div class="acc-pop-cmp${ok ? '' : ' is-diff'}">
+        ${bar(r.fileLabel, r.fileVal, 'is-file')}
+        ${bar(r.sysLabel, r.sysVal, 'is-sys')}
+        <div class="acc-pop-cmp__diff">${ok ? '✓ ตรงกัน' : `ส่วนต่าง (ระบบ − ไฟล์) ${diff > 0 ? '+' : ''}${fmtNum(diff)}`}</div>
+      </div>`;
+  }
+
+  function fileCatsTableHtml(d) {
+    const cats = (d.fileCats || []).filter((c) => c.cust || c.exp || c.acc || c.unc);
+    if (!cats.length) return '<div class="acc-pop-empty">ไฟล์ไม่มียอดในหมวดนี้</div>';
+    const sum = (k) => cats.reduce((a, c) => a + c[k], 0);
+    return `
+      <table class="acc-ledger acc-pop-table">
+        <thead><tr>${d.isTotal ? '<th>ลูกค้า</th>' : ''}<th>ประเภทค่าปรับ</th><th>Customer (ลูกค้าปรับ)</th><th>Express (แจ้งให้ปรับ)</th><th>Acc. (ปรับได้จริง)</th><th>Tatal ปรับไม่ได้</th></tr></thead>
+        <tbody>
+          ${cats.map((c) => `<tr>${d.isTotal ? `<td>${escHtml(c.customer)}</td>` : ''}<td>${escHtml(c.label)}</td><td class="num">${fmtNum(c.cust)}</td><td class="num">${fmtNum(c.exp)}</td><td class="num">${fmtNum(c.acc)}</td><td class="num${c.unc < 0 ? ' acc-cell--negative' : ''}">${fmtNum(c.unc)}</td></tr>`).join('')}
+          <tr class="acc-ledger__subtotal"><td colspan="${d.isTotal ? 2 : 1}">รวม</td><td class="num">${fmtNum(sum('cust'))}</td><td class="num">${fmtNum(sum('exp'))}</td><td class="num">${fmtNum(sum('acc'))}</td><td class="num">${fmtNum(sum('unc'))}</td></tr>
+        </tbody>
+      </table>`;
+  }
+
+  function sysFineHtml(d) {
+    const rows = d.sysRows || [];
+    if (!rows.length) return '<div class="acc-pop-empty">ไม่มีรายการในระบบ (SUM) เดือนนี้</div>';
+    const groups = {};
+    rows.forEach((r) => { (groups[r._status] = groups[r._status] || []).push(r); });
+    const chips = STATUS_ORDER.filter((k) => groups[k]).map((k) => {
+      const amt = groups[k].reduce((a, r) => a + (r.fine_amount || 0), 0);
+      return `<div class="acc-pop-chip is-${STATUS_TONE[k]}"><span>${escHtml(k)}</span><b>${fmtNum(amt)}</b><small>${groups[k].length} รายการ</small></div>`;
+    }).join('');
+    // ปรับได้ที่นับจากแถว SUM อาจไม่เท่ากับยอดชีต ปรับได้(Mx) (ที่ใช้บนการ์ด) เมื่อมีแถวซ้ำ —
+    // แจ้งให้เห็นแทนการซ่อน จะได้ตามไปตรวจแถวซ้ำได้
+    const paidFromSum = (groups['ปรับได้'] || []).reduce((a, r) => a + (r.fine_amount || 0), 0);
+    const paidSheet = d.rows[1] ? d.rows[1].sysVal : paidFromSum;
+    const paidNote = Math.round(paidFromSum - paidSheet) !== 0
+      ? `<div class="acc-pop-warn">แถว SUM ที่จับคู่เป็น "ปรับได้" รวม ${fmtNum(paidFromSum)} แต่ชีต ปรับได้(M${d.monthNum}) รวม ${fmtNum(paidSheet)} (ต่าง ${fmtNum(paidFromSum - paidSheet)}) — น่าจะมีแถวซ้ำ (บาร์โค้ด/วันที่/ยอด/เส้นทางเดียวกัน) ใน SUM</div>`
+      : '';
+    const sorted = rows.slice().sort((a, b) => STATUS_ORDER.indexOf(a._status) - STATUS_ORDER.indexOf(b._status) || String(a.fine_date || '').localeCompare(String(b.fine_date || '')));
+    return `
+      <div class="acc-pop-chips">${chips}</div>
+      ${paidNote}
+      <div class="acc-ledger-wrap acc-pop-scroll">
+        <table class="acc-ledger acc-pop-table">
+          <thead><tr><th>#</th>${d.isTotal ? '<th>ลูกค้า</th>' : ''}<th>สถานะ</th><th>วันที่</th><th>บาร์โค้ด</th><th>เส้นทาง</th><th>พขร.</th><th>ผู้รับโอน</th><th>ยอดปรับ</th></tr></thead>
+          <tbody>${sorted.map((r, i) => `<tr>
+            <td>${i + 1}</td>${d.isTotal ? `<td>${escHtml(r.customer || '')}</td>` : ''}
+            <td><span class="acc-pop-status is-${STATUS_TONE[r._status]}">${escHtml(r._status)}</span></td>
+            <td>${escHtml(r.fine_date_raw || r.fine_date || '')}</td><td>${escHtml(r.barcode || '')}</td>
+            <td>${escHtml(r.route_raw || '')}</td><td>${escHtml(r.driver_name || '')}</td><td>${escHtml(r.transfer_receiver_name || '')}</td>
+            <td class="num">${fmtNum(r.fine_amount)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function sysDrvHtml(d) {
+    const rows = d.drvRows || [];
+    if (!rows.length) return '<div class="acc-pop-empty">ไม่มีรายการใน Drivers เดือนนี้</div>';
+    const tot = rows.reduce((a, r) => a + (r.total || 0), 0);
+    const paid = rows.reduce((a, r) => a + (r.paid || 0), 0);
+    const bal = rows.reduce((a, r) => a + (r.balance || 0), 0);
+    return `
+      <div class="acc-pop-chips">
+        <div class="acc-pop-chip is-none"><span>ยอดรวม</span><b>${fmtNum(tot)}</b><small>${rows.length} รายการ</small></div>
+        <div class="acc-pop-chip is-ok"><span>ชำระแล้ว</span><b>${fmtNum(paid)}</b></div>
+        <div class="acc-pop-chip is-wait"><span>คงเหลือ</span><b>${fmtNum(bal)}</b></div>
+      </div>
+      <div class="acc-ledger-wrap acc-pop-scroll">
+        <table class="acc-ledger acc-pop-table">
+          <thead><tr><th>#</th>${d.isTotal ? '<th>ลูกค้า</th>' : ''}<th>วันที่เริ่ม</th><th>เส้นทาง</th><th>สถานะ</th><th>การปรับ</th><th>ยอดรวม</th><th>ชำระแล้ว</th><th>คงเหลือ</th></tr></thead>
+          <tbody>${rows.map((r, i) => `<tr>
+            <td>${i + 1}</td>${d.isTotal ? `<td>${escHtml(r.customer || '')}</td>` : ''}
+            <td>${escHtml(r.start_date || '')}</td><td>${escHtml(r.route || '')}</td><td>${escHtml(r.status || '')}</td>
+            <td>${escHtml(r.collectible || '')}</td><td class="num">${fmtNum(r.total)}</td><td class="num">${fmtNum(r.paid)}</td><td class="num">${fmtNum(r.balance)}</td></tr>`).join('')}</tbody>
+        </table>
+      </div>`;
+  }
+
+  function openCmpPopup(id) {
+    const d = cmpRegistry[id];
+    if (!d) return;
+    closeCmpPopup();
+    const kindLabel = d.kind === 'drv' ? 'ค่าปรับรถไม่เข้ารับงาน' : 'ค่าปรับอื่นๆ';
+    const ov = document.createElement('div');
+    ov.className = 'acc-pop-overlay';
+    ov.innerHTML = `
+      <div class="acc-pop" role="dialog" aria-modal="true">
+        <div class="acc-pop__head">
+          <div>
+            <div class="acc-pop__eyebrow">${escHtml(kindLabel)} · M${d.monthNum}</div>
+            <div class="acc-pop__title">${escHtml(d.label)}
+              <span class="acc-cmp-badge ${d.hasDiff ? 'is-diff' : 'is-ok'}">${d.hasDiff ? 'มีส่วนต่าง' : 'ตรงกัน'}</span>
+            </div>
+          </div>
+          <button type="button" class="acc-pop__x" aria-label="ปิด">×</button>
+        </div>
+        <div class="acc-pop__body">
+          <div class="acc-pop__section-title">1. สรุปการเทียบ ไฟล์ vs ระบบ</div>
+          <div class="acc-pop-cmps">${d.rows.map(cmpBarsHtml).join('')}</div>
+
+          <div class="acc-pop__section-title">2. ตัวเลขจากไฟล์ แยกตามประเภทค่าปรับ</div>
+          ${fileCatsTableHtml(d)}
+
+          <div class="acc-pop__section-title">3. รายการในระบบ (${d.kind === 'drv' ? `Drivers(M${d.monthNum})` : `SUM(M${d.monthNum})`})</div>
+          ${d.kind === 'drv' ? sysDrvHtml(d) : sysFineHtml(d)}
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    document.body.classList.add('acc-pop-open');
+    ov.addEventListener('click', (e) => { if (e.target === ov || e.target.closest('.acc-pop__x')) closeCmpPopup(); });
+  }
+
+  function closeCmpPopup() {
+    document.querySelectorAll('.acc-pop-overlay').forEach((el) => el.remove());
+    document.body.classList.remove('acc-pop-open');
+  }
+
+  // คลิก/Enter ที่การ์ดเทียบใดๆ → เปิด popup (delegate ครั้งเดียวทั้งหน้า ไม่ผูกซ้ำทุก render)
+  document.addEventListener('click', (e) => {
+    const card = e.target.closest && e.target.closest('.acc-cmp-card[data-cmp-id]');
+    if (card) openCmpPopup(card.dataset.cmpId);
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') { closeCmpPopup(); return; }
+    if (e.key === 'Enter' || e.key === ' ') {
+      const card = e.target.closest && e.target.closest('.acc-cmp-card[data-cmp-id]');
+      if (card) { e.preventDefault(); openCmpPopup(card.dataset.cmpId); }
+    }
+  });
 
   function renderMonthCard(name, sheet) {
     const aoa = sheet.aoa;
