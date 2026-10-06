@@ -38,7 +38,9 @@ const AccExpress = (() => {
   // แคชข้อมูลไว้ทั้ง session — comparison view ถูก re-render ทุกครั้งที่เปลี่ยนตัวกรอง
   // ถ้าไม่แคชจะยิง endpoint ซ้ำทุกครั้งโดยไม่จำเป็น (ข้อมูลชุดนี้ไม่ขึ้นกับตัวกรองเลย)
   let cache = null;      // { sheets: {name: {aoa, links}}, updated_at: {...} }
-  let inFlight = null;   // Promise ของคำขอที่กำลังวิ่งอยู่ (กันยิงซ้อน)
+  let inFlight = null;
+  let uploading = false;   // กำลังอัพโหลดอยู่ (กันกดซ้อน + คงสถานะปุ่มข้าม re-render)
+  let uploadStatus = '';   // ข้อความสถานะอัพโหลดล่าสุด (HTML) คงไว้ข้าม re-render   // Promise ของคำขอที่กำลังวิ่งอยู่ (กันยิงซ้อน)
   let sheetOrder = [];
   let currentSheetName = null;
   let rootEl = null;     // container ของ section นี้ในหน้า dashboard
@@ -429,17 +431,139 @@ const AccExpress = (() => {
     requestAnimationFrame(fitWideTables);
   }
 
+  // หัวการ์ด + ปุ่มอัพโหลดไฟล์ .xlsx (ใช้ร่วมกันทั้งตอนมีข้อมูล/ว่าง/error เพื่อให้อัพโหลด
+  // ได้เสมอ แม้ฐานข้อมูลยังว่างหรือโหลดไม่สำเร็จ)
+  function headerHtml(subtitle) {
+    return `
+      <div class="chart-card__header acc-embed-header">
+        <div>
+          <div class="chart-card__title">เปรียบเทียบค่าปรับ Acc Vs Express</div>
+          <div class="chart-card__subtitle">${subtitle}</div>
+        </div>
+        <label class="btn btn-primary acc-upload-btn${uploading ? ' is-loading' : ''}">
+          <input type="file" accept=".xlsx,.xls" hidden data-role="acc-upload-input"${uploading ? ' disabled' : ''}>
+          อัพโหลดไฟล์ .xlsx
+        </label>
+      </div>
+      <div class="acc-upload-status" data-role="acc-upload-status"${uploadStatus ? '' : ' hidden'}>${uploadStatus}</div>
+    `;
+  }
+
+  function wireUpload() {
+    const input = rootEl && rootEl.querySelector('[data-role="acc-upload-input"]');
+    if (!input) return;
+    input.addEventListener('change', (e) => {
+      const file = e.target.files && e.target.files[0];
+      e.target.value = ''; // เลือกไฟล์เดิมซ้ำได้
+      if (file) uploadFile(file);
+    });
+  }
+
+  function setUploadStatus(tone, text) {
+    uploadStatus = text ? `<span class="acc-upload-status__${tone}">${escHtml(text)}</span>` : '';
+    const el = rootEl && rootEl.querySelector('[data-role="acc-upload-status"]');
+    if (!el) return;
+    el.hidden = !uploadStatus;
+    el.innerHTML = uploadStatus;
+  }
+
+  function setUploadButtonLoading(on) {
+    const btn = rootEl && rootEl.querySelector('.acc-upload-btn');
+    if (btn) btn.classList.toggle('is-loading', on);
+    const input = rootEl && rootEl.querySelector('[data-role="acc-upload-input"]');
+    if (input) input.disabled = on;
+  }
+
+  // อ่านไฟล์ในเบราว์เซอร์ (SheetJS) เฉพาะชีต Summary + ชีตเดือน (Jan..Dec) — resolve cell
+  // error (#REF! ฯลฯ) เป็นข้อความที่ Excel แสดง และเก็บ hyperlink เป็น { "B25": url }
+  // (รูปแบบเดียวกับหน้า xlsx-comparison/ ที่ renderer ด้านบนอ่านอยู่แล้ว)
+  function parseWorkbook(buffer) {
+    const wb = XLSX.read(buffer, { type: 'array', cellDates: false });
+    const out = {};
+    wb.SheetNames
+      .filter((n) => n === 'Summary' || MONTH_NAMES.includes(n))
+      .forEach((name) => {
+        const ws = wb.Sheets[name];
+        const aoa = XLSX.utils.sheet_to_json(ws, { header: 1, raw: true, defval: null, blankrows: true });
+        const maxCols = aoa.reduce((max, row) => Math.max(max, row ? row.length : 0), 0);
+        const resolved = aoa.map((row, r) => {
+          const outRow = new Array(maxCols);
+          for (let c = 0; c < maxCols; c++) {
+            let v = row && row[c] !== undefined ? row[c] : null;
+            if (v === null) {
+              const raw = ws[XLSX.utils.encode_cell({ r, c })];
+              if (raw && raw.t === 'e') v = raw.w || null;
+            }
+            outRow[c] = v;
+          }
+          return outRow;
+        });
+        const links = {};
+        Object.keys(ws).forEach((addr) => {
+          if (addr[0] === '!') return;
+          const cellObj = ws[addr];
+          if (cellObj && cellObj.l && cellObj.l.Target) links[addr] = String(cellObj.l.Target);
+        });
+        out[name] = { aoa: resolved, links };
+      });
+    return out;
+  }
+
+  // POST action=acc_express_upload (upsert ตามชื่อชีต — ชีตที่ไม่ได้ส่งมาไม่ถูกแตะ) แล้ว
+  // ล้างแคชและโหลดจากฐานข้อมูลใหม่ ให้สิ่งที่เห็นบนจอคือสิ่งที่บันทึกจริง
+  function uploadFile(file) {
+    if (uploading) return;
+    if (typeof XLSX === 'undefined') { setUploadStatus('error', 'ตัวอ่าน .xlsx ยังโหลดไม่เสร็จ ลองใหม่อีกครั้ง'); return; }
+    if (!ENDPOINT) { setUploadStatus('error', 'ยังไม่ได้ตั้งค่า gasEndpoint'); return; }
+
+    const reader = new FileReader();
+    reader.onerror = () => setUploadStatus('error', 'อ่านไฟล์ไม่สำเร็จ');
+    reader.onload = async (e) => {
+      let sheets;
+      try {
+        sheets = parseWorkbook(e.target.result);
+      } catch (err) {
+        console.error('[AccExpress] parse failed', err);
+        setUploadStatus('error', 'อ่านไฟล์ไม่สำเร็จ: ' + err.message);
+        return;
+      }
+      const names = Object.keys(sheets);
+      if (!names.length) {
+        setUploadStatus('error', 'ไม่พบชีต "Summary" หรือชีตรายเดือน (Jan, Feb, ...) ในไฟล์นี้');
+        return;
+      }
+
+      const body = JSON.stringify({ action: 'acc_express_upload', source_file_name: file.name, sheets });
+      const sizeKb = Math.round(new Blob([body]).size / 1024);
+      uploading = true;
+      setUploadButtonLoading(true);
+      setUploadStatus('loading', `กำลังบันทึก ${names.length} ชีต (${sizeKb.toLocaleString('th-TH')} KB): ${names.join(', ')}`);
+      try {
+        // text/plain โดยตั้งใจ — Apps Script ตอบ preflight (OPTIONS) ไม่ได้ ถ้าใช้
+        // application/json เบราว์เซอร์จะ preflight แล้วพังด้วย CORS
+        const res = await fetch(ENDPOINT, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body });
+        const data = await res.json();
+        if (!data || data.ok === false) throw new Error((data && data.error) || 'บันทึกไม่สำเร็จ');
+        uploading = false;
+        setUploadStatus('success', `บันทึกแล้ว ${(data.updated_keys || names).length} ชีต จากไฟล์ ${file.name}`);
+        cache = null;
+        render(rootEl.id);
+      } catch (err) {
+        uploading = false;
+        setUploadButtonLoading(false);
+        console.error('[AccExpress] upload failed', err);
+        setUploadStatus('error', 'บันทึกลงฐานข้อมูลไม่สำเร็จ: ' + (err instanceof TypeError ? 'เชื่อมต่อฐานข้อมูลไม่ได้ ลองใหม่อีกครั้ง' : err.message));
+      }
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
   function renderLoaded() {
     const latest = Object.values(cache.updated_at || {}).sort().pop();
     const updatedText = latest ? new Date(latest).toLocaleString('th-TH') : '—';
 
     rootEl.innerHTML = `
-      <div class="chart-card__header">
-        <div>
-          <div class="chart-card__title">เปรียบเทียบค่าปรับ Acc Vs Express</div>
-          <div class="chart-card__subtitle">ข้อมูลจากไฟล์เปรียบเทียบของแผนกบัญชี · อัปเดตล่าสุด ${escHtml(updatedText)}</div>
-        </div>
-      </div>
+      ${headerHtml(`ข้อมูลจากไฟล์เปรียบเทียบของแผนกบัญชี · อัปเดตล่าสุด ${escHtml(updatedText)}`)}
       <div class="acc-embed">
         <div class="acc-tabs">
           ${sheetOrder.map((name, i) => `
@@ -459,18 +583,15 @@ const AccExpress = (() => {
     });
 
     renderSheet(sheetOrder[0]);
+    wireUpload();
   }
 
   function renderState(html) {
     rootEl.innerHTML = `
-      <div class="chart-card__header">
-        <div>
-          <div class="chart-card__title">เปรียบเทียบค่าปรับ Acc Vs Express</div>
-          <div class="chart-card__subtitle">ข้อมูลจากไฟล์เปรียบเทียบของแผนกบัญชี</div>
-        </div>
-      </div>
+      ${headerHtml('ข้อมูลจากไฟล์เปรียบเทียบของแผนกบัญชี')}
       ${html}
     `;
+    wireUpload();
   }
 
   // ── entry point: เรียกจาก comparison.js หลัง render section "สัดส่วนตามลูกค้า" ──
@@ -504,7 +625,7 @@ const AccExpress = (() => {
         });
 
       if (!order.length) {
-        renderState(`<div class="acc-embed-state acc-embed-state--muted">ยังไม่มีข้อมูลในฐานข้อมูล — อัพโหลดไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx" ที่หน้าอัพโหลดก่อน</div>`);
+        renderState(`<div class="acc-embed-state acc-embed-state--muted">ยังไม่มีข้อมูลในฐานข้อมูล — กด "อัพโหลดไฟล์ .xlsx" ด้านบนเพื่อเพิ่มไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx"</div>`);
         return;
       }
 

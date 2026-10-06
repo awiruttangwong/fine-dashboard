@@ -238,3 +238,32 @@
   color: var(--color-text-muted);
   font-size: 0.875rem;
 }
+
+/* ── อัพโหลดไฟล์ .xlsx จากในหน้า dashboard ── */
+.acc-upload-btn {
+  position: relative;
+  flex: 0 0 auto;
+  cursor: pointer;
+  white-space: nowrap;
+}
+.acc-upload-btn.is-loading { color: transparent !important; pointer-events: none; }
+.acc-upload-btn.is-loading::after {
+  content: ""; position: absolute; top: 50%; left: 50%;
+  width: 15px; height: 15px; margin: -8px 0 0 -8px;
+  border: 2px solid rgba(255,255,255,.5); border-top-color: #fff; border-radius: 50%;
+  animation: accUploadSpin .6s linear infinite;
+}
+@keyframes accUploadSpin { to { transform: rotate(360deg); } }
+.acc-upload-status {
+  margin: var(--space-3) var(--space-5) 0;
+  padding: var(--space-2) var(--space-3);
+  border-radius: 10px;
+  font-size: var(--font-size-sm);
+  background: var(--color-surface-alt, #f5f5f7);
+}
+.acc-upload-status__loading { color: var(--color-text-secondary); }
+.acc-upload-status__success { color: var(--color-success); }
+.acc-upload-status__error { color: var(--color-danger); }
+@media (max-width: 640px) {
+  .acc-embed-header { flex-wrap: wrap; }
+}
