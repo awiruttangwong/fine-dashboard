@@ -54,8 +54,17 @@ function runCentralDataSync_() {
         var built = buildReplacementRows_(sourceSs, rule);
         if (built) claimStats.replacements.push({ rule: rule, rows: built });
       });
-      var sumStatus = refreshAndRebuildWarehouse_(sourceSs, 'SUM', ssCentral, 'SUM(' + source.label + ')', { claimStats: claimStats });
-      var statusResults = syncMonthlyStatusSheets_(sourceSs, ssCentral, source.label, claimStats);
+      // สร้าง SUM/สถานะ จากชีตลูกค้าโดยตรง (ยอด = L, หาคอลัมน์จากหัวตาราง) แทนการคัดลอก
+      // SUM ที่สคริปต์ในไฟล์เดือนสร้างตามตำแหน่งคอลัมน์ — ดู buildMonthRowsFromSources_
+      var built = buildMonthRowsFromSources_(sourceSs);
+      writeBuiltWarehouseSheet_(ssCentral, 'SUM(' + source.label + ')', built.rows.SUM);
+      var sumStatus = true;
+      var statusResults = BACKEND_CONFIG.statusSheetNames.map(function(sheetType) {
+        writeBuiltWarehouseSheet_(ssCentral, sheetType + '(' + source.label + ')', built.rows[sheetType]);
+        return { type: sheetType, synced: true };
+      });
+      claimStats.replacements = [];
+      claimStats.buildNotes = built.notes;
       // ไม่ copy ข้อมูล Drivers/Payments จากไฟล์รายเดือนอีกต่อไป — คลังกลางเป็นแหล่งข้อมูล
       // หลักแล้ว native UI เขียนตรงเข้าคลัง ถ้ายัง copy จากไฟล์รายเดือนจะทับข้อมูลที่เพิ่ง
       // เขียนหาย
@@ -184,6 +193,126 @@ function buildReplacementRows_(sourceSpreadsheet, rule, sheetName) {
   return out.SUM.length ? out : null;
 }
 
+// ── สร้าง SUM/รอปรับ/ปรับได้/ปรับไม่ได้ ของเดือนจากชีตลูกค้าในไฟล์เดือนโดยตรง ──
+// หาคอลัมน์จาก "ชื่อหัวตาราง" (ไม่ใช่ตำแหน่ง) จึงไม่พังเมื่อแต่ละเดือนเรียงคอลัมน์ต่างกัน
+// ยอดปรับ = คอลัมน์ "ค่าปรับมาจากลูกค้า" (L) ตามที่ผู้ใช้กำหนด · สถานะยังคิดแบบเดิมของ
+// สคริปต์รายเดือนจาก "ปรับ ซัพ-พขร." / "ปรับได้" / "คงเหลือ" / คอลัมน์ถัดจากคงเหลือ (Q)
+// ใช้กฎพิเศษในตัว: ข้าม excludedCustomers (J&T), ข้ามสาเหตุเคลมพัสดุ (claimExclusion),
+// ใช้ชีตทดแทน (SPX-USE) เมื่อมีข้อมูล · คืน { rows: {SUM, รอปรับ, ...}, notes: [] }
+function findHeaderIdx_(header, name, mode) {
+  for (var i = 0; i < header.length; i++) {
+    var h = cleanText_(header[i]);
+    if (mode === 'prefix' ? h.indexOf(name) === 0 : h === name) return i;
+  }
+  return -1;
+}
+
+function buildMonthRowsFromSources_(sourceSpreadsheet) {
+  var cfg = BACKEND_CONFIG.sourceBuild;
+  var out = { SUM: [], 'รอปรับ': [], 'ปรับได้': [], 'ปรับไม่ได้': [] };
+  var notes = [];
+  var claim = BACKEND_CONFIG.claimExclusion;
+
+  cfg.customerSheets.forEach(function(customerSheet) {
+    if (isExcludedCustomer_(customerSheet)) return;
+    var sheetName = customerSheet;
+    (BACKEND_CONFIG.sheetReplacements || []).forEach(function(rep) {
+      if (rep.customer !== customerSheet) return;
+      var alt = sourceSpreadsheet.getSheetByName(rep.useSheet);
+      if (alt && alt.getLastRow() >= 2) sheetName = rep.useSheet;
+    });
+    var sheet = sourceSpreadsheet.getSheetByName(sheetName);
+    if (!sheet || sheet.getLastRow() < 2) return;
+
+    var lastCol = sheet.getLastColumn() + 1;
+    var range = sheet.getRange(1, 1, sheet.getLastRow(), lastCol);
+    var values = range.getValues();
+    var display = range.getDisplayValues();
+    var header = display[0];
+    var idx = {
+      date: 0,
+      customer: findHeaderIdx_(header, 'ลูกค้า'),
+      reason: findHeaderIdx_(header, 'สาเหตุ'),
+      barcode: findHeaderIdx_(header, 'บาร์โค้ด'),
+      route: findHeaderIdx_(header, 'เส้นทาง'),
+      driver: findHeaderIdx_(header, 'ชื่อ'),
+      receiver: findHeaderIdx_(header, 'ผู้รับโอน'),
+      amount: findHeaderIdx_(header, cfg.amountHeader),
+      subFine: findHeaderIdx_(header, 'ปรับ ซัพ-พขร.'),
+      paid: findHeaderIdx_(header, 'ปรับได้', 'prefix'),
+      remaining: findHeaderIdx_(header, 'คงเหลือ')
+    };
+    // เดือน 6 ใช้หัว "ปรับ" แทน "ปรับได้" (BEST เดือน 6 ไม่มีคอลัมน์นี้เลย → ไม่มีสถานะปรับได้)
+    if (idx.paid < 0) idx.paid = findHeaderIdx_(header, 'ปรับ');
+    // FLASH เดือน 7 หัว "คงเหลือ" ว่าง — ใช้คอลัมน์ถัดจาก "ปรับได้" (ตำแหน่งเดิมของสคริปต์)
+    if (idx.remaining < 0 && idx.paid >= 0) idx.remaining = idx.paid + 1;
+    var missing = ['customer', 'barcode', 'amount', 'subFine'].filter(function(k) { return idx[k] < 0; });
+    if (missing.length) { notes.push(sheetName + ' ไม่พบหัวตาราง: ' + missing.join(',')); return; }
+    var statusIdx = idx.remaining >= 0 ? idx.remaining + 1 : -1;
+    var count = 0;
+
+    // ชีตที่ยังไม่ได้กรอก L เลยทั้งชีต (เช่นเดือนที่ลูกค้ายังไม่ส่งยอด) ใช้ K ไปก่อน
+    // ไม่ให้ยอดเดือนนั้นกลายเป็น 0 — พอกรอก L แล้ว sync ครั้งถัดไปจะสลับเป็น L เอง
+    var amountIdx = idx.amount;
+    var amountLabel = 'L';
+    var anyL = false;
+    for (var a = 1; a < values.length && !anyL; a++) {
+      var av = parseSheetAmount_(values[a][idx.amount], display[a][idx.amount]);
+      if (av !== null && av > 0) anyL = true;
+    }
+    if (!anyL) { amountIdx = idx.subFine; amountLabel = 'K (L ยังว่าง)'; }
+    var excludeReasons = cfg.excludeReasons || [];
+    var skippedReason = 0;
+    var noIdentifier = [];
+
+    for (var r = 1; r < values.length; r++) {
+      var src = values[r];
+      var disp = display[r];
+      var amount = parseSheetAmount_(src[amountIdx], disp[amountIdx]);
+      if (amount === null || amount <= 0) continue;
+      if (claim && claim.sheets.indexOf(customerSheet) !== -1 && idx.reason >= 0 &&
+          cleanText_(disp[idx.reason]).indexOf(claim.keyword) !== -1) continue;
+      // สาเหตุที่นับอยู่ใน Drivers(Mx) แล้ว (รถไม่เข้ารับงาน) ไม่นับซ้ำในค่าปรับอื่นๆ
+      var reasonText = idx.reason >= 0 ? cleanText_(disp[idx.reason]) : '';
+      if (excludeReasons.some(function(x) { return reasonText.indexOf(x) !== -1; })) { skippedReason++; continue; }
+      var pick = function(i) { return i >= 0 && src[i] !== undefined ? src[i] : ''; };
+      var row = [
+        cleanText_(disp[idx.date]), pick(idx.customer), pick(idx.barcode), pick(idx.route),
+        pick(idx.driver), pick(idx.receiver), amount, pick(idx.paid), pick(idx.remaining)
+      ];
+      // ต้องมีตัวระบุอย่างน้อย 1 อย่าง (วันที่/บาร์โค้ด/เส้นทาง/พขร./ผู้รับโอน) — กติกาเดียวกับตัวอ่าน
+      // ฝั่ง API (validRowPolicy) ไม่งั้นแถวจะอยู่ในชีตคลังกลางแต่ไม่ขึ้น dashboard
+      // ใช้ตัวแปลงวันที่ตัวเดียวกับตัวอ่าน API — วันที่ที่แปลงไม่ได้ถือว่าไม่มีวันที่
+      var dateOk = !!normalizeDate_(src[idx.date], disp[idx.date], null).fine_date;
+      // (เส้นทางอย่างเดียวไม่นับเป็นตัวระบุ — ตัวอ่าน API ไม่นับเช่นกัน)
+      if (!dateOk && ![row[2], row[4], row[5]].some(function(v) { return cleanText_(v) !== ''; })) {
+        noIdentifier.push(cleanText_(disp[idx.reason]) + ' ' + amount + (cleanText_(row[0]) ? ' [วันที่: ' + cleanText_(row[0]) + ']' : ''));
+        continue;
+      }
+      if (isExcludedCustomer_(row[1])) continue;
+      out.SUM.push(row);
+      count++;
+
+      // สถานะ: ตรรกะเดิมของสคริปต์รายเดือน (เทียบกับ ปรับ ซัพ-พขร.)
+      var fine = parseSheetAmount_(src[idx.subFine], disp[idx.subFine]);
+      var paid = parseSheetAmount_(src[idx.paid], disp[idx.paid]);
+      var remaining = parseSheetAmount_(src[idx.remaining], disp[idx.remaining]);
+      var closeText = statusIdx >= 0 ? cleanText_(disp[statusIdx]) : '';
+      var isZero = function(v) { return v === null || Math.abs(v) < 0.005; };
+      var status = '';
+      if (closeText.indexOf('จบจ่าย') !== -1) status = 'ปรับไม่ได้';
+      else if (fine !== null && fine > 0) {
+        if (isZero(paid) && remaining !== null && Math.abs(remaining + fine) < 0.005) status = 'รอปรับ';
+        else if (paid !== null && paid > 0 && Math.abs(paid - fine) < 0.005 && isZero(remaining)) status = 'ปรับได้';
+      }
+      if (status) out[status].push(row.slice());
+    }
+    notes.push(sheetName + ' ' + amountLabel + ' ' + count + (skippedReason ? ' (ข้ามรถไม่เข้ารับงาน ' + skippedReason + ')' : '') +
+      (noIdentifier.length ? ' (ข้ามแถวไม่มีวันที่/บาร์โค้ด/เส้นทาง/ชื่อ: ' + noIdentifier.join(', ') + ')' : ''));
+  });
+  return { rows: out, notes: notes };
+}
+
 function parseSheetAmount_(value, displayValue) {
   var text = cleanText_(displayValue);
   if (text === '' && typeof value === 'number') return isFinite(value) ? value : null;
@@ -202,6 +331,7 @@ function buildClaimLog_(claimStats) {
   var parts = Object.keys(claimStats.removed).filter(function(k) { return claimStats.removed[k] > 0; })
     .map(function(k) { return k + ' ' + claimStats.removed[k]; });
   var text = parts.length ? ' | ตัดเคลมพัสดุ: ' + parts.join(', ') : '';
+  if (claimStats.buildNotes) text += ' | ' + claimStats.buildNotes.join(' · ');
   (claimStats.replacements || []).forEach(function(rep) {
     var used = rep.used || {};
     text += ' | ' + rep.rule.customer + ' ใช้ ' + rep.rule.useSheet + ': ' + Object.keys(used).map(function(k) { return k + ' ' + used[k]; }).join(', ');
@@ -305,6 +435,22 @@ function refreshAndRebuildWarehouse_(sourceSpreadsheet, sourceSheetType, central
   targetSheet.getRange(1, 1, lastRowSource, lastColSource).setValues(syncedValues);
   applyStrictStructuralLayout_(targetSheet, targetSheetName, lastRowSource, lastColSource);
   return true;
+}
+
+// เขียนแถวที่สร้างเองลงชีตคลังกลาง (ลบแล้วสร้างใหม่ เหมือนการ sync เดิม) หัวตาราง 9 คอลัมน์มาตรฐาน
+function writeBuiltWarehouseSheet_(centralSpreadsheet, targetSheetName, rows) {
+  var headers = BACKEND_CONFIG.emptyHeaders;
+  var old = centralSpreadsheet.getSheetByName(targetSheetName);
+  if (old) centralSpreadsheet.deleteSheet(old);
+  var sheet = centralSpreadsheet.insertSheet(targetSheetName);
+  var data = [headers].concat((rows || []).map(function(r) {
+    var out = r.slice(0, headers.length);
+    while (out.length < headers.length) out.push('');
+    return out;
+  }));
+  enforceSyncColumnFormats_(sheet, data.length);
+  sheet.getRange(1, 1, data.length, headers.length).setValues(data);
+  applyStrictStructuralLayout_(sheet, targetSheetName, data.length, headers.length);
 }
 
 function rebuildEmptyWarehouseSheet_(centralSpreadsheet, targetSheetName) {

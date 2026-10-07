@@ -15,6 +15,9 @@ var BACKEND_CONFIG = {
   // ชีตลูกค้าทดแทน: ถ้าไฟล์เดือนมีชีต useSheet และมีข้อมูล ให้สร้างแถวของลูกค้านั้นใน
   // SUM/รอปรับ/ปรับได้/ปรับไม่ได้ จากชีตนี้แทน (แถวเดิมของลูกค้านั้นจาก SUM ไฟล์เดือนถูกตัดทิ้ง)
   // ไม่มีชีต/ชีตว่าง = ใช้ข้อมูลเดิม · index นับจาก 0 ตามสคริปต์รายเดือน (K=10 ยอดปรับ, O=14 ปรับได้, P=15 คงเหลือ, Q=16 สถานะ)
+  // สร้าง SUM/สถานะ จากชีตลูกค้าในไฟล์เดือนโดยตรง (หาคอลัมน์จากชื่อหัวตาราง) — ยอดปรับใช้
+  // คอลัมน์ amountHeader (L "ค่าปรับมาจากลูกค้า") ตามที่ผู้ใช้กำหนด
+  sourceBuild: { customerSheets: ['FLASH', 'SPX', 'KEX', 'BEST', 'J&T', 'SGT'], amountHeader: 'ค่าปรับมาจากลูกค้า', excludeReasons: ['รถไม่เข้ารับงาน'] },
   sheetReplacements: [{ customer: 'SPX', useSheet: 'SPX-USE', cols: [0, 1, 3, 4, 6, 7, 10, 14, 15], fineColIdx: 10, paidColIdx: 14, remainingColIdx: 15, statusColIdx: 16 }],
   claimExclusion: { sheets: ['BEST'], keyword: 'เคลมพัสดุ', reasonColIdx: 2, barcodeColIdx: 3, amountColIdx: 10 },
   statusSheetNames: ['รอปรับ', 'ปรับได้', 'ปรับไม่ได้'],
