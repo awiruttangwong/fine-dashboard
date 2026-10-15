@@ -6,8 +6,76 @@ function onOpen() {
     .addToUi();
 }
 
+// ── ซิงค์อัตโนมัติทุกวัน ~08:00 (Google รันคลาดได้ ±15 นาที) ให้ข้อมูลพร้อมก่อนเริ่มงาน 8:30 ──
+function scheduledCentralSync() {
+  syncWithLock_('trigger');
+}
+
+// รันครั้งเดียวจาก Apps Script editor (เลือกฟังก์ชันนี้ → Run → อนุญาตสิทธิ์) เพื่อสร้าง trigger
+// รันซ้ำได้ปลอดภัย: ลบ trigger เดิมของ scheduledCentralSync ก่อนสร้างใหม่ จึงไม่ซ้อน
+function installDailySyncTrigger() {
+  ScriptApp.getProjectTriggers().forEach(function(t) {
+    if (t.getHandlerFunction() === 'scheduledCentralSync') ScriptApp.deleteTrigger(t);
+  });
+  ScriptApp.newTrigger('scheduledCentralSync')
+    .timeBased().everyDays(1).atHour(8).nearMinute(0)
+    .inTimezone(BACKEND_CONFIG.timezone || 'Asia/Bangkok')
+    .create();
+  var msg = 'ตั้งซิงค์อัตโนมัติทุกวัน ~08:00 แล้ว (trigger ทั้งหมดของโปรเจกต์: ' + ScriptApp.getProjectTriggers().length + ')';
+  console.log(msg);
+  return msg;
+}
+
+// ทุกทางที่สั่งซิงค์ (เมนู / URL / trigger) ผ่านที่นี่ — ScriptLock กันการซิงค์ซ้อนกัน
+// (ไม่ใช้ DocumentLock เพราะการเขียน พขร. หน้าเว็บใช้ตัวนั้น และซิงค์ใช้เวลา 1–2 นาที
+// จะทำให้การบันทึกหน้าเว็บรอจนหมดเวลา) และบันทึกผลทุกครั้งลงชีต SyncLog
+function syncWithLock_(source) {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(5000)) {
+    var busy = { active_sync_count: 0, process_log: ['ข้าม: มีการซิงค์อื่นกำลังทำงานอยู่'], skipped: true };
+    writeSyncLog_(source, busy, 0);
+    return busy;
+  }
+  var started = Date.now();
+  try {
+    var result;
+    try {
+      result = runCentralDataSync_();
+    } catch (err) {
+      result = { active_sync_count: 0, process_log: ['ล้มเหลว: ' + (err && err.message ? err.message : err)], error: true };
+    }
+    writeSyncLog_(source, result, Math.round((Date.now() - started) / 1000));
+    if (result.error) throw new Error(result.process_log[0]);
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function writeSyncLog_(source, result, seconds) {
+  try {
+    var ss = openBackendSpreadsheet_();
+    var sheet = ss.getSheetByName('SyncLog');
+    if (!sheet) {
+      sheet = ss.insertSheet('SyncLog');
+      sheet.getRange(1, 1, 1, 5).setValues([['เวลา', 'สั่งจาก', 'ผล', 'ใช้เวลา (วินาที)', 'รายละเอียด']]).setFontWeight('bold');
+      sheet.setFrozenRows(1);
+    }
+    var failed = result.error || result.process_log.some(function(t) { return /ล้มเหลว|พบปัญหา/.test(t); });
+    var status = result.skipped ? 'ข้าม' : (failed ? 'มีปัญหา' : 'สำเร็จ');
+    sheet.insertRowAfter(1);
+    sheet.getRange(2, 1, 1, 5).setValues([[
+      Utilities.formatDate(new Date(), BACKEND_CONFIG.timezone || 'Asia/Bangkok', 'dd/MM/yyyy HH:mm:ss'),
+      source, status, seconds, result.process_log.join('\n')
+    ]]);
+    if (sheet.getLastRow() > 501) sheet.deleteRows(502, sheet.getLastRow() - 501); // เก็บ 500 รอบล่าสุด
+  } catch (e) {
+    console.error('[SyncLog] ' + e.message);
+  }
+}
+
 function executeCentralDataSync() {
-  var result = runCentralDataSync_();
+  var result = syncWithLock_('เมนู');
 
   if (result.active_sync_count === 0) {
     SpreadsheetApp.getUi().alert('บันทึกการทำงานระบบกลาง:\nไม่พบ ID ไฟล์ต้นทางในระบบ กรุณาใส่ ID ของเดือนที่ต้องการซิงค์ข้อมูล');
@@ -1030,7 +1098,7 @@ function collectStatusBreakdownRows_(spreadsheet, catalog, params) {
 }
 
 function buildSyncPayload_() {
-  var result = runCentralDataSync_();
+  var result = syncWithLock_('URL');
   return {
     ok: true,
     action: 'sync',

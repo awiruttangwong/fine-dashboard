@@ -150,6 +150,15 @@ curl -sL "https://script.google.com/macros/s/AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5
 
 ---
 
+## ⏰ ซิงค์อัตโนมัติ
+
+- คลังกลางซิงค์ทุกเดือนเองทุกวัน ~08:00 (trigger `scheduledCentralSync`, Google คลาดได้ ±15 นาที) ไม่ต้องกดเมนู
+- ทุกรอบ (trigger/เมนู/URL) บันทึกผลในชีต `SyncLog` ของ fine database — เช็คที่นี่ถ้าตัวเลขไม่อัปเดต
+- ต้องตั้ง trigger ใหม่ (เช่นเปลี่ยนเวลา/บัญชี): เปิด Apps Script คลังกลาง → รัน `installDailySyncTrigger`
+- ไม่ต้องกด "ซิงก์ข้อมูล" ในไฟล์เดือนเพื่อให้ dashboard อัปเดต (คลังกลางอ่านชีตลูกค้าเอง)
+
+---
+
 ## 🔍 การตรวจสอบ (Verification)
 
 ตรวจว่าชีต M9 ครบในคลังกลาง:
