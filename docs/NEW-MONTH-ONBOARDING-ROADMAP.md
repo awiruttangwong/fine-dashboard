@@ -27,7 +27,7 @@
 ┌─ ไฟล์รายเดือน (M9) ──────────┐         ┌─ คลังกลาง (fine database) ──────────┐
 │  6 ชีตลูกค้า:                │  sync   │  SUM(M9) รอปรับ(M9)                  │
 │  FLASH SPX KEX BEST J&T SGT  │ ──────► │  ปรับได้(M9) ปรับไม่ได้(M9)         │ ──► Dashboard
-│  + Code.gs (monthly-sync)    │         │  Drivers(M9) Payments(M9)           │     (Netlify)
+│  + Code.gs (monthly-sync)    │         │  Drivers(M9) Payments(M9)           │  (Cloudflare)
 └──────────────────────────────┘         └─────────────────────────────────────┘
       ↑ ขั้น 1–2                                ↑ ขั้น 3–5 (auto-provision)
 ```
@@ -50,7 +50,8 @@
    - ชื่อเดือนไทย: `กันยายน`, `ตุลาคม`
    - หรือรูปแบบวันที่: `2026-09`, `09/2026`
 3. เปิด **Extensions → Apps Script**
-4. วางเนื้อหาจากไฟล์ **`ค่าปรับค้าง พขร/Code.monthly-sync.gs.txt`** (ในrepo) ลงไป **เหมือนกันเป๊ะทุกตัวอักษร** — ไม่ต้องแก้อะไรเลย (script เป็น month-agnostic อ่านเดือนจากชื่อไฟล์เอง)
+4. คัดลอกสคริปต์จากไฟล์เดือนก่อนหน้า (Extensions → Apps Script ของไฟล์ M8) มาวาง **เหมือนกันเป๊ะทุกตัวอักษร** — ไม่ต้องแก้อะไร (script อ่านเดือนจากชื่อไฟล์เอง)
+   > ขั้นนี้ไม่บังคับสำหรับ dashboard — คลังกลางอ่านชีตลูกค้าเองแล้ว สคริปต์นี้ใช้แค่ให้ไฟล์เดือนมีชีต SUM ไว้ดูเอง
 5. Save
 
 > ⚠️ **ห้ามแก้ Code.gs ให้ต่างจาก M6/M7/M8** — ทุกเดือนใช้สคริปต์ตัวเดียวกันเป๊ะ ถ้าแก้เฉพาะเดือนจะทำให้ debug ยากและเสี่ยงพลาด
@@ -67,10 +68,7 @@
 หา **spreadsheet ID** จาก URL ของไฟล์เดือนใหม่:
 `https://docs.google.com/spreadsheets/d/`**`<ตรงนี้คือ ID>`**`/edit`
 
-แก้ **ทั้ง 2 ไฟล์ให้ตรงกันเป๊ะ** (คลังกลางต้องมิเรอร์กันเสมอ):
-
-- `backend/config.gs`
-- `backend/live-gas/config.gs`
+แก้ไฟล์ **`backend/live-gas/config.gs`** (ไฟล์เดียว — สำเนา `backend/config.gs` เดิมย้ายไป `_archive/backend-mirror/` แล้ว):
 
 หาบรรทัด `monthlySources` แล้วเติม id ในช่องเดือนนั้น (จากเดิม `id: ''`):
 
@@ -82,12 +80,6 @@ monthlySources: [
   { label: 'M10', id: '' },
   ...
 ]
-```
-
-ยืนยันว่า 2 ไฟล์ตรงกัน:
-
-```bash
-diff backend/config.gs backend/live-gas/config.gs   # ต้องไม่มี output
 ```
 
 ### ขั้น 4 — push + deploy คลังกลาง
@@ -103,12 +95,12 @@ npx clasp deploy -i AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi
 commit เก็บประวัติด้วย:
 
 ```bash
-git add backend/config.gs backend/live-gas/config.gs
+git add backend/live-gas/config.gs
 git commit -m "feat: wire M9 into monthlySources"
 git push origin main
 ```
 
-> config เป็น backend ล้วน **ไม่ต้อง deploy Netlify** (Netlify deploy เฉพาะตอนแก้ frontend — `js/`, `css/`, `index.html`)
+> config เป็น backend ล้วน **ไม่ต้อง deploy หน้าเว็บ** (Cloudflare deploy เฉพาะตอนแก้ `js/`, `css/`, `index.html` — `bash tools/deploy-cloudflare.sh`)
 
 ### ขั้น 5 — ซิงค์ที่คลังกลาง + ตรวจผล
 
@@ -193,9 +185,9 @@ curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี
 | **คลังกลาง (fine database)** | `1sF_ZHOwDGV55jA3WV_vqCh0aII_su2hFYaNmHh5xtLk` |
 | **Apps Script คลังกลาง (scriptId)** | `1qn1gCLwH26wctoRQb4t5AHfWskx4DaluyWiIgi-f9vNIgnO01c5qn-Fn` |
 | **Pinned deployment ID (endpoint จริง)** | `AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi89KEsI25-Y7XOw` |
-| **สคริปต์รายเดือน (canonical)** | `ค่าปรับค้าง พขร/Code.monthly-sync.gs.txt` |
-| **config ที่ต้องแก้** | `backend/config.gs` + `backend/live-gas/config.gs` (มิเรอร์ให้ตรงกัน) |
-| **Frontend (Netlify)** | <https://2kfine-dashboard.netlify.app> — deploy ด้วย `netlify deploy --prod` (เฉพาะเมื่อแก้ frontend) |
+| **สคริปต์รายเดือน** | คัดลอกจากไฟล์เดือนก่อนหน้า (ไม่บังคับ — ดูขั้น 1) |
+| **config ที่ต้องแก้** | `backend/live-gas/config.gs` |
+| **Frontend (Cloudflare Pages)** | <https://2kfine-dashboard.pages.dev> — deploy ด้วย `bash tools/deploy-cloudflare.sh` (เฉพาะเมื่อแก้ frontend) |
 
 ### เดือนที่เปิดใช้แล้ว (อัปเดตทุกครั้งที่เพิ่มเดือน)
 
@@ -216,8 +208,7 @@ curl -sL ".../exec?action=health"      # ดู sheet_catalog ต้องมี
 [ ] 1. Extensions > Apps Script > วาง Code.monthly-sync.gs.txt เหมือนเป๊ะ > Save
 [ ] 2. กรอก 6 ชีตลูกค้า > เมนู "ซิงก์ข้อมูล" > เช็ค SUM
 [ ] 3. คัดลอก spreadsheet ID จาก URL
-[ ] 3. เติม id ใน backend/config.gs + backend/live-gas/config.gs (ตรงกัน)
-[ ] 3. diff ยืนยัน 2 ไฟล์ตรงกัน
+[ ] 3. เติม id ใน backend/live-gas/config.gs
 [ ] 4. cd backend/live-gas && clasp push -f
 [ ] 4. clasp deploy -i <PINNED_ID> -d "wire M9"
 [ ] 4. git commit + push

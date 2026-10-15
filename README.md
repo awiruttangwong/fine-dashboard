@@ -1,37 +1,40 @@
 # Fine Dashboard
 
-Static dashboard สำหรับติดตามและวิเคราะห์ข้อมูลค่าปรับ โดยหน้าเว็บโหลดข้อมูลจาก Google Apps Script Web App ที่ผูกกับ Google Sheet
+Dashboard ติดตามค่าปรับ (static site) ที่อ่านข้อมูลจาก Google Apps Script Web App ของคลังกลาง "fine database"
 
-## โครงสร้างหลัก
+- หน้าเว็บ: <https://2kfine-dashboard.pages.dev> (Cloudflare Pages)
+- คลังกลาง: Google Sheet "fine database" + Apps Script ใน `backend/live-gas/`
 
-- `index.html` - หน้าเว็บหลัก
-- `css/` - styles ของ dashboard
-- `js/` - logic, charts, filters, tables และ data loader
-- `Code.gs` - Google Apps Script backend สำหรับอ่านข้อมูลจาก Google Sheet
-- `references/` - data blueprint/contract
+## โครงสร้าง
 
-## ตั้งค่าข้อมูล
-
-ตั้งค่า Web App endpoint ใน `js/api-config.js`
-
-```js
-window.FINE_DASHBOARD_CONFIG = {
-  spreadsheetId: 'YOUR_SPREADSHEET_ID',
-  sheetName: 'data',
-  gasEndpoint: 'https://script.google.com/macros/s/YOUR_DEPLOYMENT_ID/exec',
-  useJsonp: true,
-  requestTimeoutMs: 20000
-};
-```
-
-ถ้า `gasEndpoint` ยังว่าง หน้าเว็บจะเปิดได้แต่โหลดข้อมูลไม่ได้
+| ที่อยู่ | คืออะไร |
+|---|---|
+| `index.html`, `css/`, `js/`, `icons/`, `_headers` | หน้า dashboard หลัก (ขึ้นเว็บ) |
+| `js/api-config.js` | URL ของ Apps Script Web App (endpoint) |
+| `xlsx-comparison/` | หน้าอัพโหลดไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express" แบบเดี่ยว (ขึ้นเว็บเฉพาะ `index.html`/`css`/`js` — ไฟล์ `.xlsx` ในโฟลเดอร์ไม่ขึ้น git และไม่ขึ้นเว็บ) |
+| `backend/live-gas/` | Apps Script ของคลังกลาง (`Code.gs`, `config.gs`) — จัดการด้วย clasp |
+| `tools/deploy-cloudflare.sh` | deploy หน้าเว็บ (คัดเฉพาะไฟล์ที่ต้องขึ้นเว็บ) |
+| `tools/local-static-server.js` | เปิดหน้าเว็บทดสอบในเครื่อง |
+| `docs/NEW-MONTH-ONBOARDING-ROADMAP.md` | ขั้นตอนเปิดเดือนใหม่ + กฎการซิงค์ทั้งหมด + ซิงค์อัตโนมัติ |
+| `references/` | data contract / blueprint ของข้อมูล |
+| `_archive/` | โค้ด/เอกสารรุ่นเก่า เก็บไว้ดูประวัติเท่านั้น ไม่ได้ใช้งาน |
 
 ## Deploy
 
-โปรเจกต์นี้เป็น static site ไม่มี build command
+**หน้าเว็บ** (เมื่อแก้ `index.html`, `css/`, `js/`, `xlsx-comparison/`) — ขยับ `?v=` ของไฟล์ที่แก้ใน `index.html` ก่อน แล้ว:
 
-- Publish directory: `.`
-- Build command: เว้นว่าง
+```bash
+bash tools/deploy-cloudflare.sh
+```
 
-ไฟล์ `netlify.toml` ถูกตั้งค่าไว้สำหรับ Netlify แล้ว
+**Backend** (เมื่อแก้ `backend/live-gas/`) — ต้อง `deploy -i` ทุกครั้ง (`push` อย่างเดียว endpoint จริงไม่เปลี่ยน):
 
+```bash
+cd backend/live-gas
+npx clasp push -f
+npx clasp deploy -i AKfycbxKBkV7A7zIhJ2AaOxXk6bNNd3yvF5mDE0WKJhvL5Move36OagNYeTi89KEsI25-Y7XOw -d "อธิบายการเปลี่ยนแปลง"
+```
+
+## ข้อมูลอัปเดตเมื่อไหร่
+
+คลังกลางซิงค์ทุกเดือนเองทุกวัน ~08:00 (หรือกดเมนู "ซิงค์และอัปเดตข้อมูลทุกเดือน" ใน fine database) ผลทุกรอบอยู่ในชีต `SyncLog` — รายละเอียดกฎการดึงข้อมูลดู `docs/NEW-MONTH-ONBOARDING-ROADMAP.md`

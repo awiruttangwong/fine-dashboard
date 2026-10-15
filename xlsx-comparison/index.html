@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html lang="th">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>เปรียบเทียบค่าปรับ Acc Vs Express</title>
+
+<!-- ใช้ font/token เดียวกับ dashboard หลัก (css/variables.css, css/base.css) เพื่อให้
+     โมดูลนี้ (แยกโฟลเดอร์ ยังไม่ merge ตามที่ผู้ใช้ขอ) หน้าตาสอดคล้องกันทันทีที่ merge -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Prompt:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="../css/variables.css">
+<!-- การ์ดสรุป KPI ใช้สไตล์จริงของ dashboard หลัก (kpi-tile/kpi-card/kpi-panel) ลิงก์ตรง
+     แทนการก็อปมาเขียนซ้ำ เพื่อให้หน้าตาตรงกับธีมเดิม 100% (ตรวจแล้วว่าไฟล์เหล่านี้ไม่มี
+     selector กว้างๆ เช่น body/* ที่จะไปทับสไตล์อื่นในหน้านี้โดยไม่ตั้งใจ) -->
+<link rel="stylesheet" href="../css/base.css">
+<link rel="stylesheet" href="../css/layout.css">
+<link rel="stylesheet" href="../css/components.css">
+<link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+
+  <div class="acc-page">
+    <header class="acc-header">
+      <div class="acc-header__title">
+        <svg xmlns="http://www.w3.org/2000/svg" height="24px" viewBox="0 -960 960 960" width="24px" fill="#000000"><path d="M640-160v-280h160v280H640Zm-240 0v-640h160v640H400Zm-240 0v-440h160v440H160Z"/></svg>
+        เปรียบเทียบค่าปรับ Acc Vs Express
+      </div>
+    </header>
+
+    <section class="acc-upload-card" id="upload-card">
+      <div class="acc-upload-card__icon">
+        <svg width="28" height="28" viewBox="0 -960 960 960" fill="currentColor" aria-hidden="true"><path d="M440-320v-326L336-542l-56-58 200-200 200 200-56 58-104-104v326h-80ZM240-160q-33 0-56.5-23.5T160-240v-120h80v120h480v-120h80v120q0 33-23.5 56.5T720-160H240Z"/></svg>
+      </div>
+      <div class="acc-upload-card__text">
+        <div class="acc-upload-card__title" id="upload-title">เลือกไฟล์ "เปรียบเทียบค่าปรับ Acc Vs Express.xlsx"</div>
+        <div class="acc-upload-card__hint" id="upload-hint">รองรับชีต Summary + ชีตรายเดือน (Jan, Feb, Mar, ...) ตามเทมเพลตเดิม</div>
+      </div>
+      <label class="acc-upload-card__btn" for="acc-file-input">เลือกไฟล์</label>
+      <input type="file" id="acc-file-input" accept=".xlsx,.xls" hidden>
+    </section>
+
+    <div id="acc-error" class="acc-error" hidden></div>
+
+    <!-- แถบสถานะการบันทึกลงฐานข้อมูล — ทำงานอัตโนมัติทันทีที่เลือกไฟล์ ไม่มีปุ่มให้กดเอง
+         (จบในขั้นตอนเดียว: เลือกไฟล์ = อ่าน + บันทึกขึ้นฐานข้อมูล) -->
+    <div id="acc-upload-db" class="acc-upload-db" hidden>
+      <span class="acc-upload-db__spinner" id="acc-upload-db-spinner" aria-hidden="true"></span>
+      <div class="acc-upload-db__text">
+        <div class="acc-upload-db__status" id="acc-upload-db-status"></div>
+        <div class="acc-upload-db__detail" id="acc-upload-db-detail"></div>
+      </div>
+      <button type="button" id="acc-upload-db-retry" class="acc-upload-db__retry" hidden>ลองใหม่</button>
+    </div>
+
+    <div id="acc-tabs" class="acc-tabs" hidden></div>
+
+    <main id="acc-content" class="acc-content"></main>
+  </div>
+
+  <!-- xlsx (read uploaded file) — เวอร์ชันเดียวกับที่ debt.js ของ dashboard หลักใช้อยู่แล้ว -->
+  <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+  <script src="js/api-config.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

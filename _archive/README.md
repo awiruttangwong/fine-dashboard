@@ -1,7 +1,11 @@
 # _archive
 
-ไฟล์ในนี้เป็นสำเนาเก่าที่เนื้อหาถูกแทนที่ด้วยเวอร์ชันปัจจุบันหมดแล้ว เก็บไว้เพื่อดูประวัติเท่านั้น (ยังอยู่ใน git history ด้วย)
+ไฟล์ในนี้เป็นของรุ่นเก่าที่ไม่ได้ใช้งานแล้ว เก็บไว้ดูประวัติเท่านั้น (ยังอยู่ใน git history ด้วย) — **ไม่มีอะไรในโฟลเดอร์นี้ถูก deploy หรือถูกระบบเรียกใช้**
 
-- `backup_fine_P'BOY/` — backup ของสคริปต์ debt-tracker รุ่นแรกสุด (ก่อนผูก spreadsheet id, ก่อนเพิ่ม field ลูกค้า). `Code.gs.txt` และ `html.txt` เป็นโค้ด Apps Script ชุดเดียวกัน (ชื่อไฟล์ `html.txt` ตั้งผิด ไม่ใช่ HTML จริง). แทนที่แล้วโดย [`ค่าปรับค้าง พขร/Code.merged.gs.txt`](../ค่าปรับค้าง%20พขร/Code.merged.gs.txt)
-- `Dashboard ยอดค้างปรับพขร/` — สแนปช็อตเก่ากว่าของโฟลเดอร์ [`ค่าปรับค้าง พขร/`](../ค่าปรับค้าง%20พขร/) (`Code.txt` เป็นรุ่นก่อน `Code.gs.txt`; `index.html.txt` เหมือนกับ `index.original.backup.html` ทุกตัวอักษร)
-- `code for fine database.txt` — ต้นฉบับของ `SHIPPING_CONFIG` ที่ถูกรวมเข้า [`ค่าปรับค้าง พขร/Code.merged.gs.txt`](../ค่าปรับค้าง%20พขร/Code.merged.gs.txt) แล้ว
+- `legacy-root-gas/` — Apps Script รุ่นแรก ("Fine Dashboard API") ที่เคยอยู่ที่ root ของ repo อ่านจาก Google Sheet ชีต `data` ชุดเก่า ถูกแทนที่ด้วย `backend/live-gas/` แล้ว (`.clasp.json` ในนี้ชี้ไปโปรเจกต์เก่า อย่า `clasp push` จากโฟลเดอร์นี้)
+- `backend-mirror/` — สำเนา `Code.gs`/`config.gs` ที่เคยต้องแก้คู่กับ `backend/live-gas/` ให้ตรงกัน แต่ `Code.gs` ตามไม่ทันมานานแล้ว (ไม่มีระบบ พขร./ซิงค์อัตโนมัติ/กฎพิเศษ) จึงเลิกใช้ ให้แก้ที่ `backend/live-gas/` อย่างเดียว
+- `netlify/` — config ของ Netlify สมัยที่หน้าเว็บยังอยู่บน Netlify ปัจจุบันใช้ Cloudflare Pages (`tools/deploy-cloudflare.sh`)
+- `docs-netlify-era/` — checklist การ release สมัย Netlify + Apps Script ที่ root
+- `backup_fine_P'BOY/` — backup สคริปต์ debt-tracker รุ่นแรกสุด (`html.txt` ตั้งชื่อผิด เป็นโค้ด Apps Script ไม่ใช่ HTML)
+- `Dashboard ยอดค้างปรับพขร/` — สแนปช็อตเก่าของหน้า/สคริปต์ ยอดค้างปรับ พขร.
+- `code for fine database.txt` — สคริปต์ "เมนูรวมข้อมูล" ของไฟล์เดือน (รุ่นเก่า ยังมี J&T และอ่านคอลัมน์ตามตำแหน่ง) ใช้อ้างอิงตรรกะสถานะ รอปรับ/ปรับได้/ปรับไม่ได้ เท่านั้น

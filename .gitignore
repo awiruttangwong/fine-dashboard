@@ -10,3 +10,6 @@ Thumbs.db
 Data *.xlsx
 backend/live-gas/Code.js
 backend/live-gas/config.js
+
+# xlsx-comparison: ไฟล์ข้อมูลจริงสำหรับทดสอบในเครื่องเท่านั้น ห้ามขึ้น git
+xlsx-comparison/*.xlsx
