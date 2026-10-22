@@ -573,6 +573,7 @@ const FineData = (() => {
       customerBreakdown: {},
       dailyTrend: {},
       driverCounts: {},
+      driverItems: {},
       routeGroupCounts: {},
       routeStatusCounts: {},
       paymentStatusCounts: {},
@@ -606,6 +607,10 @@ const FineData = (() => {
 
       const driverKey = row.driver_name || '(ไม่ระบุ)';
       result.driverCounts[driverKey] = (result.driverCounts[driverKey] || 0) + 1;
+      (result.driverItems[driverKey] = result.driverItems[driverKey] || []).push({
+        kind: 'other', date: row.fine_date, month: row.effective_month_key, customer: row.customer,
+        detail: row.reason || row.route_raw || '', amount: row.fine_amount || 0, paid: row.paid_amount || 0
+      });
       result.routeGroupCounts[row.route_group] = (result.routeGroupCounts[row.route_group] || 0) + 1;
       result.routeStatusCounts[row.route_status] = (result.routeStatusCounts[row.route_status] || 0) + 1;
       result.paymentStatusCounts[row.payment_status] = (result.paymentStatusCounts[row.payment_status] || 0) + 1;
@@ -633,6 +638,11 @@ const FineData = (() => {
     getFilteredDebtRows(selectedMonth).forEach(row => {
       const driverKey = row.driver_name || '(ไม่ระบุ)';
       result.driverCounts[driverKey] = (result.driverCounts[driverKey] || 0) + 1;
+      (result.driverItems[driverKey] = result.driverItems[driverKey] || []).push({
+        kind: 'noshow', date: row.start_date_iso, month: row.month_label, customer: row.customer,
+        detail: row.reason || row.route || '', amount: row.total || 0, paid: row.paid || 0,
+        collectible: row.collectible !== 'ปรับไม่ได้'
+      });
 
       if (!row.start_date_iso) return;
       if (!result.dailyTrend[row.start_date_iso]) result.dailyTrend[row.start_date_iso] = { count: 0, fineTotal: 0, debtTotal: 0, debtCount: 0 };

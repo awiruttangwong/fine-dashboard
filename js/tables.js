@@ -582,7 +582,7 @@ const Tables = (() => {
       <div class="table-card" id="table-card-content">
         ${renderReceiverSummary(currentSummaryGroups, {
           tabId: SUMMARY_TAB,
-          title: 'รายการปรับ',
+          title: 'รายการค่าปรับอื่นๆ',
           rowCountLabel: 'รายการปรับ',
           rowCountValue: summaryItemCount,
           summaryNote: 'รายการปรับจากสาเหตุ ค่ายยกเลิก ตกเวลาต้นทาง ตกเวลาปลายทาง ไม่ใช้แอพ และอื่นๆ',

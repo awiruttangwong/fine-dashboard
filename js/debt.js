@@ -266,19 +266,21 @@ const DebtTracker = (() => {
     // แค่พลิก flag) ยอด balance ที่เคยถูกหักออกจึงไหลกลับเข้ายอดรวมโดยอัตโนมัติเมื่อ re-render
     // แสดง hint "หักปรับไม่ได้ออกแล้ว" เฉพาะตอนที่มีการหักจริง (มี balance ของกลุ่ม
     // ปรับไม่ได้ > 0) — ถ้าไม่มีก็ไม่ต้องบอก เพราะยอดที่แสดงเท่ากับผลรวมดิบอยู่แล้ว
-    const nonCollectibleBalance = sum(no, 'balance');
-    const deductedHint = nonCollectibleBalance > 0 ? ' <span class="stat-card__metric-hint">(หัก "ปรับไม่ได้" ออกแล้ว)</span>' : '';
+    // (เปลี่ยนแล้ว) การ์ดแรกแสดง "ค่าปรับทั้งหมด" เต็มจำนวน ไม่หักปรับไม่ได้ออก — ตามที่ผู้ใช้กำหนด
+    // = ปรับได้ (ยอดเต็ม: ชำระแล้ว + คงเหลือ) + ปรับไม่ได้ (คงเหลือ) — สูตรเดียวกับการ์ด
+    // "ค่าปรับรถไม่เข้ารับงาน · ค่าปรับทั้งหมด" หน้าหลัก (kpi.js debt-total) ตัวเลขจึงตรงกันเสมอ
+    const grandTotal = sum(yes, 'paid') + sum(yes, 'balance') + sum(no, 'balance');
     el.innerHTML = `
       <div class="stat-card">
         <div class="stat-card__head">
           <div class="stat-card__title">
             <span class="stat-card__icon stat-card__icon--accent"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12.83 2.18a2 2 0 0 0-1.66 0L2.6 6.08a1 1 0 0 0 0 1.83l8.58 3.91a2 2 0 0 0 1.66 0l8.58-3.9a1 1 0 0 0 0-1.83Z"/><path d="m22 17.65-9.17 4.16a2 2 0 0 1-1.66 0L2 17.65"/><path d="m22 12.65-9.17 4.16a2 2 0 0 1-1.66 0L2 12.65"/></svg></span>
-            ยอดปรับรวม
+            ค่าปรับทั้งหมด
           </div>
           <span class="pill pill--muted">${all.length} รายการ</span>
         </div>
         <div class="stat-card__metrics stat-card__metrics--single">
-          <div><span class="stat-card__metric-label">ค่าปรับรวมทั้งหมด${deductedHint}</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(sum(all, 'total') - nonCollectibleBalance)} ฿</span></div>
+          <div><span class="stat-card__metric-label">ค่าปรับทั้งหมดของรถไม่เข้ารับงาน (ปรับได้ + ปรับไม่ได้)</span><span class="stat-card__metric-value stat-card__metric-value--accent">${num(grandTotal)} ฿</span></div>
         </div>
       </div>
       <div class="stat-card stat-card--clickable" data-scroll-target="debt-group-yes" role="button" tabindex="0">
@@ -290,7 +292,7 @@ const DebtTracker = (() => {
           <span class="pill pill--green">${yes.length} รายการ</span>
         </div>
         <div class="stat-card__metrics">
-          <div><span class="stat-card__metric-label">ค่าปรับคงเหลือ</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(yes, 'balance'))} ฿</span></div>
+          <div><span class="stat-card__metric-label">กำลังผ่อน</span><span class="stat-card__metric-value stat-card__metric-value--danger">${num(sum(yes, 'balance'))} ฿</span></div>
           <div><span class="stat-card__metric-label">ค่าปรับชำระแล้ว</span><span class="stat-card__metric-value stat-card__metric-value--success">${num(sum(yes, 'paid'))} ฿</span></div>
         </div>
       </div>

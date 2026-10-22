@@ -603,14 +603,19 @@ const Charts = (() => {
     });
   }
 
-  // ── 3. Top 10 Drivers (Redesigned — Professional list style) ──
+  // ── 3. สถิติค่าปรับรายพนักงานขับรถ (ทุกคน · ค้นหา · เรียงตามครั้ง/ยอด · กดดูรายละเอียด) ──
   // ชื่อคนจริง: มีตัวอักษร (ไทย/อังกฤษ) อย่างน้อย 3 ตัว และไม่มีตัวเลขเลย — ทะเบียนรถ/รหัส
   // ทุกแบบที่พบในข้อมูลมีตัวเลขเสมอ ส่วนชื่อคนไม่มี · ตัดค่าว่าง/ขีด/(ไม่ระบุ) ออกด้วย
   function isDriverPersonName(name) {
     if (!name || name === '-' || name === '(ไม่ระบุ)') return false;
+    // ชีต Drivers (รถไม่เข้ารับงาน) ใช้คำเหล่านี้กรอกแทนชื่อผู้รับโอนเมื่อไม่มีคนรับผิดชอบ
+    if (name === 'ปรับไม่ได้' || name === 'ลูกค้าละเว้น') return false;
     if (/\d/.test(name)) return false;
     return (name.match(/[ก-ฮa-zA-Z]/g) || []).length >= 3;
   }
+
+  // สถานะของการ์ด พขร. (คงไว้ข้ามการ render ใหม่ เช่นตอนเปลี่ยนเดือน)
+  const driverListState = { sort: 'count', query: '', drivers: [] };
 
   function renderTopDrivers(aggregates) {
     const container = document.getElementById('chart-top-drivers-list');
@@ -620,54 +625,150 @@ const Charts = (() => {
     // "ฒฉ2301", "3ฒอ1105", "70-7910", "732938" — ไม่ใช่ชื่อ พขร. จึงไม่นำมาจัดอันดับ
     // และรวมชื่อเดียวกันที่เว้นวรรคต่างกัน (เช่น "ธนนท์    บรรดาศักดิ") เป็นคนเดียว
     const merged = {};
-    Object.entries(aggregates.driverCounts).forEach(([raw, count]) => {
+    Object.entries(aggregates.driverItems || {}).forEach(([raw, items]) => {
       const name = String(raw || '').replace(/\s+/g, ' ').trim();
       if (!isDriverPersonName(name)) return;
-      merged[name] = (merged[name] || 0) + count;
+      (merged[name] = merged[name] || []).push(...items);
     });
-    const sorted = Object.entries(merged)
-      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
-      .slice(0, 10);
+    driverListState.drivers = Object.entries(merged).map(([name, items]) => ({
+      name,
+      items,
+      count: items.length,
+      amount: items.reduce((s, it) => s + (it.amount || 0), 0),
+      noshow: items.filter(it => it.kind === 'noshow').length,
+      other: items.filter(it => it.kind === 'other').length,
+      months: new Set(items.map(it => it.month).filter(Boolean)).size
+    }));
+    bindDriverControls();
+    drawDriverList();
+  }
 
-    if (sorted.length === 0) {
+  function bindDriverControls() {
+    const search = document.getElementById('driver-search');
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = '1';
+      search.addEventListener('input', () => { driverListState.query = search.value.trim(); drawDriverList(); });
+    }
+    document.querySelectorAll('[data-driver-sort]').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => { driverListState.sort = btn.dataset.driverSort; drawDriverList(); });
+    });
+    const list = document.getElementById('chart-top-drivers-list');
+    if (list && !list.dataset.bound) {
+      list.dataset.bound = '1';
+      list.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-driver]');
+        if (item) openDriverDetail(item.dataset.driver);
+      });
+    }
+  }
+
+  const baht = v => `฿${Math.round(v || 0).toLocaleString('th-TH')}`;
+
+  function drawDriverList() {
+    const container = document.getElementById('chart-top-drivers-list');
+    const summary = document.getElementById('driver-summary');
+    const badge = document.getElementById('driver-count-badge');
+    const { sort, query } = driverListState;
+    document.querySelectorAll('[data-driver-sort]').forEach(btn => btn.classList.toggle('is-active', btn.dataset.driverSort === sort));
+
+    const key = sort === 'amount' ? 'amount' : 'count';
+    const ranked = driverListState.drivers.slice().sort((a, b) =>
+      b[key] - a[key] || b.count - a.count || a.name.localeCompare(b.name, 'th'));
+    const total = ranked.length;
+    const repeat = ranked.filter(d => d.count >= 2).length;
+
+    if (badge) badge.textContent = total ? `${total} คน` : '';
+    if (summary) {
+      summary.innerHTML = total ? `
+        <span><strong>${total}</strong> คนถูกปรับ</span>
+        <span><strong>${repeat}</strong> คนถูกปรับซ้ำ</span>` : '';
+    }
+
+    if (total === 0) {
       setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่มีข้อมูล พขร. ที่ถูกปรับสำหรับเดือนนี้</div></div>`);
       return;
     }
 
-    const maxCount = sorted[0][1];
+    const q = query.toLowerCase();
+    const shown = ranked.map((d, i) => ({ d, rank: i + 1 })).filter(({ d }) => !q || d.name.toLowerCase().includes(q));
+    if (shown.length === 0) {
+      setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่พบชื่อ "${escapeHtml(query)}"</div></div>`);
+      return;
+    }
 
-    const html = sorted.map(([name, count], i) => {
-      const pct = (count / maxCount) * 100;
-      const rank = i + 1;
-      const color = i === 0
-        ? '#0071E3'
-        : i === 1
-          ? '#2C78D6'
-          : i === 2
-            ? '#5A9BE8'
-            : '#C7C7CC';
-      const rankBg = i === 0
-        ? 'background:#0071E3;color:#fff'
-        : i === 1
-          ? 'background:#2C78D6;color:#fff'
-          : i === 2
-            ? 'background:#5A9BE8;color:#fff'
-            : 'background:#F0F0F2;color:#6E6E73';
+    const max = ranked[0][key] || 1;
+    const html = shown.map(({ d, rank }) => {
+      const color = ['#0071E3', '#2C78D6', '#5A9BE8'][rank - 1] || '#C7C7CC';
+      const rankStyle = rank <= 3 ? `background:${color};color:#fff` : 'background:#F0F0F2;color:#6E6E73';
+      const chip = (kind, label) => `<span class="driver-chip driver-chip--${kind}"><i></i>${label}</span>`;
+      const parts = [];
+      if (d.noshow) parts.push(chip('noshow', 'รถไม่เข้ารับงาน'));
+      if (d.other) parts.push(chip('other', 'ค่าปรับอื่นๆ'));
+      const primary = key === 'amount'
+        ? baht(d.amount)
+        : `${d.count} <span class="driver-rank-item__count-label">ครั้ง</span>`;
+      const secondary = key === 'amount' ? `${d.count} ครั้ง` : baht(d.amount);
       return `
-        <div class="driver-rank-item">
-          <div class="driver-rank-item__rank" style="${rankBg}">${rank}</div>
+        <button type="button" class="driver-rank-item driver-rank-item--clickable" data-driver="${escapeHtml(d.name)}">
+          <div class="driver-rank-item__rank" style="${rankStyle}">${rank}</div>
           <div class="driver-rank-item__info">
-            <div class="driver-rank-item__name">${escapeHtml(name)}</div>
+            <div class="driver-rank-item__name">${escapeHtml(d.name)}</div>
+            <div class="driver-rank-item__meta">${parts.join('')}</div>
             <div class="driver-rank-item__bar-track">
-              <div class="driver-rank-item__bar-fill" style="width:${pct}%;background:${color}"></div>
+              <div class="driver-rank-item__bar-fill" style="width:${(d[key] / max) * 100}%;background:${color}"></div>
             </div>
           </div>
-          <div class="driver-rank-item__count">${count} <span class="driver-rank-item__count-label">ครั้ง</span></div>
-        </div>
-      `;
+          <div class="driver-rank-item__count">${primary}<div class="driver-rank-item__sub">${secondary}</div></div>
+        </button>`;
     }).join('');
-
     setContainerHtml(container, html);
+  }
+
+  function openDriverDetail(name) {
+    const d = driverListState.drivers.find(x => x.name === name);
+    if (!d) return;
+    const rows = d.items.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map(it => `
+      <tr>
+        <td>${escapeHtml(it.date || '-')}</td>
+        <td><span class="driver-kind driver-kind--${it.kind}">${it.kind === 'noshow' ? 'รถไม่เข้ารับงาน' : 'ค่าปรับอื่นๆ'}</span>${it.kind === 'noshow' && !it.collectible ? ' <span class="driver-kind driver-kind--muted">ปรับไม่ได้</span>' : ''}</td>
+        <td>${escapeHtml(it.customer || '-')}</td>
+        <td class="driver-detail__wrap">${escapeHtml(it.detail || '-')}</td>
+        <td class="num">${baht(it.amount)}</td>
+        <td class="num">${baht(it.paid)}</td>
+      </tr>`).join('');
+    const paid = d.items.reduce((s, it) => s + (it.paid || 0), 0);
+    openListModal(escapeHtml(d.name), [
+      ['จำนวนครั้ง', d.count], ['ยอดค่าปรับ', baht(d.amount)], ['ชำระแล้ว', baht(paid)], ['คงเหลือ', baht(d.amount - paid)]
+    ], '<th>วันที่</th><th>ประเภท</th><th>ลูกค้า</th><th>รายละเอียด</th><th class="num">ยอด</th><th class="num">ชำระ</th>', rows);
+  }
+
+  // popup รายละเอียด (ใช้ร่วมกันระหว่างการ์ด พขร. และการ์ดเส้นทาง) — titleHtml ต้อง escape มาแล้ว
+  function openListModal(titleHtml, stats, theadHtml, rowsHtml) {
+    const ov = document.createElement('div');
+    ov.className = 'debt-modal-overlay';
+    ov.innerHTML = `
+      <div class="debt-modal debt-modal--lg">
+        <div class="debt-modal__head"><h5>${titleHtml}</h5><button class="debt-modal__x" aria-label="ปิด">×</button></div>
+        <div class="debt-modal__body">
+          <div class="driver-detail__stats">
+            ${stats.map(([label, value]) => `<div><span>${label}</span><strong>${value}</strong></div>`).join('')}
+          </div>
+          <div class="driver-detail__table-wrap">
+            <table class="driver-detail__table">
+              <thead><tr>${theadHtml}</tr></thead>
+              <tbody>${rowsHtml}</tbody>
+            </table>
+          </div>
+        </div>
+      </div>`;
+    document.body.appendChild(ov);
+    const onKey = e => { if (e.key === 'Escape') close(); };
+    const close = () => { ov.remove(); document.removeEventListener('keydown', onKey); };
+    document.addEventListener('keydown', onKey);
+    ov.querySelector('.debt-modal__x').onclick = close;
+    ov.onclick = e => { if (e.target === ov) close(); };
   }
 
   // ── 4. Route Group Distribution (Doughnut) ──
@@ -861,7 +962,9 @@ const Charts = (() => {
     }
   }
 
-  // ── 7. Full Route Table (NEW — shows complete route strings) ──
+  // ── 7. รายละเอียดเส้นทางทั้งหมด (ค้นหา · เรียงตามครั้ง/ยอด · กดดูรายละเอียด) ──
+  const routeListState = { sort: 'count', query: '', routes: [] };
+
   function renderFullRoutes(filteredData, selectedMonth) {
     const container = document.getElementById('route-detail-list');
     if (!container) return;
@@ -874,11 +977,13 @@ const Charts = (() => {
       const route = normRoute(row.route_raw);
       if (!route) return;
       if (!routeCounts[route]) {
-        routeCounts[route] = { route, vehicle: row.vehicle_type || '', isDebt: false, count: 0, totalFine: 0 };
+        routeCounts[route] = { route, vehicle: row.vehicle_type || '', isDebt: false, items: [] };
       }
       if (!routeCounts[route].vehicle && row.vehicle_type) routeCounts[route].vehicle = row.vehicle_type;
-      routeCounts[route].count++;
-      routeCounts[route].totalFine += Number(row.fine_amount) || 0;
+      routeCounts[route].items.push({
+        date: row.fine_date, driver: row.driver_name, customer: row.customer,
+        amount: Number(row.fine_amount) || 0, paid: Number(row.paid_amount) || 0
+      });
     });
 
     // รวมเส้นทางจากค่าปรับรถไม่เข้ารับงานเข้าลิสต์เดียวกัน — คีย์แยกด้วย prefix
@@ -892,39 +997,128 @@ const Charts = (() => {
       if (!routeCounts[key]) {
         // ประเภทรถอ่านจากรหัสเส้นทาง (เช่น FD-4W-... → 4W) แบบเดียวกับค่าปรับปกติ ถ้าอ่านไม่ได้ไม่แสดง
         const vehicle = (route.match(/(?:^|-)(\d+W(?:J|\d+(?:\.\d+)?)?)(?=-|$)/i) || [])[1] || '';
-        routeCounts[key] = { route, vehicle: vehicle.toUpperCase(), isDebt: true, count: 0, totalFine: 0 };
+        routeCounts[key] = { route, vehicle: vehicle.toUpperCase(), isDebt: true, items: [] };
       }
-      routeCounts[key].count++;
-      routeCounts[key].totalFine += Number(row.total) || 0;
+      routeCounts[key].items.push({
+        date: row.start_date_iso, driver: row.driver_name, customer: row.customer,
+        amount: Number(row.total) || 0, paid: Number(row.paid) || 0
+      });
     });
 
-    // เรียงตามจำนวนครั้ง แล้วตามยอดเงิน (เดิมจำนวนเท่ากันลำดับสุ่มตามลำดับข้อมูล)
-    const sorted = Object.values(routeCounts).sort((a, b) => b.count - a.count || b.totalFine - a.totalFine);
+    routeListState.routes = Object.entries(routeCounts).map(([key, r]) => ({
+      ...r,
+      key,
+      count: r.items.length,
+      totalFine: r.items.reduce((s, it) => s + it.amount, 0),
+      customers: [...new Set(r.items.map(it => it.customer).filter(Boolean))],
+      drivers: new Set(r.items.map(it => String(it.driver || '').replace(/\s+/g, ' ').trim()).filter(isDriverPersonName)).size
+    }));
+    bindRouteControls();
+    drawRouteList();
+  }
 
-    if (sorted.length === 0) {
+  function bindRouteControls() {
+    const search = document.getElementById('route-search');
+    if (search && !search.dataset.bound) {
+      search.dataset.bound = '1';
+      search.addEventListener('input', () => { routeListState.query = search.value.trim(); drawRouteList(); });
+    }
+    document.querySelectorAll('[data-route-sort]').forEach(btn => {
+      if (btn.dataset.bound) return;
+      btn.dataset.bound = '1';
+      btn.addEventListener('click', () => { routeListState.sort = btn.dataset.routeSort; drawRouteList(); });
+    });
+    const list = document.getElementById('route-detail-list');
+    if (list && !list.dataset.bound) {
+      list.dataset.bound = '1';
+      list.addEventListener('click', (e) => {
+        const item = e.target.closest('[data-route-key]');
+        if (item) openRouteDetail(item.dataset.routeKey);
+      });
+    }
+  }
+
+  function drawRouteList() {
+    const container = document.getElementById('route-detail-list');
+    const summary = document.getElementById('route-summary');
+    const badge = document.getElementById('route-count-badge');
+    const { sort, query } = routeListState;
+    document.querySelectorAll('[data-route-sort]').forEach(btn => btn.classList.toggle('is-active', btn.dataset.routeSort === sort));
+
+    const key = sort === 'amount' ? 'totalFine' : 'count';
+    const ranked = routeListState.routes.slice().sort((a, b) =>
+      b[key] - a[key] || b.count - a.count || b.totalFine - a.totalFine);
+    const total = ranked.length;
+    const repeat = ranked.filter(r => r.count >= 2).length;
+    const noshow = ranked.filter(r => r.isDebt).length;
+
+    if (badge) badge.textContent = total ? `${total} เส้นทาง` : '';
+    if (summary) {
+      summary.innerHTML = total ? `
+        <span><strong>${total}</strong> เส้นทางถูกปรับ</span>
+        <span><strong>${repeat}</strong> เส้นทางถูกปรับซ้ำ</span>
+        ${noshow ? `<span><strong>${noshow}</strong> เส้นทางรถไม่เข้ารับงาน</span>` : ''}` : '';
+    }
+
+    if (total === 0) {
       setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่มีข้อมูลเส้นทางสำหรับเดือนนี้</div></div>`);
       return;
     }
 
-    const html = sorted.map(r => {
+    const q = query.toLowerCase();
+    const shown = ranked.filter(r => !q || r.route.toLowerCase().includes(q) || r.customers.some(c => c.toLowerCase().includes(q)));
+    if (shown.length === 0) {
+      setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่พบเส้นทาง "${escapeHtml(query)}"</div></div>`);
+      return;
+    }
+
+    const max = ranked[0][key] || 1;
+    const html = shown.map(r => {
       // แสดงเฉพาะประเภทรถ (ถ้ามี) — ไม่แสดงสถานะเส้นทาง RO/RS1/RS2 แล้ว
       // เส้นทางจากค่าปรับรถไม่เข้ารับงานมีป้ายบอกที่มาเพิ่ม (ยอดเป็นยอดหนี้ พขร. ไม่ใช่ค่าปรับปกติ)
-      const metaTags = `${r.vehicle ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : ''}${r.isDebt ? '<span class="route-meta-tag route-meta-tag--debt">รถไม่เข้ารับงาน</span>' : ''}`;
+      const metaTags = [
+        r.vehicle ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : '',
+        r.isDebt ? '<span class="route-meta-tag route-meta-tag--debt">รถไม่เข้ารับงาน</span>' : '',
+        r.customers.length ? `<span class="route-detail-row__info">${escapeHtml(r.customers.join(', '))}</span>` : '',
+        r.drivers ? `<span class="route-detail-row__info">${r.drivers} พขร.</span>` : ''
+      ].join('');
+      const primary = key === 'totalFine'
+        ? `${formatCurrency(r.totalFine)}`
+        : `${r.count} <small>ครั้ง</small>`;
+      const secondary = key === 'totalFine' ? `${r.count} ครั้ง` : formatCurrency(r.totalFine);
       return `
-        <div class="route-detail-row">
+        <button type="button" class="route-detail-row route-detail-row--clickable" data-route-key="${escapeHtml(r.key)}">
           <div class="route-detail-row__route">
             <code class="route-detail-row__path">${escapeHtml(r.route)}</code>
-            ${metaTags ? `<div class="route-detail-row__meta">${metaTags}</div>` : ''}
+            <div class="route-detail-row__meta">${metaTags}</div>
+            <div class="route-detail-row__bar"><div style="width:${(r[key] / max) * 100}%;background:${r.isDebt ? '#FF9500' : '#0071E3'}"></div></div>
           </div>
           <div class="route-detail-row__stats">
-            <span class="route-detail-row__count">${r.count} <small>ครั้ง</small></span>
-            <span class="route-detail-row__fine">${formatCurrency(r.totalFine)}</span>
+            <span class="route-detail-row__count">${primary}</span>
+            <span class="route-detail-row__fine">${secondary}</span>
           </div>
-        </div>
-      `;
+        </button>`;
     }).join('');
 
     setContainerHtml(container, html);
+  }
+
+  function openRouteDetail(key) {
+    const r = routeListState.routes.find(x => x.key === key);
+    if (!r) return;
+    const rows = r.items.slice().sort((a, b) => String(b.date || '').localeCompare(String(a.date || ''))).map(it => `
+      <tr>
+        <td>${escapeHtml(it.date || '-')}</td>
+        <td class="driver-detail__wrap">${escapeHtml(it.driver || '-')}</td>
+        <td>${escapeHtml(it.customer || '-')}</td>
+        <td class="num">${baht(it.amount)}</td>
+        <td class="num">${baht(it.paid)}</td>
+      </tr>`).join('');
+    const paid = r.items.reduce((s, it) => s + it.paid, 0);
+    const title = `<code class="route-detail-row__path">${escapeHtml(r.route)}</code>${r.isDebt ? ' <span class="route-meta-tag route-meta-tag--debt">รถไม่เข้ารับงาน</span>' : ''}`;
+    openListModal(title, [
+      ['จำนวนครั้ง', r.count], ['ยอดค่าปรับ', baht(r.totalFine)], ['ชำระแล้ว', baht(paid)], ['คงเหลือ', baht(r.totalFine - paid)]
+    ], '<th>วันที่</th><th>พขร.</th><th>ลูกค้า</th><th class="num">ยอด</th><th class="num">ชำระ</th>', rows);
   }
 
   // ── Public API ──

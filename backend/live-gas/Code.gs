@@ -965,6 +965,8 @@ function buildDebtRowsForDashboard_(driverRows) {
   return driverRows.map(function(row) {
     return {
       month_label: row.month_label,
+      driver_name: row.receiver_name,
+      reason: row.reason,
       route: row.route,
       total: row.total || 0,
       paid: row.paid || 0,
