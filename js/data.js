@@ -621,6 +621,7 @@ const FineData = (() => {
     result.installment = getInstallmentSummary(selectedMonth);
     result.debtGrandTotal = getDebtGrandTotalSummary(selectedMonth);
     result.nonCollectibleDebt = getNonCollectibleDebtSummary(selectedMonth);
+    result.debtCustomerBreakdown = getDebtCustomerBreakdown(selectedMonth);
     result.driverStatusCounts = getDriverStatusCounts(selectedMonth);
 
     // ผสานค่าปรับรถไม่เข้ารับงานเข้ากับข้อมูลค่าปรับปกติ — วนแถวหนี้รอบเดียวทำ 2 อย่าง
@@ -698,6 +699,23 @@ const FineData = (() => {
     // เฉยๆ) ใช้ตัดสินใจว่าจะโชว์ hint "(หัก ... ออกแล้ว)" หรือไม่ — ให้ที่มาตรงกับ
     // การ์ด "ยอดปรับรวมทั้งหมด" ในหน้าโมดูล debt (debt.js:renderSummary) เป๊ะ
     return { amount, count: rows.length, deducted };
+  }
+
+  // ยอดค่าปรับรถไม่เข้ารับงานแยกตามลูกค้า (วงโดนัท "ค่าปรับตามลูกค้า (รถไม่เข้ารับงาน)")
+  // ต่อแถวคิดเหมือนการ์ด "ค่าปรับรถไม่เข้ารับงาน · ค่าปรับทั้งหมด" (kpi.js debt-total) เป๊ะ:
+  //   ปรับได้+กำลังผ่อน → คงเหลือ (balance) · ปรับได้+ชำระครบ → ยอดที่จ่าย (paid)
+  //   ปรับไม่ได้ → คงเหลือ (balance) — ผลรวมทุกลูกค้าจึงเท่ากับตัวเลขบนการ์ดเสมอ
+  function getDebtCustomerBreakdown(selectedMonth) {
+    const out = {};
+    getFilteredDebtRows(selectedMonth).forEach(row => {
+      const name = String(row.customer || '').trim().toUpperCase() || 'ไม่ระบุ';
+      let amount;
+      if (row.collectible === 'ปรับไม่ได้') amount = row.balance || 0;
+      else if (row.status === 'กำลังผ่อน') amount = row.balance || 0;
+      else amount = row.paid || 0;
+      out[name] = (out[name] || 0) + amount;
+    });
+    return out;
   }
 
   // ยอด พขร. กลุ่ม "ปรับไม่ได้" (ตัดหนี้สูญ) — แยกจากยอดผ่อนชำระข้างบนเสมอ

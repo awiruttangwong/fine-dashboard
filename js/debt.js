@@ -35,7 +35,7 @@ const DebtTracker = (() => {
   }
 
   const esc = (s) => String(s == null ? '' : s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
-  const num = (n) => Number(n || 0).toLocaleString('th-TH');
+  const num = (n) => Number(n || 0).toLocaleString('th-TH', { maximumFractionDigits: 0 }); // แสดงเป็นบาทเต็ม (ยอดบางแถวมีเศษสตางค์ เช่น 22,018.83)
   const monthThai = (label) => { const n = Number(String(label).replace(/[^0-9]/g, '')); return THAI_MONTHS[n - 1] || label; };
   const currentMonthLabel = () => 'M' + ((window.FineData && FineData.nowInThailand ? FineData.nowInThailand() : new Date()).getMonth() + 1);
   const monthFromId = (id) => { const m = String(id || '').match(/^D-(\d+)-/); return m ? 'M' + m[1] : (state.month !== 'all' ? state.month : currentMonthLabel()); };

@@ -468,7 +468,7 @@ const App = (() => {
     `).join('');
 
     const kpiGrandGrid = document.getElementById('kpi-grand-grid');
-    if (kpiGrandGrid) kpiGrandGrid.innerHTML = buildKpiSkeleton(4);
+    if (kpiGrandGrid) kpiGrandGrid.innerHTML = buildKpiSkeleton(5);
 
     const kpiGridFine = document.getElementById('kpi-grid-fine');
     if (kpiGridFine) kpiGridFine.innerHTML = buildKpiSkeleton(4);

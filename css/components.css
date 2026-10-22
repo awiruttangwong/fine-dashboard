@@ -93,6 +93,7 @@
 [data-kpi="installment-done"] .kpi-card,
 [data-kpi="non-collectible"] .kpi-card,
 [data-kpi="grand-total"] .kpi-card,
+[data-kpi="grand-collectible"] .kpi-card,
 [data-kpi="grand-paid"] .kpi-card,
 [data-kpi="grand-remaining"] .kpi-card,
 [data-kpi="grand-uncollectible"] .kpi-card {
@@ -108,6 +109,7 @@
 [data-kpi="installment-done"] .kpi-card { --kpi-accent: #34C759; }
 [data-kpi="non-collectible"] .kpi-card  { --kpi-accent: #FF3B30; }
 [data-kpi="grand-total"] .kpi-card      { --kpi-accent: #FF3B30; }
+[data-kpi="grand-collectible"] .kpi-card { --kpi-accent: #0071E3; }
 [data-kpi="grand-paid"] .kpi-card       { --kpi-accent: #34C759; }
 [data-kpi="grand-remaining"] .kpi-card  { --kpi-accent: #FF9500; }
 [data-kpi="grand-uncollectible"] .kpi-card { --kpi-accent: #FF3B30; }
@@ -121,6 +123,7 @@
 [data-kpi="installment-done"]:hover .kpi-card,
 [data-kpi="non-collectible"]:hover .kpi-card,
 [data-kpi="grand-total"]:hover .kpi-card,
+[data-kpi="grand-collectible"]:hover .kpi-card,
 [data-kpi="grand-paid"]:hover .kpi-card,
 [data-kpi="grand-remaining"]:hover .kpi-card,
 [data-kpi="grand-uncollectible"]:hover .kpi-card {
@@ -265,6 +268,7 @@
 [data-kpi="installment-done"] .kpi-card__value-suffix       { color: #34C759; }
 [data-kpi="non-collectible"] .kpi-card__value-suffix        { color: #FF3B30; }
 [data-kpi="grand-total"] .kpi-card__value-suffix            { color: #FF3B30; }
+[data-kpi="grand-collectible"] .kpi-card__value-suffix      { color: #0071E3; }
 [data-kpi="grand-paid"] .kpi-card__value-suffix             { color: #34C759; }
 [data-kpi="grand-remaining"] .kpi-card__value-suffix        { color: #FF7000; }
 [data-kpi="grand-uncollectible"] .kpi-card__value-suffix    { color: #FF3B30; }
@@ -354,6 +358,11 @@
   background: rgba(255, 59, 48, 0.06);
   border-color: rgba(255, 59, 48, 0.18);
   color: #c0392b;
+}
+[data-kpi="grand-collectible"] .kpi-card__detail:not(:empty) {
+  background: rgba(0, 113, 227, 0.06);
+  border-color: rgba(0, 113, 227, 0.18);
+  color: #0058B0;
 }
 [data-kpi="grand-paid"] .kpi-card__detail:not(:empty) {
   background: rgba(52, 199, 89, 0.06);

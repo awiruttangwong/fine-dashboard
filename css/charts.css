@@ -415,6 +415,11 @@
   letter-spacing: 0.01em;
 }
 
+.route-meta-tag--debt {
+  background: rgba(255, 59, 48, 0.08);
+  color: #D70015;
+}
+
 .route-meta-tag--status {
   background: var(--color-accent-light);
   color: var(--color-accent);

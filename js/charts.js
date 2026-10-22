@@ -522,84 +522,111 @@ const Charts = (() => {
 
 
 
-  // ── 2. Fine by Customer (Doughnut) ──
-  function renderCustomerChart(aggregates) {
-    const canvas = document.getElementById('chart-customer');
+  // สีประจำลูกค้า (คงที่ ไม่ขึ้นกับอันดับยอด) — วงค่าปรับอื่นๆ กับวงรถไม่เข้ารับงานวางคู่กัน
+  // ลูกค้าเดียวกันต้องเป็นสีเดียวกันทั้งสองวงถึงจะเทียบกันได้ · ลูกค้าใหม่ที่ไม่มีในรายการใช้สีสำรอง
+  const CUSTOMER_COLORS = { FLASH: COLORS.blue, SPX: COLORS.orange, KEX: COLORS.purple, BEST: COLORS.teal, 'J&T': COLORS.red, SGT: COLORS.green };
+  const FALLBACK_CUSTOMER_COLORS = [COLORS.indigo, COLORS.pink, COLORS.mint, COLORS.yellow, COLORS.gray];
+  function customerColor(name, i) {
+    return CUSTOMER_COLORS[String(name).toUpperCase()] || FALLBACK_CUSTOMER_COLORS[i % FALLBACK_CUSTOMER_COLORS.length];
+  }
+
+  // วงโดนัทสัดส่วนตามลูกค้า ใช้ร่วมกันทั้งค่าปรับอื่นๆ และรถไม่เข้ารับงาน · entries = [[ลูกค้า, ยอด], ...]
+  function renderCustomerDoughnut({ canvasId, legendId, chartKey, entries, emptyText }) {
+    const canvas = document.getElementById(canvasId);
     if (!canvas) return;
 
-    const entries = Object.entries(aggregates.customerBreakdown).sort((a, b) => b[1].fineTotal - a[1].fineTotal);
-    const labels = entries.map(([name]) => name);
-    const data = entries.map(([, v]) => v.fineTotal);
-    const colors = [COLORS.blue, COLORS.orange, COLORS.purple, COLORS.teal];
+    const sorted = entries.filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1]);
+    const labels = sorted.map(([name]) => name);
+    const data = sorted.map(([, v]) => v);
+    const colors = sorted.map(([name], i) => customerColor(name, i));
     const total = data.reduce((a, b) => a + b, 0);
+    const tooltipLabel = (tooltipCtx) => ` ${tooltipCtx.label}: ${formatCurrency(tooltipCtx.raw)} (${total > 0 ? ((tooltipCtx.raw / total) * 100).toFixed(1) : '0.0'}%)`;
 
-    const existingChart = chartInstances['customerChart'];
+    const existingChart = chartInstances[chartKey];
     if (existingChart) {
       existingChart.data.labels = labels;
       existingChart.data.datasets[0].data = data;
-      existingChart.data.datasets[0].backgroundColor = colors.slice(0, labels.length);
-      existingChart.options.plugins.tooltip.callbacks = {
-        label: (tooltipCtx) => ` ${tooltipCtx.label}: ${formatCurrency(tooltipCtx.raw)} (${total > 0 ? ((tooltipCtx.raw / total) * 100).toFixed(1) : '0.0'}%)`
-      };
-      existingChart.options.plugins.doughnutCenterText = {
-        total: formatCurrency(total),
-        label: 'ยอดรวม'
-      };
+      existingChart.data.datasets[0].backgroundColor = colors;
+      existingChart.options.plugins.tooltip.callbacks = { label: tooltipLabel };
+      existingChart.options.plugins.doughnutCenterText = { total: formatCurrency(total), label: 'ยอดรวม' };
       existingChart.update('none');
     } else {
-      chartInstances['customerChart'] = new Chart(canvas.getContext('2d'), {
-      type: 'doughnut',
-      data: {
-        labels,
-        datasets: [{
-          data,
-          backgroundColor: colors.slice(0, labels.length),
-          borderWidth: 0
-        }]
-      },
-      plugins: [doughnutFocusPlugin, doughnutCenterText],
-      options: {
-        ...baseOptions,
-        ...DOUGHNUT_HOVER,
-        cutout: '72%',
-        plugins: {
-          ...baseOptions.plugins,
-          tooltip: {
-            ...baseOptions.plugins.tooltip,
-            callbacks: {
-              label: (ctx) => ` ${ctx.label}: ${formatCurrency(ctx.raw)} (${((ctx.raw / total) * 100).toFixed(1)}%)`
-            }
-          },
-          doughnutCenterText: {
-            total: formatCurrency(total),
-            label: 'ยอดรวม'
+      chartInstances[chartKey] = new Chart(canvas.getContext('2d'), {
+        type: 'doughnut',
+        data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0 }] },
+        plugins: [doughnutFocusPlugin, doughnutCenterText],
+        options: {
+          ...baseOptions,
+          ...DOUGHNUT_HOVER,
+          cutout: '72%',
+          plugins: {
+            ...baseOptions.plugins,
+            tooltip: { ...baseOptions.plugins.tooltip, callbacks: { label: tooltipLabel } },
+            doughnutCenterText: { total: formatCurrency(total), label: 'ยอดรวม' }
           }
         }
-      }
       });
     }
 
-    const legendEl = document.getElementById('legend-customer');
+    const legendEl = document.getElementById(legendId);
     if (legendEl) {
-      const legendHtml = entries.map(([name, v], i) => `
+      const legendHtml = sorted.length
+        ? sorted.map(([name, v], i) => `
         <div class="chart-legend__item">
           <span class="chart-legend__color" style="background:${colors[i]}"></span>
           ${escapeHtml(name)}
-          <span class="chart-legend__value">${formatCurrency(v.fineTotal)}</span>
+          <span class="chart-legend__value">${formatCurrency(v)}</span>
         </div>
-      `).join('');
+      `).join('')
+        : `<div class="chart-legend__item">${escapeHtml(emptyText)}</div>`;
       setLegendItems(legendEl, legendHtml);
     }
   }
 
+  // ── 2. Fine by Customer (Doughnut) — ค่าปรับอื่นๆ ──
+  function renderCustomerChart(aggregates) {
+    renderCustomerDoughnut({
+      canvasId: 'chart-customer', legendId: 'legend-customer', chartKey: 'customerChart',
+      entries: Object.entries(aggregates.customerBreakdown).map(([name, v]) => [name, v.fineTotal]),
+      emptyText: 'ไม่มีค่าปรับอื่นๆในช่วงที่เลือก'
+    });
+  }
+
+  // ── 2b. Fine by Customer (Doughnut) — ค่าปรับรถไม่เข้ารับงาน ──
+  // ยอดต่อลูกค้าคิดแบบเดียวกับการ์ด "ค่าปรับรถไม่เข้ารับงาน · ค่าปรับทั้งหมด"
+  // (data.js debtCustomerBreakdown) ยอดรวมกลางวงจึงเท่ากับการ์ดนั้นเสมอ
+  function renderDebtCustomerChart(aggregates) {
+    renderCustomerDoughnut({
+      canvasId: 'chart-debt-customer', legendId: 'legend-debt-customer', chartKey: 'debtCustomerChart',
+      entries: Object.entries(aggregates.debtCustomerBreakdown || {}),
+      emptyText: 'ไม่มีค่าปรับรถไม่เข้ารับงานในช่วงที่เลือก'
+    });
+  }
+
   // ── 3. Top 10 Drivers (Redesigned — Professional list style) ──
+  // ชื่อคนจริง: มีตัวอักษร (ไทย/อังกฤษ) อย่างน้อย 3 ตัว และไม่มีตัวเลขเลย — ทะเบียนรถ/รหัส
+  // ทุกแบบที่พบในข้อมูลมีตัวเลขเสมอ ส่วนชื่อคนไม่มี · ตัดค่าว่าง/ขีด/(ไม่ระบุ) ออกด้วย
+  function isDriverPersonName(name) {
+    if (!name || name === '-' || name === '(ไม่ระบุ)') return false;
+    if (/\d/.test(name)) return false;
+    return (name.match(/[ก-ฮa-zA-Z]/g) || []).length >= 3;
+  }
+
   function renderTopDrivers(aggregates) {
     const container = document.getElementById('chart-top-drivers-list');
     if (!container) return;
 
-    const sorted = Object.entries(aggregates.driverCounts)
-      .filter(([name]) => name !== '(ไม่ระบุ)')
-      .sort((a, b) => b[1] - a[1])
+    // ช่อง "ชื่อ" ในชีตลูกค้าบางเจ้า (KEX/BEST/SGT/SPX) มักกรอกเป็นทะเบียนรถหรือรหัส เช่น
+    // "ฒฉ2301", "3ฒอ1105", "70-7910", "732938" — ไม่ใช่ชื่อ พขร. จึงไม่นำมาจัดอันดับ
+    // และรวมชื่อเดียวกันที่เว้นวรรคต่างกัน (เช่น "ธนนท์    บรรดาศักดิ") เป็นคนเดียว
+    const merged = {};
+    Object.entries(aggregates.driverCounts).forEach(([raw, count]) => {
+      const name = String(raw || '').replace(/\s+/g, ' ').trim();
+      if (!isDriverPersonName(name)) return;
+      merged[name] = (merged[name] || 0) + count;
+    });
+    const sorted = Object.entries(merged)
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0], 'th'))
       .slice(0, 10);
 
     if (sorted.length === 0) {
@@ -777,6 +804,9 @@ const Charts = (() => {
     // "รายการ" เหมือนกับการ์ด KPI อื่นๆ ที่ใช้ตัวเลขชุดเดียวกัน (activeCases/
     // doneCases/totalCases ล้วนแปะป้าย "รายการ" ทั้งหมด)
     const labelUnit = () => 'รายการ';
+    // กลางวง: จำนวนรายการทั้งหมด (ทุกสถานะรวมกัน) — วงนี้นับเป็นรายการ ไม่ใช่ยอดเงิน
+    const totalCount = data.reduce((a, b) => a + b, 0);
+    const centerText = { total: new Intl.NumberFormat('th-TH').format(totalCount), label: 'รายการทั้งหมด' };
 
     const existingChart = chartInstances['paymentStatus'];
     if (existingChart) {
@@ -786,6 +816,7 @@ const Charts = (() => {
       existingChart.options.plugins.tooltip.callbacks = {
         label: (tooltipCtx) => ` ${tooltipCtx.label}: ${tooltipCtx.raw} ${labelUnit(tooltipCtx.label)}`
       };
+      existingChart.options.plugins.doughnutCenterText = centerText;
       existingChart.update('none');
     } else {
       chartInstances['paymentStatus'] = new Chart(canvas.getContext('2d'), {
@@ -798,13 +829,14 @@ const Charts = (() => {
           borderWidth: 0
         }]
       },
-      plugins: [doughnutFocusPlugin],
+      plugins: [doughnutFocusPlugin, doughnutCenterText],
       options: {
         ...baseOptions,
         ...DOUGHNUT_HOVER,
         cutout: '68%',
         plugins: {
           ...baseOptions.plugins,
+          doughnutCenterText: centerText,
           tooltip: {
             ...baseOptions.plugins.tooltip,
             callbacks: {
@@ -834,23 +866,19 @@ const Charts = (() => {
     const container = document.getElementById('route-detail-list');
     if (!container) return;
 
-    // Group by route_raw and count
+    // Group by route (ตัดช่องว่างหน้า/หลัง/ซ้ำ ให้ " FSOCW1" กับ "FSOCW1" เป็นเส้นทางเดียวกัน)
+    // แถวที่ไม่มีเส้นทางไม่นำมาแสดง (เดิมขึ้นเป็นแถวว่าง) · ยอดว่างนับเป็น 0 ไม่ให้รวมเป็น NaN
+    const normRoute = (v) => String(v || '').replace(/\s+/g, ' ').trim();
     const routeCounts = {};
     filteredData.forEach(row => {
-      if (!routeCounts[row.route_raw]) {
-        routeCounts[row.route_raw] = {
-          route: row.route_raw,
-          group: row.route_group,
-          vehicle: row.vehicle_type || '-',
-          time: row.route_time || '-',
-          status: row.route_status,
-          isDebt: false,
-          count: 0,
-          totalFine: 0
-        };
+      const route = normRoute(row.route_raw);
+      if (!route) return;
+      if (!routeCounts[route]) {
+        routeCounts[route] = { route, vehicle: row.vehicle_type || '', isDebt: false, count: 0, totalFine: 0 };
       }
-      routeCounts[row.route_raw].count++;
-      routeCounts[row.route_raw].totalFine += row.fine_amount;
+      if (!routeCounts[route].vehicle && row.vehicle_type) routeCounts[route].vehicle = row.vehicle_type;
+      routeCounts[route].count++;
+      routeCounts[route].totalFine += Number(row.fine_amount) || 0;
     });
 
     // รวมเส้นทางจากค่าปรับรถไม่เข้ารับงานเข้าลิสต์เดียวกัน — คีย์แยกด้วย prefix
@@ -858,25 +886,20 @@ const Charts = (() => {
     // คนละความหมาย ไม่ควรถูกนับรวมเป็นแถวเดียวกัน) ยืนยันแล้วว่าเป็นข้อมูลคนละชุดกับ
     // ค่าปรับปกติเสมอ จึงนับจำนวน/รวมยอดแยกกันได้โดยไม่ทับซ้อน
     FineData.getFilteredDebtRows(selectedMonth).forEach(row => {
-      if (!row.route) return;
-      const key = 'debt:' + row.route;
+      const route = normRoute(row.route);
+      if (!route || route === '-') return;
+      const key = 'debt:' + route;
       if (!routeCounts[key]) {
-        routeCounts[key] = {
-          route: row.route,
-          group: null,
-          vehicle: '-',
-          time: '-',
-          status: null,
-          isDebt: true,
-          count: 0,
-          totalFine: 0
-        };
+        // ประเภทรถอ่านจากรหัสเส้นทาง (เช่น FD-4W-... → 4W) แบบเดียวกับค่าปรับปกติ ถ้าอ่านไม่ได้ไม่แสดง
+        const vehicle = (route.match(/(?:^|-)(\d+W(?:J|\d+(?:\.\d+)?)?)(?=-|$)/i) || [])[1] || '';
+        routeCounts[key] = { route, vehicle: vehicle.toUpperCase(), isDebt: true, count: 0, totalFine: 0 };
       }
       routeCounts[key].count++;
-      routeCounts[key].totalFine += row.total || 0;
+      routeCounts[key].totalFine += Number(row.total) || 0;
     });
 
-    const sorted = Object.values(routeCounts).sort((a, b) => b.count - a.count);
+    // เรียงตามจำนวนครั้ง แล้วตามยอดเงิน (เดิมจำนวนเท่ากันลำดับสุ่มตามลำดับข้อมูล)
+    const sorted = Object.values(routeCounts).sort((a, b) => b.count - a.count || b.totalFine - a.totalFine);
 
     if (sorted.length === 0) {
       setContainerHtml(container, `<div class="empty-state"><div class="empty-state__text">ไม่มีข้อมูลเส้นทางสำหรับเดือนนี้</div></div>`);
@@ -884,16 +907,14 @@ const Charts = (() => {
     }
 
     const html = sorted.map(r => {
-      const metaTags = r.isDebt
-        ? `<span class="route-meta-tag">ค่าปรับรถไม่เข้ารับงาน</span>`
-        : `${r.vehicle !== '-' ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : ''}${r.status && r.status !== 'needs_review' ? `<span class="route-meta-tag route-meta-tag--status">${escapeHtml(r.status)}</span>` : ''}`;
+      // แสดงเฉพาะประเภทรถ (ถ้ามี) — ไม่แสดงสถานะเส้นทาง RO/RS1/RS2 แล้ว
+      // เส้นทางจากค่าปรับรถไม่เข้ารับงานมีป้ายบอกที่มาเพิ่ม (ยอดเป็นยอดหนี้ พขร. ไม่ใช่ค่าปรับปกติ)
+      const metaTags = `${r.vehicle ? `<span class="route-meta-tag">${escapeHtml(r.vehicle)}</span>` : ''}${r.isDebt ? '<span class="route-meta-tag route-meta-tag--debt">รถไม่เข้ารับงาน</span>' : ''}`;
       return `
         <div class="route-detail-row">
           <div class="route-detail-row__route">
             <code class="route-detail-row__path">${escapeHtml(r.route)}</code>
-            <div class="route-detail-row__meta">
-              ${metaTags}
-            </div>
+            ${metaTags ? `<div class="route-detail-row__meta">${metaTags}</div>` : ''}
           </div>
           <div class="route-detail-row__stats">
             <span class="route-detail-row__count">${r.count} <small>ครั้ง</small></span>
@@ -924,6 +945,7 @@ const Charts = (() => {
   function renderAll(aggregates, filteredData, filters = {}) {
     safeRender('renderDailyTrend', () => renderDailyTrend(aggregates, filters.selectedMonth));
     safeRender('renderCustomerChart', () => renderCustomerChart(aggregates));
+    safeRender('renderDebtCustomerChart', () => renderDebtCustomerChart(aggregates));
     safeRender('renderTopDrivers', () => renderTopDrivers(aggregates));
     safeRender('renderPaymentStatus', () => renderPaymentStatus(aggregates));
     safeRender('renderFullRoutes', () => renderFullRoutes(filteredData || FineData.getAll(), filters.selectedMonth));

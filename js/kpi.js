@@ -152,11 +152,7 @@ const KPICards = (() => {
       format: formatCurrency,
       getDetail: (agg) => {
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
-        const errorCount = agg.paymentStatusCounts['data_error'] || 0;
-        const parts = [];
-        if (pendingCount > 0) parts.push(`${pendingCount} รายการรอปรับ`);
-        if (errorCount > 0) parts.push(`${errorCount} รายการต้องตรวจสอบ`);
-        return parts.join(' • ') || 'ไม่มีรายการที่รอปรับ';
+        return pendingCount > 0 ? `${pendingCount} รายการรอปรับ` : 'ไม่มีรายการที่รอปรับ';
       }
     },
     {
@@ -270,6 +266,14 @@ const KPICards = (() => {
     return fineRaw + debtRaw;
   };
   const grandPaidValue = (agg) => agg.paidCompletedAmount + agg.installment.doneAmount;
+  // คงเหลือ = รอปรับ (ค่าปรับอื่นๆ) + กำลังผ่อน (รถไม่เข้ารับงาน) — ใช้ร่วมกับการ์ด
+  // "ค่าปรับคงเหลือ" และ "ค่าปรับที่ปรับได้" ให้สองการ์ดคิดจากสูตรเดียวกันเสมอ
+  const grandRemainingValue = (agg) => {
+    const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
+    return pendingAmount + agg.installment.totalRemainingAmount;
+  };
+  const grandRemainingCount = (agg) => ((agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0) + (agg.installment.activeCases || 0);
+  const grandPaidCount = (agg) => ((agg.statusBreakdown && agg.statusBreakdown.paidCount) || 0) + (agg.installment.doneCases || 0);
 
   const grandConfigs = [
     {
@@ -326,6 +330,30 @@ const KPICards = (() => {
       }
     },
     {
+      // "ค่าปรับที่ปรับได้" = ยอดที่เรียกเก็บได้ (ชำระแล้ว + ยังคงเหลือรอเก็บ) ทั้ง 2 แหล่ง
+      // ไม่รวม "ปรับไม่ได้" — ผลรวมของการ์ด "ค่าปรับชำระแล้ว" + "ค่าปรับคงเหลือ" ถัดไปพอดี
+      id: 'grand-collectible',
+      label: 'ค่าปรับที่ปรับได้',
+      icon: ICONS.trendUp,
+      iconClass: 'kpi-card__icon--blue',
+      getValue: (agg) => grandPaidValue(agg) + grandRemainingValue(agg),
+      format: formatCurrency,
+      getDetail: (agg) => `จาก ${formatNumber(grandPaidCount(agg) + grandRemainingCount(agg))} รายการ`,
+      getBreakdown: (agg) => {
+        const paid = grandPaidValue(agg);
+        const remaining = grandRemainingValue(agg);
+        return {
+          title: 'ที่มาของค่าปรับที่ปรับได้',
+          totalLabel: 'ยอดค่าปรับที่ปรับได้ทั้งหมด',
+          rows: [
+            { label: 'ค่าปรับชำระแล้ว', hint: 'ค่าปรับอื่นๆชำระแล้ว + รถไม่เข้ารับงานชำระแล้ว', amount: paid, count: grandPaidCount(agg), tone: 'blue' },
+            { label: 'ค่าปรับคงเหลือ', hint: 'ค่าปรับรอชำระอื่นๆ + ผ่อนชำระรถไม่เข้ารับงาน', amount: remaining, count: grandRemainingCount(agg), tone: 'orange' }
+          ],
+          total: paid + remaining
+        };
+      }
+    },
+    {
       id: 'grand-paid',
       label: 'ค่าปรับชำระแล้ว',
       icon: ICONS.checkCircle,
@@ -364,16 +392,9 @@ const KPICards = (() => {
       label: 'ค่าปรับคงเหลือ',
       icon: ICONS.clock,
       iconClass: 'kpi-card__icon--orange',
-      getValue: (agg) => {
-        const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
-        return pendingAmount + agg.installment.totalRemainingAmount;
-      },
+      getValue: grandRemainingValue,
       format: formatCurrency,
-      getDetail: (agg) => {
-        const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
-        const activeCases = agg.installment.activeCases || 0;
-        return `จาก ${formatNumber(pendingCount + activeCases)} รายการ`;
-      },
+      getDetail: (agg) => `จาก ${formatNumber(grandRemainingCount(agg))} รายการ`,
       getBreakdown: (agg) => {
         const pendingAmount = (agg.statusBreakdown && agg.statusBreakdown.pendingAmount) || 0;
         const pendingCount = (agg.statusBreakdown && agg.statusBreakdown.pendingCount) || 0;
