@@ -23,6 +23,8 @@ const App = (() => {
     const dateEl = document.getElementById('sidebar-date');
     if (dateEl) dateEl.textContent = day + ' ' + month + ' ' + year;
 
+    initScrollCues(['chart-top-drivers-list', 'route-detail-list']);
+
     let allData = [];
     let filteredData = [];
     let aggregates = null;
@@ -602,6 +604,21 @@ const App = (() => {
         </div>
       `;
     }
+  }
+
+  // รายการที่เลื่อนในกล่องได้ (10 อันดับ พขร. / เส้นทาง) เห็นแค่ ~6 แถวแรก ไม่มีอะไรบอกว่ายังมี
+  // ต่อด้านล่าง — ติดคลาส has-more (ไล่สีจางที่ขอบล่าง) เมื่อยังเลื่อนลงได้ อัปเดตทั้งตอนเลื่อน
+  // และตอนเนื้อหาเปลี่ยน (เปลี่ยนตัวกรองแล้วรายการถูกเรนเดอร์ใหม่)
+  function initScrollCues(ids) {
+    ids.forEach((id) => {
+      const el = document.getElementById(id);
+      if (!el) return;
+      const update = () => el.classList.toggle('has-more', el.scrollTop + el.clientHeight < el.scrollHeight - 4);
+      el.addEventListener('scroll', update, { passive: true });
+      new MutationObserver(() => requestAnimationFrame(update)).observe(el, { childList: true, subtree: true });
+      window.addEventListener('resize', update);
+      update();
+    });
   }
 
   function escapeHtml(value) {

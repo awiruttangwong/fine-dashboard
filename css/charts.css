@@ -339,6 +339,13 @@
   transform: translateZ(0);
 }
 
+/* ยังเลื่อนลงได้ → จางที่ขอบล่างเป็นสัญญาณว่ามีรายการต่อ (คลาสติดโดย initScrollCues ใน app.js) */
+.ranking-scroll-list.has-more,
+.route-detail-list.has-more {
+  -webkit-mask-image: linear-gradient(to bottom, #000 82%, transparent);
+  mask-image: linear-gradient(to bottom, #000 82%, transparent);
+}
+
 .route-detail-row {
   display: flex;
   align-items: center;

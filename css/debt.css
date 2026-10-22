@@ -241,3 +241,14 @@ textarea.ef__input { resize: vertical; min-height: 64px; line-height: 1.5; }
 .debt-toast.is-show { opacity: 1; transform: translateX(-50%) translateY(0); }
 .debt-toast--error { background: var(--color-danger); }
 .debt-toast--success { background: var(--color-success); }
+
+/* มือถือ: ตารางกว้างกว่าจอ (เลื่อนแนวนอน) ข้อความ "ไม่มีรายการ" อยู่กลางความกว้างตาราง
+   จึงหลุดไปนอกจอ — ตรึงไว้ที่ขอบซ้ายและกว้างเท่าพื้นที่ที่มองเห็น ให้อยู่กลางจอเสมอ */
+@media (max-width: 640px) {
+  #debt-view .debt-empty {
+    position: sticky;
+    left: 0;
+    width: calc(100vw - 96px);
+    box-sizing: border-box;
+  }
+}

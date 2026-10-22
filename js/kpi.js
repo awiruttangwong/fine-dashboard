@@ -24,7 +24,7 @@ const KPICards = (() => {
   }
 
   function formatCurrency(num) {
-    return new Intl.NumberFormat('th-TH').format(num) + ' ฿';
+    return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(num) + ' ฿';
   }
 
   function formatPercent(num) {

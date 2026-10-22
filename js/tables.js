@@ -47,7 +47,7 @@ const Tables = (() => {
 
   function formatCurrency(val) {
     if (val === null || val === undefined) return '-';
-    return new Intl.NumberFormat('th-TH').format(val) + ' ฿';
+    return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(val) + ' ฿';
   }
 
   function isSettledOffset(fineAmount, remainingAmount) {
@@ -417,7 +417,7 @@ const Tables = (() => {
               ? `<tr><td colspan="${columns.length}" class="empty-state"><div class="empty-state__text">ไม่พบข้อมูลผู้รับโอนที่ตรงกับเงื่อนไข</div></td></tr>`
               : paginatedGroups.map(group => `
                   <tr class="summary-row" tabindex="0" role="button" data-detail-trigger="${escapeHtml(group.receiver_key)}" aria-label="เปิดรายละเอียด ${escapeHtml(group.receiver_label)}">
-                    ${columns.map(col => `<td class="${getColumnClass(col)}">${col.render(group)}</td>`).join('')}
+                    ${columns.map(col => `<td class="${getColumnClass(col)}" data-label="${col.label}">${col.render(group)}</td>`).join('')}
                   </tr>
                 `).join('')
             }

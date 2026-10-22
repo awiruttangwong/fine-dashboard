@@ -571,14 +571,10 @@
    perfectly centered in the 64px rail instead of sitting off-centre at a fixed
    left-padding, which is what made the previous version look unbalanced. */
 @media (min-width: 1025px) {
+  /* แถบเมนูขยายแบบ "ลอยทับ" เนื้อหา ไม่ดันเนื้อหาไปทางขวา — เดิม hover ทีไรทั้งหน้าเลื่อน
+     208px และกราฟทุกตัววาดใหม่ หน้ากระตุกทุกครั้งที่เมาส์ผ่านแถบซ้าย */
   .main {
     margin-left: var(--sidebar-width-collapsed);
-    transition: margin-left var(--transition-fast);
-  }
-
-  .sidebar:hover ~ .main,
-  .sidebar:focus-within ~ .main {
-    margin-left: var(--sidebar-width);
   }
 
   .sidebar {

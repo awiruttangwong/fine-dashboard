@@ -179,6 +179,9 @@ const Charts = (() => {
         return false;
       };
       const slotWidth = bars.length > 0 ? chartArea.width / bars.length : chartArea.width;
+      // แท่งแคบเกินกว่าจะวางป้ายได้โดยไม่ทับกัน (มือถือ / เดือนที่มีหลายวัน) — ไม่วาดป้าย
+      // ดูยอดได้จาก tooltip ตอนแตะแท่งแทน
+      if (slotWidth < 24) return;
       const isDenseLayout = slotWidth < 38;
       const topPadding = Number(chart.options?.layout?.padding?.top) || 0;
       const anchorTop = Math.max(chartArea.top - topPadding, 0);
@@ -274,7 +277,7 @@ const Charts = (() => {
   }
 
   function formatCurrency(val) {
-    return new Intl.NumberFormat('th-TH').format(val) + ' ฿';
+    return new Intl.NumberFormat('th-TH', { maximumFractionDigits: 0 }).format(val) + ' ฿';
   }
 
   function formatBarValueLabel(val, compact = false) {
@@ -374,17 +377,32 @@ const Charts = (() => {
     return `${day} ${monthLabel} ${yearBE}`;
   }
 
+  // เติมวันที่ไม่มีค่าปรับในเดือนที่เลือก (ยอด 0) ตั้งแต่วันที่ 1 ถึงวันล่าสุดที่มีข้อมูล ให้แกน x
+  // ต่อเนื่อง — เดิมข้ามวันที่ว่าง (เช่น 13 → 15) แท่งจึงชิดกันเหมือนวันติดกัน · วันที่นอก
+  // เดือนที่เลือก (แถวที่อยู่ชีตเดือนนี้แต่วันที่ย้อนหลัง) คงไว้ตามเดิม ไม่เติมช่วงว่างให้
+  function fillMissingDays(dates, selectedMonth) {
+    const month = /^\d{4}-\d{2}$/.test(selectedMonth || '') ? selectedMonth : null;
+    if (!month) return dates;
+    const inMonth = dates.filter(d => d.startsWith(month + '-'));
+    if (!inMonth.length) return dates;
+    const lastDay = Math.max(...inMonth.map(d => parseInt(d.slice(8, 10), 10)));
+    const filled = [];
+    for (let day = 1; day <= lastDay; day++) filled.push(`${month}-${String(day).padStart(2, '0')}`);
+    return [...new Set([...dates, ...filled])].sort();
+  }
+
   // ── 1. Daily Fine Trend (Bar + Premium Smooth Line) ──
   function renderDailyTrend(aggregates, selectedMonth) {
     const canvas = document.getElementById('chart-daily-trend');
     if (!canvas) return;
 
-    const dates = Object.keys(aggregates.dailyTrend).sort();
-    const fineAmounts = dates.map(d => aggregates.dailyTrend[d].fineTotal || 0);
-    const debtAmounts = dates.map(d => aggregates.dailyTrend[d].debtTotal || 0);
+    const dates = fillMissingDays(Object.keys(aggregates.dailyTrend).sort(), selectedMonth);
+    const dayData = (d) => aggregates.dailyTrend[d] || {};
+    const fineAmounts = dates.map(d => dayData(d).fineTotal || 0);
+    const debtAmounts = dates.map(d => dayData(d).debtTotal || 0);
     const amounts = dates.map((d, i) => fineAmounts[i] + debtAmounts[i]);
-    const counts = dates.map(d => aggregates.dailyTrend[d].count || 0);
-    const debtCounts = dates.map(d => aggregates.dailyTrend[d].debtCount || 0);
+    const counts = dates.map(d => dayData(d).count || 0);
+    const debtCounts = dates.map(d => dayData(d).debtCount || 0);
     const labels = dates.map(d => {
       const parts = d.split('-');
       const dayVal = parseInt(parts[2]);
@@ -467,12 +485,15 @@ const Charts = (() => {
             ticks: {
               font: { family: "'Prompt'", size: 11 },
               color: '#6E6E73',
-              autoSkip: false,
+              autoSkip: true,
+              autoSkipPadding: 6,
               maxRotation: 0,
               minRotation: 0,
               padding: 10,
+              // จอแคบ: แสดงแค่เลขวัน (ไม่ต่อชื่อเดือนบรรทัดสอง ซึ่งเคยติดกันเป็น "ต.ค.ต.ค.")
               callback: function (value) {
-                return this.getLabelForValue(value);
+                const label = this.getLabelForValue(value);
+                return this.chart.width < 640 && Array.isArray(label) ? label[0] : label;
               }
             },
             border: { display: false }

@@ -298,17 +298,16 @@
 
 .kpi-card__detail:not(:empty) {
   padding: 4px 10px;
-  border-radius: var(--radius-full);
   width: fit-content;
   max-width: 100%;
   border: 1px solid;
   font-weight: var(--font-weight-medium);
-  white-space: nowrap;
   letter-spacing: 0;
-  /* กันข้อความยาว (เช่น breakdown ของยอดปรับรวม) ล้นออกนอกการ์ดบนจอแคบ —
-     ตัดด้วย … แทนที่จะสปิลออกมาทับการ์ดอื่น */
-  overflow: hidden;
-  text-overflow: ellipsis;
+  /* ข้อความยาวกว่าการ์ด (เช่น "113 รายการรอปรับ • 35 รายการต้องตรวจสอบ") ขึ้นบรรทัดใหม่
+     แทนการตัดด้วย … ที่ทำให้อ่านไม่ครบ — radius 10px บรรทัดเดียวยังเป็นทรงแคปซูลเท่าเดิม */
+  white-space: normal;
+  border-radius: 10px;
+  line-height: 1.35;
 }
 
 [data-kpi="total-fine"] .kpi-card__detail:not(:empty) {

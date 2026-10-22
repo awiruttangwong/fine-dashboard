@@ -792,4 +792,61 @@ body.modal-open {
   .table-modal__summary {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
+
+  /* ตารางสรุปผู้รับโอนบนมือถือ: เดิมกว้าง ~1,100px ในจอ 360px คอลัมน์ยอดเงินหลุดขวาจนมองไม่เห็น
+     → แสดงเป็นการ์ดต่อแถว ชื่อ/ปุ่มอยู่บน ยอดเงิน 3 ช่องเรียงเป็นแถว "ชื่อคอลัมน์ : ยอด" */
+  .data-table--receiver-summary {
+    min-width: 0 !important;
+    table-layout: auto;
+  }
+
+  .data-table--receiver-summary colgroup,
+  .data-table--receiver-summary thead {
+    display: none;
+  }
+
+  .data-table--receiver-summary,
+  .data-table--receiver-summary tbody,
+  .data-table--receiver-summary tr.summary-row,
+  .data-table--receiver-summary tr.summary-row td {
+    display: block;
+    width: 100% !important;
+  }
+
+  .data-table--receiver-summary tr.summary-row {
+    padding: var(--space-3) var(--space-4);
+    border-bottom: 1px solid var(--color-border-light);
+  }
+
+  .data-table--receiver-summary tr.summary-row td {
+    padding: 0;
+    border: none;
+    text-align: left !important;
+  }
+
+  .data-table--receiver-summary tr.summary-row td[data-label]:not(:first-child) {
+    display: flex;
+    justify-content: space-between;
+    align-items: baseline;
+    padding: 4px 0;
+    font-size: var(--font-size-sm);
+  }
+
+  .data-table--receiver-summary tr.summary-row td[data-label]:not(:first-child)::before {
+    content: attr(data-label);
+    color: var(--color-text-muted);
+    font-size: var(--font-size-xs);
+  }
+
+  .data-table--receiver-summary tr.summary-row td:first-child {
+    margin-bottom: var(--space-2);
+  }
+
+  .table-card__summary-note {
+    overflow-wrap: anywhere;
+  }
+
+  .table-status-filter {
+    flex-wrap: wrap;
+  }
 }

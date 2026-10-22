@@ -722,6 +722,33 @@
 .comparison-yearly-table--monthly th:nth-child(7),
 .comparison-yearly-table--monthly td:nth-child(7) { width: 14%; }
 
+/* จอแคบ: 7 คอลัมน์บีบลงจอเดียวแล้วถูกตัดเป็น "…" ทุกช่อง (อ่านไม่ออก) → ให้ตารางมีความกว้าง
+   ขั้นต่ำแล้วเลื่อนแนวนอนใน .table-container แทน โดยคอลัมน์ "เดือน" ติดซ้ายไว้ให้รู้ว่าแถวไหน */
+@media (max-width: 900px) {
+  .comparison-yearly-table--monthly {
+    min-width: 880px !important;
+  }
+
+  .comparison-yearly-table--monthly th:first-child,
+  .comparison-yearly-table--monthly td:first-child {
+    position: sticky;
+    left: 0;
+    z-index: 1;
+    background: var(--color-surface, #fff);
+    box-shadow: 1px 0 0 var(--color-border-light);
+  }
+
+  .comparison-yearly-table--monthly thead th:first-child {
+    background: var(--color-bg);
+  }
+
+  /* ตารางสัดส่วนตามลูกค้า (4 คอลัมน์): หัวคอลัมน์ยาว เช่น "ค่าปรับชำระแล้ว" ถูกตัด "…"
+     บนมือถือ → กว้างขั้นต่ำพอให้หัวอ่านได้ครบ แล้วเลื่อนแนวนอนเหมือนตารางรายเดือน */
+  .comparison-yearly-table:not(.comparison-yearly-table--monthly) {
+    min-width: 520px !important;
+  }
+}
+
 .comparison-yearly-table th,
 .comparison-yearly-table td {
   padding: var(--space-3) var(--space-3);
@@ -878,6 +905,9 @@
 
 .comparison-yearly-table-card {
   min-height: 0;
+  /* เป็น grid item — min-width:auto ทำให้การ์ดยืดตามตารางที่กว้าง (จอแคบ) จนทั้งหน้าเลื่อน
+     แนวนอน ตั้ง 0 ให้การ์ดกว้างเท่าคอลัมน์ แล้วตารางเลื่อนใน .table-container แทน */
+  min-width: 0;
   overflow: visible;
 }
 

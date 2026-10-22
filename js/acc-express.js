@@ -208,9 +208,9 @@ const AccExpress = (() => {
           สรุปยอดรวมทั้งปี (${escHtml(y2026HeadingLabel)})
         </div>
         <div class="kpi-grid kpi-grid--grand">
-          ${kpiTile({ label: colLabel(0), value: cell(aoa, totalRowIdx, y2026Col), tone: 'blue', icon: ICONS.money, detail: 'ยอดที่ลูกค้าแจ้งปรับทั้งปี' })}
-          ${kpiTile({ label: colLabel(1), value: cell(aoa, totalRowIdx, y2026Col + 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดที่บัญชีเรียกเก็บได้จริง' })}
-          ${kpiTile({ label: colLabel(2), value: cell(aoa, totalRowIdx, y2026Col + 2), tone: 'red', icon: ICONS.ban, detail: 'ส่วนต่างที่เรียกเก็บไม่ได้' })}
+          ${kpiTile({ label: colLabel(0), value: cell(aoa, totalRowIdx, y2026Col), tone: 'blue', icon: ICONS.money, detail: 'ยอดลูกค้าแจ้งปรับทั้งปี' })}
+          ${kpiTile({ label: colLabel(1), value: cell(aoa, totalRowIdx, y2026Col + 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดบัญชีเก็บได้จริง' })}
+          ${kpiTile({ label: colLabel(2), value: cell(aoa, totalRowIdx, y2026Col + 2), tone: 'red', icon: ICONS.ban, detail: 'ส่วนต่างที่เก็บไม่ได้' })}
         </div>
       </div>
     `;
@@ -646,14 +646,14 @@ const AccExpress = (() => {
     let kpiSection = '';
     if (custBlock || expBlock) {
       const custCards = custBlock ? [
-        kpiTile({ label: cell(aoa, custBlock.startRow, 0), value: cell(aoa, custBlock.startRow, 1), tone: 'blue', icon: ICONS.money, detail: 'ยอดที่ลูกค้าแจ้งปรับเข้ามา' }),
-        kpiTile({ label: cell(aoa, custBlock.startRow + 1, 0), value: cell(aoa, custBlock.startRow + 1, 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดที่บัญชีเรียกเก็บได้จริง' }),
-        kpiTile({ label: cell(aoa, custBlock.startRow + 2, 0), value: cell(aoa, custBlock.startRow + 2, 1), tone: 'red', icon: ICONS.ban, detail: 'ส่วนต่างที่เรียกเก็บไม่ได้' })
+        kpiTile({ label: cell(aoa, custBlock.startRow, 0), value: cell(aoa, custBlock.startRow, 1), tone: 'blue', icon: ICONS.money, detail: 'ยอดลูกค้าแจ้งปรับ' }),
+        kpiTile({ label: cell(aoa, custBlock.startRow + 1, 0), value: cell(aoa, custBlock.startRow + 1, 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดบัญชีเก็บได้จริง' }),
+        kpiTile({ label: cell(aoa, custBlock.startRow + 2, 0), value: cell(aoa, custBlock.startRow + 2, 1), tone: 'red', icon: ICONS.ban, detail: 'ส่วนต่างที่เก็บไม่ได้' })
       ] : [];
       const expCards = expBlock ? [
-        kpiTile({ label: cell(aoa, expBlock.startRow, 0), value: cell(aoa, expBlock.startRow, 1), tone: 'purple', icon: ICONS.money, detail: 'ยอดที่ Express แจ้งปรับเข้ามา' }),
-        kpiTile({ label: cell(aoa, expBlock.startRow + 1, 0), value: cell(aoa, expBlock.startRow + 1, 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดที่บัญชีเรียกเก็บได้จริง' }),
-        kpiTile({ label: cell(aoa, expBlock.startRow + 2, 0), value: cell(aoa, expBlock.startRow + 2, 1), tone: 'orange', icon: ICONS.alertTriangle, detail: 'ส่วนต่างจากฝั่ง Express' })
+        kpiTile({ label: cell(aoa, expBlock.startRow, 0), value: cell(aoa, expBlock.startRow, 1), tone: 'purple', icon: ICONS.money, detail: 'ยอด Express แจ้งปรับ' }),
+        kpiTile({ label: cell(aoa, expBlock.startRow + 1, 0), value: cell(aoa, expBlock.startRow + 1, 1), tone: 'green', icon: ICONS.checkCircle, detail: 'ยอดบัญชีเก็บได้จริง' }),
+        kpiTile({ label: cell(aoa, expBlock.startRow + 2, 0), value: cell(aoa, expBlock.startRow + 2, 1), tone: 'orange', icon: ICONS.alertTriangle, detail: 'ส่วนต่างฝั่ง Express' })
       ] : [];
       kpiSection = `
         <div class="acc-kpi-scope acc-kpi-section">
@@ -737,19 +737,23 @@ const AccExpress = (() => {
   // ตารางหลักกว้างผันแปรตามจำนวนเดือน/ลูกค้า — ปล่อยให้มีขนาดธรรมชาติ (ไม่ตัดคำ)
   // แล้ววัดความกว้างจริงย่อด้วย transform:scale ให้พอดีการ์ดเสมอ (สเกลอัตโนมัติเมื่อ
   // มีคอลัมน์เพิ่มในอนาคต โดยไม่ต้องแก้โค้ด)
+  // ย่อได้ไม่ต่ำกว่า MIN_TABLE_SCALE (ตัวอักษร ~10–11px) — เดิมย่อไม่จำกัดจนตัวอักษรเหลือ ~8px
+  // บนจอโน้ตบุ๊ก และ ~2px บนมือถือ (อ่านไม่ได้) ถ้ายังกว้างกว่าการ์ดให้เลื่อนแนวนอนแทน
+  // ใช้ CSS zoom (ไม่ใช่ transform) เพื่อให้ขนาดที่ย่อแล้วมีผลกับ layout/scroll จริง
+  const MIN_TABLE_SCALE = 0.72;
   function fitWideTables() {
     if (!rootEl) return;
     rootEl.querySelectorAll('.acc-fit-wrap').forEach((wrap) => {
       const table = wrap.querySelector('table');
       if (!table) return;
       table.style.transform = 'none';
+      table.style.zoom = '1';
       table.style.width = 'max-content';
+      wrap.style.height = '';
       const naturalWidth = table.scrollWidth;
-      const naturalHeight = table.scrollHeight;
       const availWidth = wrap.clientWidth;
-      const scale = naturalWidth > availWidth ? availWidth / naturalWidth : 1;
-      table.style.transform = `scale(${scale})`;
-      wrap.style.height = `${naturalHeight * scale}px`;
+      const scale = naturalWidth > availWidth ? Math.max(availWidth / naturalWidth, MIN_TABLE_SCALE) : 1;
+      table.style.zoom = String(scale);
     });
   }
 

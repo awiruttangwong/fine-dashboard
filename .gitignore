@@ -13,3 +13,6 @@ backend/live-gas/config.js
 
 # xlsx-comparison: ไฟล์ข้อมูลจริงสำหรับทดสอบในเครื่องเท่านั้น ห้ามขึ้น git
 xlsx-comparison/*.xlsx
+
+# ไฟล์ import ที่ดาวน์โหลด/กรอกข้อมูลจริง ห้ามขึ้น git
+import-template*.xlsx
