@@ -57,7 +57,7 @@ const AccExpress = (() => {
       url.searchParams.set('ts', Date.now());
       const s = document.createElement('script');
       const t = setTimeout(() => { cleanup(); reject(new Error('หมดเวลารอ Apps Script')); }, TIMEOUT);
-      function cleanup() { clearTimeout(t); delete window[cb]; if (s.parentNode) s.parentNode.removeChild(s); }
+      function cleanup() { clearTimeout(t); window[cb] = function () {}; setTimeout(function () { try { delete window[cb]; } catch (e) {} }, 120000); if (s.parentNode) s.parentNode.removeChild(s); }
       window[cb] = (d) => { cleanup(); resolve(d); };
       s.onerror = () => { cleanup(); reject(new Error('เรียก endpoint ไม่สำเร็จ')); };
       s.src = url.toString();

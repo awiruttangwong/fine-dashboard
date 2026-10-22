@@ -128,7 +128,8 @@ const FineData = (() => {
 
       function cleanup() {
         clearTimeout(timer);
-        delete window[callbackName];
+        // คำตอบมาช้าหลังหมดเวลา → no-op ไว้ก่อน 2 นาที (เดิมลบทันทีทำให้เกิด ReferenceError)
+        window[callbackName] = function () {}; setTimeout(function () { try { delete window[callbackName]; } catch (e) {} }, 120000);
         if (script.parentNode) script.parentNode.removeChild(script);
       }
 
