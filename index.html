@@ -22,7 +22,7 @@
   <!-- CSS Design System -->
   <link rel="stylesheet" href="css/variables.css?v=20260814-6">
   <link rel="stylesheet" href="css/base.css?v=20260814-6">
-  <link rel="stylesheet" href="css/layout.css?v=20261022-1">
+  <link rel="stylesheet" href="css/layout.css?v=20261027-1">
   <link rel="stylesheet" href="css/components.css?v=20261022-1">
   <link rel="stylesheet" href="css/charts.css?v=20261022-5">
   <link rel="stylesheet" href="css/comparison.css?v=20261021-2">
@@ -77,6 +77,12 @@
 
       <!-- Module Switch -->
       <div class="sidebar__module-switch">
+        <button class="comparison-switch" id="other-fines-toggle" type="button" aria-pressed="false">
+          <span class="comparison-switch__label">ค่าปรับอื่นๆ</span>
+          <span class="comparison-switch__track" aria-hidden="true">
+            <span class="comparison-switch__thumb"></span>
+          </span>
+        </button>
         <button class="comparison-switch" id="driver-module-toggle" type="button" aria-pressed="false">
           <span class="comparison-switch__label">ค่าปรับรถไม่เข้ารับงาน</span>
           <span class="comparison-switch__track" aria-hidden="true">
@@ -235,7 +241,7 @@
               </div>
 
               <!-- Customer Doughnut — ค่าปรับรถไม่เข้ารับงาน -->
-              <div class="chart-card">
+              <div class="chart-card" id="card-debt-customer">
                 <div class="chart-card__header">
                   <div>
                     <div class="chart-card__title">ค่าปรับตามลูกค้า (รถไม่เข้ารับงาน)</div>
@@ -255,7 +261,7 @@
                 <div class="chart-card__header">
                   <div>
                     <div class="chart-card__title">สถานะการชำระเงิน</div>
-                    <div class="chart-card__subtitle">สัดส่วนสถานะการชำระทั้งหมด (รวมค่าปรับรถไม่เข้ารับงาน)</div>
+                    <div class="chart-card__subtitle" id="payment-status-subtitle">สัดส่วนสถานะการชำระทั้งหมด (รวมค่าปรับรถไม่เข้ารับงาน)</div>
                   </div>
                 </div>
                 <div class="chart-card__body">
@@ -377,15 +383,15 @@
 
   <!-- App Modules (order matters: data → kpi → filters → charts → tables → debt → app) -->
   <script src="js/api-config.js?v=20260814-6"></script>
-  <script src="js/data.js?v=20261022-4"></script>
-  <script src="js/kpi.js?v=20261022-1"></script>
+  <script src="js/data.js?v=20261027-1"></script>
+  <script src="js/kpi.js?v=20261027-1"></script>
   <script src="js/filters.js?v=20260828-1"></script>
-  <script src="js/charts.js?v=20261022-10"></script>
+  <script src="js/charts.js?v=20261027-2"></script>
   <script src="js/acc-express.js?v=20261022-1"></script>
   <script src="js/comparison.js?v=20260828-1"></script>
   <script src="js/tables.js?v=20261022-1"></script>
   <script src="js/debt.js?v=20261022-4"></script>
-  <script src="js/app.js?v=20261022-1"></script>
+  <script src="js/app.js?v=20261027-1"></script>
 </body>
 
 </html>

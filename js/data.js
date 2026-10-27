@@ -665,7 +665,13 @@ const FineData = (() => {
     return 'M' + monthNumber;
   }
 
+  // โหมด "ค่าปรับอื่นๆ อย่างเดียว" (toggle ในไซด์บาร์) — ทุกการคำนวณที่ใช้ข้อมูลรถไม่เข้า
+  // รับงาน (KPI, กราฟ, การ์ด พขร./เส้นทาง, ภาพรวมรายปี) ดึงผ่านฟังก์ชันนี้ที่เดียว
+  // คืนค่าว่างตรงนี้จึงตัดรถไม่เข้ารับงานออกครบทุกจุดพร้อมกัน ไม่ต้องไล่แก้ทีละที่
+  let otherFinesOnly = false;
+
   function getFilteredDebtRows(selectedMonth) {
+    if (otherFinesOnly) return [];
     const rows = (lastPayload && lastPayload.debt_rows) || [];
     const monthLabel = monthLabelFromSelectedMonth(selectedMonth);
     if (!monthLabel) return rows;
@@ -1111,6 +1117,8 @@ const FineData = (() => {
     getComparisonModel,
     getYearlyComparisonModel,
     getFilteredDebtRows,
+    setOtherFinesOnly: (value) => { otherFinesOnly = !!value; },
+    isOtherFinesOnly: () => otherFinesOnly,
     monthLabelFromSelectedMonth,
     getDuplicateBarcodeRows,
     getMismatchRows,

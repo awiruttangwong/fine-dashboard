@@ -560,6 +560,10 @@ const KPICards = (() => {
     const agg = aggregates || lastAgg;
     if (!agg || typeof config.getBreakdown !== 'function') return;
     const data = config.getBreakdown(agg);
+    if (typeof FineData !== 'undefined' && FineData.isOtherFinesOnly()) {
+      const isDebt = (text) => /รถไม่เข้ารับงาน/.test(text || '');
+      data.rows = data.rows.filter(r => !isDebt(r.label)).map(r => (isDebt(r.hint) ? { ...r, hint: '' } : r));
+    }
 
     const rowsHtml = data.rows.map(r => `
       <div class="kpi-bd__row kpi-bd__row--${r.tone || 'neutral'}">

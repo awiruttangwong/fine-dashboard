@@ -415,7 +415,9 @@ const Charts = (() => {
     if (subtitleEl) {
       const selectedMonthLabel = formatMonthLabel(selectedMonth || (dates[0] ? dates[0].slice(0, 7) : ''));
       if (dates.length > 0 && selectedMonthLabel) {
-        subtitleEl.textContent = `ยอดค่าปรับสะสมรายวัน ประจำเดือน${selectedMonthLabel} (รวมค่าปรับรถไม่เข้ารับงาน)`;
+        subtitleEl.textContent = FineData.isOtherFinesOnly()
+          ? `ยอดค่าปรับอื่นๆ สะสมรายวัน ประจำเดือน${selectedMonthLabel}`
+          : `ยอดค่าปรับสะสมรายวัน ประจำเดือน${selectedMonthLabel} (รวมค่าปรับรถไม่เข้ารับงาน)`;
       } else if (selectedMonthLabel) {
         subtitleEl.textContent = `ไม่มีข้อมูลสำหรับเดือน${selectedMonthLabel}`;
       } else {
@@ -741,7 +743,7 @@ const Charts = (() => {
     const paid = d.items.reduce((s, it) => s + (it.paid || 0), 0);
     openListModal(escapeHtml(d.name), [
       ['จำนวนครั้ง', d.count], ['ยอดค่าปรับ', baht(d.amount)], ['ชำระแล้ว', baht(paid)], ['คงเหลือ', baht(d.amount - paid)]
-    ], '<th>วันที่</th><th>ประเภท</th><th>ลูกค้า</th><th>รายละเอียด</th><th class="num">ยอด</th><th class="num">ชำระ</th>', rows);
+    ], '<th>วันที่</th><th>ประเภท</th><th>ลูกค้า</th><th>รายละเอียด</th><th class="num">ยอด</th><th class="num">ชำระแล้ว</th>', rows);
   }
 
   // popup รายละเอียด (ใช้ร่วมกันระหว่างการ์ด พขร. และการ์ดเส้นทาง) — titleHtml ต้อง escape มาแล้ว
@@ -883,6 +885,12 @@ const Charts = (() => {
       'ค่าปรับชำระแล้ว (รถไม่เข้ารับงาน)': COLORS.mint,
       'ปรับไม่ได้ (รถไม่เข้ารับงาน)': COLORS.orange
     };
+    const subtitleEl = document.getElementById('payment-status-subtitle');
+    if (subtitleEl) {
+      subtitleEl.textContent = FineData.isOtherFinesOnly()
+        ? 'สัดส่วนสถานะการชำระค่าปรับอื่นๆ'
+        : 'สัดส่วนสถานะการชำระทั้งหมด (รวมค่าปรับรถไม่เข้ารับงาน)';
+    }
     const breakdown = aggregates.statusBreakdown || {};
     const driverCounts = aggregates.driverStatusCounts || {};
     const counts = {
@@ -1118,7 +1126,7 @@ const Charts = (() => {
     const title = `<code class="route-detail-row__path">${escapeHtml(r.route)}</code>${r.isDebt ? ' <span class="route-meta-tag route-meta-tag--debt">รถไม่เข้ารับงาน</span>' : ''}`;
     openListModal(title, [
       ['จำนวนครั้ง', r.count], ['ยอดค่าปรับ', baht(r.totalFine)], ['ชำระแล้ว', baht(paid)], ['คงเหลือ', baht(r.totalFine - paid)]
-    ], '<th>วันที่</th><th>พขร.</th><th>ลูกค้า</th><th class="num">ยอด</th><th class="num">ชำระ</th>', rows);
+    ], '<th>วันที่</th><th>พขร.</th><th>ลูกค้า</th><th class="num">ยอด</th><th class="num">ชำระแล้ว</th>', rows);
   }
 
   // ── Public API ──

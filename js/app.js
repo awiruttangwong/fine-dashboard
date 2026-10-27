@@ -250,18 +250,52 @@ const App = (() => {
       if (active && sectionAccExpressEl) window.scrollTo({ top: 0, behavior: 'auto' });
     }
 
-    // โฟกัสโมดูลเดียวได้ทีละอัน — สลับไปอันหนึ่งต้องปิดอีกอันก่อนเสมอ ไม่งั้น CSS ของ
-    // 2 focus mode จะซ่อน section ของกันและกันพร้อมกัน (จอว่างเปล่าทั้งหมด)
+    // ── "ค่าปรับอื่นๆ" — หน้า dashboard หลักเดิมทั้งหน้า แต่ตัดรถไม่เข้ารับงานออกจาก
+    // ทุกตัวเลข (FineData.setOtherFinesOnly) แล้วซ่อนการ์ด/ส่วนที่เป็นของรถไม่เข้ารับงาน
+    // ล้วนๆ ด้วย CSS (body.fines-other-only) — ต้องคำนวณใหม่ทั้งหน้าทันที ไม่ใช่แค่ซ่อน
+    const otherFinesToggle = document.getElementById('other-fines-toggle');
+    let otherFinesActive = false;
+
+    function setOtherFinesActive(active) {
+      otherFinesActive = active;
+      if (otherFinesToggle) {
+        otherFinesToggle.classList.toggle('active', active);
+        otherFinesToggle.setAttribute('aria-pressed', String(active));
+      }
+      FineData.setOtherFinesOnly(active);
+      document.body.classList.toggle('fines-other-only', active);
+      if (isLoaded) renderCurrentState(Filters.getState(), { fullRender: true });
+      window.scrollTo({ top: 0, behavior: 'auto' });
+    }
+
+    // โฟกัสโมดูลเดียวได้ทีละอัน — สลับไปอันหนึ่งต้องปิดอันอื่นก่อนเสมอ ไม่งั้น CSS ของ
+    // หลาย focus mode จะซ่อน section ของกันและกันพร้อมกัน (จอว่างเปล่าทั้งหมด)
+    if (otherFinesToggle) {
+      otherFinesToggle.addEventListener('click', () => {
+        if (!otherFinesActive) {
+          if (driverModuleActive) setDriverModuleActive(false);
+          if (accExpressModuleActive) setAccExpressModuleActive(false);
+        }
+        setOtherFinesActive(!otherFinesActive);
+      });
+    }
+
     if (driverModuleToggle) {
       driverModuleToggle.addEventListener('click', () => {
-        if (!driverModuleActive && accExpressModuleActive) setAccExpressModuleActive(false);
+        if (!driverModuleActive) {
+          if (accExpressModuleActive) setAccExpressModuleActive(false);
+          if (otherFinesActive) setOtherFinesActive(false);
+        }
         setDriverModuleActive(!driverModuleActive);
       });
     }
 
     if (accExpressModuleToggle) {
       accExpressModuleToggle.addEventListener('click', () => {
-        if (!accExpressModuleActive && driverModuleActive) setDriverModuleActive(false);
+        if (!accExpressModuleActive) {
+          if (driverModuleActive) setDriverModuleActive(false);
+          if (otherFinesActive) setOtherFinesActive(false);
+        }
         setAccExpressModuleActive(!accExpressModuleActive);
       });
     }
@@ -404,9 +438,10 @@ const App = (() => {
     if (sectionDebtEl && !isDriverModuleFocused) sectionDebtEl.hidden = isComparisonMode;
 
     if (title) {
+      const otherOnly = typeof FineData !== 'undefined' && FineData.isOtherFinesOnly();
       title.textContent = isComparisonMode
-        ? 'ภาพรวมทั้งปี'
-        : 'รายงานสรุปและติดตามข้อมูลค่าปรับ';
+        ? (otherOnly ? 'ภาพรวมทั้งปี · ค่าปรับอื่นๆ' : 'ภาพรวมทั้งปี')
+        : (otherOnly ? 'ค่าปรับอื่นๆ' : 'รายงานสรุปและติดตามข้อมูลค่าปรับ');
     }
 
     if (subtitle) {

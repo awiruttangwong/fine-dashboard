@@ -725,3 +725,18 @@
     grid-template-columns: 1fr;
   }
 }
+
+/* ── โหมด "ค่าปรับอื่นๆ" (toggle ไซด์บาร์, body.fines-other-only) ──
+   ตัวเลขถูกตัดรถไม่เข้ารับงานออกที่ FineData แล้ว ตรงนี้แค่ซ่อนส่วนที่เป็นของรถไม่เข้า
+   รับงานล้วนๆ (ไม่งั้นจะเห็นการ์ด 0 บาท) และ "สรุปภาพรวม" ที่จะซ้ำกับการ์ดยอดรวมด้านบน */
+body.fines-other-only #section-debt,
+body.fines-other-only #section-kpi,
+body.fines-other-only #card-debt-customer,
+body.fines-other-only #yearly-section-kpi,
+body.fines-other-only .chart-metric-toggle__btn[data-metric-key^="installment"],
+body.fines-other-only .comparison-yearly-table--monthly th:nth-child(6),
+body.fines-other-only .comparison-yearly-table--monthly td:nth-child(6) { display: none !important; }
+body.fines-other-only .charts-grid--trio { grid-template-columns: repeat(2, 1fr); }
+@media (max-width: 768px) {
+  body.fines-other-only .charts-grid--trio { grid-template-columns: 1fr; }
+}
