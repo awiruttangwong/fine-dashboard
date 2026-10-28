@@ -124,7 +124,7 @@ function runCentralDataSync_() {
       });
       // สร้าง SUM/สถานะ จากชีตลูกค้าโดยตรง (ยอด = L, หาคอลัมน์จากหัวตาราง) แทนการคัดลอก
       // SUM ที่สคริปต์ในไฟล์เดือนสร้างตามตำแหน่งคอลัมน์ — ดู buildMonthRowsFromSources_
-      var built = buildMonthRowsFromSources_(sourceSs);
+      var built = buildMonthRowsFromSources_(sourceSs, source.label);
       writeBuiltWarehouseSheet_(ssCentral, 'SUM(' + source.label + ')', built.rows.SUM);
       var sumStatus = true;
       var statusResults = BACKEND_CONFIG.statusSheetNames.map(function(sheetType) {
@@ -275,8 +275,9 @@ function findHeaderIdx_(header, name, mode) {
   return -1;
 }
 
-function buildMonthRowsFromSources_(sourceSpreadsheet) {
+function buildMonthRowsFromSources_(sourceSpreadsheet, monthLabel) {
   var cfg = BACKEND_CONFIG.sourceBuild;
+  var blankAsPending = (cfg.blankPaymentAsPendingMonths || []).indexOf(monthLabel) !== -1;
   var out = { SUM: [], 'รอปรับ': [], 'ปรับได้': [], 'ปรับไม่ได้': [] };
   var notes = [];
   var claim = BACKEND_CONFIG.claimExclusion;
@@ -331,6 +332,7 @@ function buildMonthRowsFromSources_(sourceSpreadsheet) {
     if (!anyL) { amountIdx = idx.subFine; amountLabel = 'K (L ยังว่าง)'; }
     var excludeReasons = cfg.excludeReasons || [];
     var skippedReason = 0;
+    var blankFilled = 0;
     var noIdentifier = [];
 
     for (var r = 1; r < values.length; r++) {
@@ -358,13 +360,23 @@ function buildMonthRowsFromSources_(sourceSpreadsheet) {
         continue;
       }
       if (isExcludedCustomer_(row[1])) continue;
-      out.SUM.push(row);
-      count++;
 
       // สถานะ: ตรรกะเดิมของสคริปต์รายเดือน (เทียบกับ ปรับ ซัพ-พขร.)
       var fine = parseSheetAmount_(src[idx.subFine], disp[idx.subFine]);
       var paid = parseSheetAmount_(src[idx.paid], disp[idx.paid]);
       var remaining = parseSheetAmount_(src[idx.remaining], disp[idx.remaining]);
+      // ปรับได้/คงเหลือ ว่างทั้งคู่ (เดือนใน blankPaymentAsPendingMonths) → ปรับได้ 0 / คงเหลือ -K แบบเดือน 8
+      // (K ว่างด้วย → ใช้ยอดปรับของแถว)
+      if (blankAsPending && paid === null && remaining === null) {
+        if (fine === null || fine <= 0) fine = amount;
+        paid = 0;
+        remaining = -fine;
+        row[7] = 0;
+        row[8] = -fine;
+        blankFilled++;
+      }
+      out.SUM.push(row);
+      count++;
       var closeText = statusIdx >= 0 ? cleanText_(disp[statusIdx]) : '';
       var isZero = function(v) { return v === null || Math.abs(v) < 0.005; };
       var status = '';
@@ -376,6 +388,7 @@ function buildMonthRowsFromSources_(sourceSpreadsheet) {
       if (status) out[status].push(row.slice());
     }
     notes.push(sheetName + ' ' + amountLabel + ' ' + count + (skippedReason ? ' (ข้ามรถไม่เข้ารับงาน ' + skippedReason + ')' : '') +
+      (blankFilled ? ' (ปรับได้/คงเหลือว่าง→รอปรับ ' + blankFilled + ')' : '') +
       (noIdentifier.length ? ' (ข้ามแถวไม่มีวันที่/บาร์โค้ด/เส้นทาง/ชื่อ: ' + noIdentifier.join(', ') + ')' : ''));
   });
   return { rows: out, notes: notes };
